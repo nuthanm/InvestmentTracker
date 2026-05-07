@@ -8,6 +8,16 @@ import { inr, fmtDate, addMonths, computeMaturity, TYPE_META } from '@/lib/forma
 
 const TYPES = ['FD', 'MF', 'ST', 'GD', 'PPF', 'OT'];
 const PRESET_TYPES = ['Chit Fund', 'Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
+
+const TYPE_CHIP_LABEL = { FD: 'FD', MF: 'MF', ST: 'ST', GD: 'GD', PPF: 'PPF', OT: 'Other' };
+const TYPE_TOOLTIP = {
+  FD:  'Fixed Deposit — guaranteed returns at a fixed interest rate (banks / NBFCs)',
+  MF:  'Mutual Fund — market-linked pooled investment via SIP or lump sum',
+  ST:  'Stocks — direct equity shares in a listed company',
+  GD:  'Gold / SGB — physical gold, digital gold, or Sovereign Gold Bonds',
+  PPF: 'Public Provident Fund — 15-year government-backed tax-free savings scheme',
+  OT:  'Other — chit fund, crypto, real estate, NSC, or any custom investment type',
+};
 const TENURE_PRESETS = [
   { label: '3 mo', months: 3 },
   { label: '6 mo', months: 6 },
@@ -144,10 +154,16 @@ export default function NewInvestmentClient({ user, goals }) {
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Type<span className="text-danger ml-0.5">*</span></p>
             <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
               {TYPES.map((t) => (
-                <button key={t} type="button" onClick={() => setTypeCode(t)}
-                  className={`chip ${typeCode === t ? 'on' : ''}`}>
-                  {TYPE_META[t]?.short}
-                </button>
+                <div key={t} className="relative group">
+                  <button type="button" onClick={() => setTypeCode(t)}
+                    className={`chip w-full ${typeCode === t ? 'on' : ''}`}>
+                    {TYPE_CHIP_LABEL[t]}
+                  </button>
+                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-ink px-3 py-2 text-[11px] leading-snug text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 z-20 shadow-lg">
+                    {TYPE_TOOLTIP[t]}
+                    <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-ink" />
+                  </div>
+                </div>
               ))}
             </div>
             {typeCode === 'OT' && (
