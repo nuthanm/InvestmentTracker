@@ -239,8 +239,8 @@ export default function NewInvestmentClient({
             <label className="block text-xs text-ink-soft mb-2">Tenure<span className="text-danger ml-0.5">*</span></label>
             <div className="flex flex-wrap gap-2">
               {TENURE_PRESETS.map((p) => (
-                <button key={p.months} type="button" onClick={() => setTenureMode(String(p.months))}
-                  className={`chip ${tenureMode === String(p.months) ? 'on' : ''}`}>{p.label}</button>
+              <button key={p.months} type="button" onClick={() => setTenureMode(p.months)}
+                className={`chip ${tenureMode === p.months ? 'on' : ''}`}>{p.label}</button>
               ))}
               <button type="button" onClick={() => setTenureMode(CUSTOM_TENURE_MODE)}
                 className={`chip ${tenureMode === CUSTOM_TENURE_MODE ? 'on' : ''}`}>Custom</button>
