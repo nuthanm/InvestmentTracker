@@ -24,7 +24,7 @@ const TENURE_PRESETS = [
   { label: '12 mo', months: 12 },
   { label: '2 yr', months: 24 },
 ];
-const CUSTOM_TENURE_MODE = 'custom';
+const CUSTOM_TENURE_MODE = -1;
 
 async function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -36,11 +36,23 @@ async function fileToDataUrl(file) {
 }
 
 function getInitialTenureMode(initialInvestment) {
-  if (!initialInvestment) return '12';
+  if (!initialInvestment) return 12;
   const matchedPreset = !Number(initialInvestment.tenure_days)
     ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))
     : null;
-  return matchedPreset ? String(matchedPreset.months) : CUSTOM_TENURE_MODE;
+  return matchedPreset ? matchedPreset.months : CUSTOM_TENURE_MODE;
+}
+
+function getInitialCustomTenure(initialInvestment) {
+  if (!initialInvestment) {
+    return { years: 0, months: 9, days: 0 };
+  }
+
+  return {
+    years: Math.floor(Number(initialInvestment.tenure_months || 0) / 12),
+    months: Number(initialInvestment.tenure_months || 0) % 12,
+    days: Number(initialInvestment.tenure_days || 0),
+  };
 }
 
 export default function NewInvestmentClient({
@@ -52,6 +64,7 @@ export default function NewInvestmentClient({
 }) {
   const router = useRouter();
   const isEditing = mode === 'edit';
+  const initialCustomTenure = getInitialCustomTenure(initialInvestment);
   const startDate = useMemo(
     () => (initialInvestment?.start_date ? new Date(initialInvestment.start_date) : new Date()),
     [initialInvestment?.start_date]
@@ -62,9 +75,9 @@ export default function NewInvestmentClient({
   const [bank, setBank] = useState(initialInvestment?.bank || '');
   const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
   const [tenureMode, setTenureMode] = useState(getInitialTenureMode(initialInvestment));
-  const [customY, setCustomY] = useState(initialInvestment ? Math.floor(Number(initialInvestment.tenure_months || 0) / 12) : 0);
-  const [customM, setCustomM] = useState(initialInvestment ? Number(initialInvestment.tenure_months || 0) % 12 : 9);
-  const [customD, setCustomD] = useState(initialInvestment ? Number(initialInvestment.tenure_days || 0) : 0);
+  const [customY, setCustomY] = useState(initialCustomTenure.years);
+  const [customM, setCustomM] = useState(initialCustomTenure.months);
+  const [customD, setCustomD] = useState(initialCustomTenure.days);
   const [amount, setAmount] = useState(initialInvestment ? String(initialInvestment.amount) : '');
   const [ratePct, setRatePct] = useState(initialInvestment ? String(initialInvestment.rate_pct) : '');
   const [compounding, setCompounding] = useState(initialInvestment?.compounding || 'quarterly');
