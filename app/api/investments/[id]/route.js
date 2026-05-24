@@ -96,7 +96,10 @@ export async function PATCH(req, { params }) {
         FROM documents
         WHERE investment_id = ${params.id}
       `;
-      const nextDocIds = new Set(body.documents.filter((doc) => doc.id).map((doc) => String(doc.id)));
+      const nextDocIds = new Set();
+      for (const doc of body.documents) {
+        if (doc.id) nextDocIds.add(String(doc.id));
+      }
 
       for (const doc of existingDocs) {
         if (!nextDocIds.has(String(doc.id))) {

@@ -24,6 +24,7 @@ const TENURE_PRESETS = [
   { label: '12 mo', months: 12 },
   { label: '2 yr', months: 24 },
 ];
+const CUSTOM_TENURE_MODE = 'custom';
 
 async function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -43,7 +44,7 @@ export default function NewInvestmentClient({
 }) {
   const router = useRouter();
   const isEditing = mode === 'edit';
-  const presetTenureMonths = initialInvestment && !Number(initialInvestment.tenure_days)
+  const matchedTenurePreset = initialInvestment && !Number(initialInvestment.tenure_days)
     ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))?.months
     : null;
   const startDate = useMemo(
@@ -55,7 +56,9 @@ export default function NewInvestmentClient({
   const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
   const [bank, setBank] = useState(initialInvestment?.bank || '');
   const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
-  const [tenureMode, setTenureMode] = useState(presetTenureMonths || (initialInvestment ? 'custom' : 12));
+  const [tenureMode, setTenureMode] = useState(
+    matchedTenurePreset ? String(matchedTenurePreset.months) : initialInvestment ? CUSTOM_TENURE_MODE : '12'
+  );
   const [customY, setCustomY] = useState(initialInvestment ? Math.floor(Number(initialInvestment.tenure_months || 0) / 12) : 0);
   const [customM, setCustomM] = useState(initialInvestment ? Number(initialInvestment.tenure_months || 0) % 12 : 9);
   const [customD, setCustomD] = useState(initialInvestment ? Number(initialInvestment.tenure_days || 0) : 0);
@@ -76,7 +79,7 @@ export default function NewInvestmentClient({
   const [saving, setSaving] = useState(false);
 
   const totalMonths = useMemo(() => {
-    if (tenureMode === 'custom') {
+    if (tenureMode === CUSTOM_TENURE_MODE) {
       return Number(customY) * 12 + Number(customM) + Number(customD) / 30;
     }
     return Number(tenureMode);
@@ -220,13 +223,13 @@ export default function NewInvestmentClient({
             <label className="block text-xs text-ink-soft mb-2">Tenure<span className="text-danger ml-0.5">*</span></label>
             <div className="flex flex-wrap gap-2">
               {TENURE_PRESETS.map((p) => (
-                <button key={p.months} type="button" onClick={() => setTenureMode(p.months)}
-                  className={`chip ${tenureMode === p.months ? 'on' : ''}`}>{p.label}</button>
+                <button key={p.months} type="button" onClick={() => setTenureMode(String(p.months))}
+                  className={`chip ${tenureMode === String(p.months) ? 'on' : ''}`}>{p.label}</button>
               ))}
-              <button type="button" onClick={() => setTenureMode('custom')}
-                className={`chip ${tenureMode === 'custom' ? 'on' : ''}`}>Custom</button>
+              <button type="button" onClick={() => setTenureMode(CUSTOM_TENURE_MODE)}
+                className={`chip ${tenureMode === CUSTOM_TENURE_MODE ? 'on' : ''}`}>Custom</button>
             </div>
-            {tenureMode === 'custom' && (
+            {tenureMode === CUSTOM_TENURE_MODE && (
               <div className="grid grid-cols-3 gap-2 mt-3 max-w-sm">
                 <div>
                   <label className="block text-[11px] text-ink-mute mb-1">Years</label>
