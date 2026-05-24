@@ -37,7 +37,7 @@ async function fileToDataUrl(file) {
 
 function getInitialTenureMode(initialInvestment) {
   if (!initialInvestment) return 12;
-  const matchedPreset = !Number(initialInvestment.tenure_days)
+  const matchedPreset = Number(initialInvestment.tenure_days) === 0
     ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))
     : null;
   return matchedPreset ? matchedPreset.months : CUSTOM_TENURE_MODE;
