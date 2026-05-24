@@ -100,18 +100,43 @@ export async function PATCH(req, { params }) {
       for (const doc of body.documents) {
         if (doc.id) nextDocIds.add(String(doc.id));
       }
+      const docIdsToDelete = existingDocs
+        .filter((doc) => !nextDocIds.has(String(doc.id)))
+        .map((doc) => doc.id);
 
-      for (const doc of existingDocs) {
-        if (!nextDocIds.has(String(doc.id))) {
-          await sql`DELETE FROM documents WHERE id = ${doc.id} AND investment_id = ${params.id}`;
-        }
+      if (docIdsToDelete.length) {
+        await sql`
+          DELETE FROM documents
+          WHERE investment_id = ${params.id} AND id = ANY(${docIdsToDelete})
+        `;
       }
 
+      const newDocuments = [];
       for (const doc of body.documents) {
         if (doc.id || !doc.filename || !doc.data_url) continue;
+        newDocuments.push({
+          filename: doc.filename,
+          size_bytes: doc.size_bytes || 0,
+          page_count: doc.page_count || 1,
+          data_url: doc.data_url,
+        });
+      }
+
+      if (newDocuments.length) {
         await sql`
           INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
-          VALUES (${params.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          SELECT
+            ${params.id},
+            doc.filename,
+            doc.size_bytes,
+            doc.page_count,
+            doc.data_url
+          FROM json_to_recordset(${JSON.stringify(newDocuments)}::json) AS doc(
+            filename text,
+            size_bytes int,
+            page_count int,
+            data_url text
+          )
         `;
       }
     }

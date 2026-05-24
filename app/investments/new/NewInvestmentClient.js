@@ -35,6 +35,14 @@ async function fileToDataUrl(file) {
   });
 }
 
+function getInitialTenureMode(initialInvestment) {
+  if (!initialInvestment) return '12';
+  const matchedPreset = !Number(initialInvestment.tenure_days)
+    ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))
+    : null;
+  return matchedPreset ? String(matchedPreset.months) : CUSTOM_TENURE_MODE;
+}
+
 export default function NewInvestmentClient({
   user,
   goals,
@@ -44,9 +52,6 @@ export default function NewInvestmentClient({
 }) {
   const router = useRouter();
   const isEditing = mode === 'edit';
-  const matchedTenurePreset = initialInvestment && !Number(initialInvestment.tenure_days)
-    ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))?.months
-    : null;
   const startDate = useMemo(
     () => (initialInvestment?.start_date ? new Date(initialInvestment.start_date) : new Date()),
     [initialInvestment?.start_date]
@@ -56,9 +61,7 @@ export default function NewInvestmentClient({
   const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
   const [bank, setBank] = useState(initialInvestment?.bank || '');
   const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
-  const [tenureMode, setTenureMode] = useState(
-    matchedTenurePreset ? String(matchedTenurePreset.months) : initialInvestment ? CUSTOM_TENURE_MODE : '12'
-  );
+  const [tenureMode, setTenureMode] = useState(getInitialTenureMode(initialInvestment));
   const [customY, setCustomY] = useState(initialInvestment ? Math.floor(Number(initialInvestment.tenure_months || 0) / 12) : 0);
   const [customM, setCustomM] = useState(initialInvestment ? Number(initialInvestment.tenure_months || 0) % 12 : 9);
   const [customD, setCustomD] = useState(initialInvestment ? Number(initialInvestment.tenure_days || 0) : 0);
