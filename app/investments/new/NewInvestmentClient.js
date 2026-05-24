@@ -43,7 +43,7 @@ export default function NewInvestmentClient({
 }) {
   const router = useRouter();
   const isEditing = mode === 'edit';
-  const presetTenure = initialInvestment && !Number(initialInvestment.tenure_days)
+  const presetTenureMonths = initialInvestment && !Number(initialInvestment.tenure_days)
     ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))?.months
     : null;
   const startDate = useMemo(
@@ -55,7 +55,7 @@ export default function NewInvestmentClient({
   const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
   const [bank, setBank] = useState(initialInvestment?.bank || '');
   const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
-  const [tenureMode, setTenureMode] = useState(presetTenure || (initialInvestment ? 'custom' : 12));
+  const [tenureMode, setTenureMode] = useState(presetTenureMonths || (initialInvestment ? 'custom' : 12));
   const [customY, setCustomY] = useState(initialInvestment ? Math.floor(Number(initialInvestment.tenure_months || 0) / 12) : 0);
   const [customM, setCustomM] = useState(initialInvestment ? Number(initialInvestment.tenure_months || 0) % 12 : 9);
   const [customD, setCustomD] = useState(initialInvestment ? Number(initialInvestment.tenure_days || 0) : 0);

@@ -7,7 +7,7 @@ export default async function EditInvestmentPage({ params }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [rows, goals, documents] = await Promise.all([
+  const [investmentRows, goals, documents] = await Promise.all([
     sql`
       SELECT i.*, g.name AS goal_name
       FROM investments i
@@ -24,14 +24,14 @@ export default async function EditInvestmentPage({ params }) {
     `,
   ]);
 
-  if (rows.length === 0) notFound();
+  if (investmentRows.length === 0) notFound();
 
   return (
     <NewInvestmentClient
       user={user}
       goals={goals}
       mode="edit"
-      initialInvestment={rows[0]}
+      initialInvestment={investmentRows[0]}
       initialDocuments={documents}
     />
   );
