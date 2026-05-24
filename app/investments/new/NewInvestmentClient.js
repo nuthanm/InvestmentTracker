@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, fmtDate, addMonths, computeMaturity, TYPE_META } from '@/lib/format';
+import { inr, fmtDate, addMonths, computeMaturity } from '@/lib/format';
 
 const TYPES = ['FD', 'MF', 'ST', 'GD', 'PPF', 'OT'];
 const PRESET_TYPES = ['Chit Fund', 'Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
@@ -24,6 +24,7 @@ const TENURE_PRESETS = [
   { label: '12 mo', months: 12 },
   { label: '2 yr', months: 24 },
 ];
+const CUSTOM_TENURE_MODE = -1;
 
 async function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -34,29 +35,67 @@ async function fileToDataUrl(file) {
   });
 }
 
-export default function NewInvestmentClient({ user, goals }) {
-  const router = useRouter();
+function getInitialTenureMode(initialInvestment) {
+  if (!initialInvestment) return 12;
+  const matchedPreset = Number(initialInvestment.tenure_days) === 0
+    ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))
+    : null;
+  return matchedPreset ? matchedPreset.months : CUSTOM_TENURE_MODE;
+}
 
-  const [typeCode, setTypeCode] = useState('FD');
-  const [customType, setCustomType] = useState('');
-  const [bank, setBank] = useState('');
-  const [planName, setPlanName] = useState('');
-  const [tenureMode, setTenureMode] = useState(12);
-  const [customY, setCustomY] = useState(0);
-  const [customM, setCustomM] = useState(9);
-  const [customD, setCustomD] = useState(0);
-  const [amount, setAmount] = useState('');
-  const [ratePct, setRatePct] = useState('');
-  const [compounding, setCompounding] = useState('quarterly');
-  const [goalId, setGoalId] = useState(goals[0]?.id || '');
-  const [nominee, setNominee] = useState('');
-  const [autoRenew, setAutoRenew] = useState(true);
-  const [docs, setDocs] = useState([]);
+function getInitialCustomTenure(initialInvestment) {
+  if (!initialInvestment) {
+    return { years: 0, months: 9, days: 0 };
+  }
+
+  return {
+    years: Math.floor(Number(initialInvestment.tenure_months || 0) / 12),
+    months: Number(initialInvestment.tenure_months || 0) % 12,
+    days: Number(initialInvestment.tenure_days || 0),
+  };
+}
+
+export default function NewInvestmentClient({
+  user,
+  goals,
+  mode = 'create',
+  initialInvestment = null,
+  initialDocuments = [],
+}) {
+  const router = useRouter();
+  const isEditing = mode === 'edit';
+  const initialCustomTenure = getInitialCustomTenure(initialInvestment);
+  const startDate = useMemo(
+    () => (initialInvestment?.start_date ? new Date(initialInvestment.start_date) : new Date()),
+    [initialInvestment?.start_date]
+  );
+
+  const [typeCode, setTypeCode] = useState(initialInvestment?.type_code || 'FD');
+  const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
+  const [bank, setBank] = useState(initialInvestment?.bank || '');
+  const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
+  const [tenureMode, setTenureMode] = useState(getInitialTenureMode(initialInvestment));
+  const [customY, setCustomY] = useState(initialCustomTenure.years);
+  const [customM, setCustomM] = useState(initialCustomTenure.months);
+  const [customD, setCustomD] = useState(initialCustomTenure.days);
+  const [amount, setAmount] = useState(initialInvestment ? String(initialInvestment.amount) : '');
+  const [ratePct, setRatePct] = useState(initialInvestment ? String(initialInvestment.rate_pct) : '');
+  const [compounding, setCompounding] = useState(initialInvestment?.compounding || 'quarterly');
+  const [goalId, setGoalId] = useState(initialInvestment?.goal_id || goals[0]?.id || '');
+  const [nominee, setNominee] = useState(initialInvestment?.nominee || '');
+  const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
+  const [docs, setDocs] = useState(
+    initialDocuments.map((doc) => ({
+      ...doc,
+      size_bytes: Number(doc.size_bytes || 0),
+      page_count: Number(doc.page_count || 1),
+    }))
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   const totalMonths = useMemo(() => {
-    if (tenureMode === 'custom') {
+    if (tenureMode === CUSTOM_TENURE_MODE) {
       return Number(customY) * 12 + Number(customM) + Number(customD) / 30;
     }
     return Number(tenureMode);
@@ -74,9 +113,9 @@ export default function NewInvestmentClient({ user, goals }) {
       interest: matVal - a,
       monthlyInt,
       monthlyPct,
-      matDate: addMonths(new Date(), totalMonths),
+      matDate: addMonths(startDate, totalMonths),
     };
-  }, [amount, ratePct, totalMonths, compounding]);
+  }, [amount, ratePct, totalMonths, compounding, startDate]);
 
   const onUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -112,8 +151,8 @@ export default function NewInvestmentClient({ user, goals }) {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/investments', {
-        method: 'POST',
+      const res = await fetch(isEditing ? `/api/investments/${initialInvestment.id}` : '/api/investments', {
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type_code: typeCode,
@@ -128,12 +167,13 @@ export default function NewInvestmentClient({ user, goals }) {
           goal_id: goalId,
           nominee: nominee.trim(),
           auto_renew: autoRenew,
+          start_date: initialInvestment?.start_date || null,
           documents: docs,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save.');
-      router.push('/investments');
+      router.push(isEditing ? `/investments/${initialInvestment.id}` : '/investments');
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -145,8 +185,8 @@ export default function NewInvestmentClient({ user, goals }) {
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Add investment</h1>
-        <p className="text-sm text-ink-soft mb-6">All fields are required.</p>
+        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">{isEditing ? 'Edit investment' : 'Add investment'}</h1>
+        <p className="text-sm text-ink-soft mb-6">{isEditing ? 'Update the details below.' : 'All fields are required.'}</p>
 
         <form onSubmit={submit} className="space-y-5">
 
@@ -199,13 +239,13 @@ export default function NewInvestmentClient({ user, goals }) {
             <label className="block text-xs text-ink-soft mb-2">Tenure<span className="text-danger ml-0.5">*</span></label>
             <div className="flex flex-wrap gap-2">
               {TENURE_PRESETS.map((p) => (
-                <button key={p.months} type="button" onClick={() => setTenureMode(p.months)}
-                  className={`chip ${tenureMode === p.months ? 'on' : ''}`}>{p.label}</button>
+              <button key={p.months} type="button" onClick={() => setTenureMode(p.months)}
+                className={`chip ${tenureMode === p.months ? 'on' : ''}`}>{p.label}</button>
               ))}
-              <button type="button" onClick={() => setTenureMode('custom')}
-                className={`chip ${tenureMode === 'custom' ? 'on' : ''}`}>Custom</button>
+              <button type="button" onClick={() => setTenureMode(CUSTOM_TENURE_MODE)}
+                className={`chip ${tenureMode === CUSTOM_TENURE_MODE ? 'on' : ''}`}>Custom</button>
             </div>
-            {tenureMode === 'custom' && (
+            {tenureMode === CUSTOM_TENURE_MODE && (
               <div className="grid grid-cols-3 gap-2 mt-3 max-w-sm">
                 <div>
                   <label className="block text-[11px] text-ink-mute mb-1">Years</label>
@@ -313,7 +353,7 @@ export default function NewInvestmentClient({ user, goals }) {
           <div className="flex gap-2.5 pt-3 border-t border-edge">
             <button type="button" onClick={() => router.back()} className="btn-ghost py-2.5 px-5 rounded-lg text-sm">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1 py-2.5 rounded-lg text-sm font-medium">
-              {saving ? 'Saving…' : 'Save investment'}
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Save investment'}
             </button>
           </div>
         </form>
