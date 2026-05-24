@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, fmtDate, addMonths, computeMaturity, TYPE_META } from '@/lib/format';
+import { inr, fmtDate, addMonths, computeMaturity } from '@/lib/format';
 
 const TYPES = ['FD', 'MF', 'ST', 'GD', 'PPF', 'OT'];
 const PRESET_TYPES = ['Chit Fund', 'Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
@@ -34,24 +34,44 @@ async function fileToDataUrl(file) {
   });
 }
 
-export default function NewInvestmentClient({ user, goals }) {
+export default function NewInvestmentClient({
+  user,
+  goals,
+  mode = 'create',
+  initialInvestment = null,
+  initialDocuments = [],
+}) {
   const router = useRouter();
+  const isEditing = mode === 'edit';
+  const presetTenure = initialInvestment && !Number(initialInvestment.tenure_days)
+    ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))?.months
+    : null;
+  const startDate = useMemo(
+    () => (initialInvestment?.start_date ? new Date(initialInvestment.start_date) : new Date()),
+    [initialInvestment?.start_date]
+  );
 
-  const [typeCode, setTypeCode] = useState('FD');
-  const [customType, setCustomType] = useState('');
-  const [bank, setBank] = useState('');
-  const [planName, setPlanName] = useState('');
-  const [tenureMode, setTenureMode] = useState(12);
-  const [customY, setCustomY] = useState(0);
-  const [customM, setCustomM] = useState(9);
-  const [customD, setCustomD] = useState(0);
-  const [amount, setAmount] = useState('');
-  const [ratePct, setRatePct] = useState('');
-  const [compounding, setCompounding] = useState('quarterly');
-  const [goalId, setGoalId] = useState(goals[0]?.id || '');
-  const [nominee, setNominee] = useState('');
-  const [autoRenew, setAutoRenew] = useState(true);
-  const [docs, setDocs] = useState([]);
+  const [typeCode, setTypeCode] = useState(initialInvestment?.type_code || 'FD');
+  const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
+  const [bank, setBank] = useState(initialInvestment?.bank || '');
+  const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
+  const [tenureMode, setTenureMode] = useState(presetTenure || (initialInvestment ? 'custom' : 12));
+  const [customY, setCustomY] = useState(initialInvestment ? Math.floor(Number(initialInvestment.tenure_months || 0) / 12) : 0);
+  const [customM, setCustomM] = useState(initialInvestment ? Number(initialInvestment.tenure_months || 0) % 12 : 9);
+  const [customD, setCustomD] = useState(initialInvestment ? Number(initialInvestment.tenure_days || 0) : 0);
+  const [amount, setAmount] = useState(initialInvestment ? String(initialInvestment.amount) : '');
+  const [ratePct, setRatePct] = useState(initialInvestment ? String(initialInvestment.rate_pct) : '');
+  const [compounding, setCompounding] = useState(initialInvestment?.compounding || 'quarterly');
+  const [goalId, setGoalId] = useState(initialInvestment?.goal_id || goals[0]?.id || '');
+  const [nominee, setNominee] = useState(initialInvestment?.nominee || '');
+  const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
+  const [docs, setDocs] = useState(
+    initialDocuments.map((doc) => ({
+      ...doc,
+      size_bytes: Number(doc.size_bytes || 0),
+      page_count: Number(doc.page_count || 1),
+    }))
+  );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -74,9 +94,9 @@ export default function NewInvestmentClient({ user, goals }) {
       interest: matVal - a,
       monthlyInt,
       monthlyPct,
-      matDate: addMonths(new Date(), totalMonths),
+      matDate: addMonths(startDate, totalMonths),
     };
-  }, [amount, ratePct, totalMonths, compounding]);
+  }, [amount, ratePct, totalMonths, compounding, startDate]);
 
   const onUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -112,8 +132,8 @@ export default function NewInvestmentClient({ user, goals }) {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/investments', {
-        method: 'POST',
+      const res = await fetch(isEditing ? `/api/investments/${initialInvestment.id}` : '/api/investments', {
+        method: isEditing ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type_code: typeCode,
@@ -128,12 +148,13 @@ export default function NewInvestmentClient({ user, goals }) {
           goal_id: goalId,
           nominee: nominee.trim(),
           auto_renew: autoRenew,
+          start_date: initialInvestment?.start_date || null,
           documents: docs,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save.');
-      router.push('/investments');
+      router.push(isEditing ? `/investments/${initialInvestment.id}` : '/investments');
       router.refresh();
     } catch (err) {
       setError(err.message);
@@ -145,8 +166,8 @@ export default function NewInvestmentClient({ user, goals }) {
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Add investment</h1>
-        <p className="text-sm text-ink-soft mb-6">All fields are required.</p>
+        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">{isEditing ? 'Edit investment' : 'Add investment'}</h1>
+        <p className="text-sm text-ink-soft mb-6">{isEditing ? 'Update the details below.' : 'All fields are required.'}</p>
 
         <form onSubmit={submit} className="space-y-5">
 
@@ -313,7 +334,7 @@ export default function NewInvestmentClient({ user, goals }) {
           <div className="flex gap-2.5 pt-3 border-t border-edge">
             <button type="button" onClick={() => router.back()} className="btn-ghost py-2.5 px-5 rounded-lg text-sm">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1 py-2.5 rounded-lg text-sm font-medium">
-              {saving ? 'Saving…' : 'Save investment'}
+              {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Save investment'}
             </button>
           </div>
         </form>
