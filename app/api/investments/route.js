@@ -36,6 +36,16 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
     }
 
+    const goalRows = await sql`
+      SELECT id
+      FROM goals
+      WHERE id = ${body.goal_id} AND user_id = ${me.id}
+      LIMIT 1
+    `;
+    if (goalRows.length === 0) {
+      return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
+    }
+
     const paymentFrequency = body.payment_frequency || 'lump_sum';
     const tenureMonths = Number(body.tenure_months) + (Number(body.tenure_days || 0) / 30);
 
@@ -57,6 +67,9 @@ export async function POST(req) {
     }
 
     const startDate = body.start_date ? new Date(body.start_date) : new Date();
+    if (Number.isNaN(startDate.getTime())) {
+      return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+    }
     const maturityDate = addMonths(startDate, tenureMonths);
 
     const rows = await sql`
@@ -90,6 +103,9 @@ export async function POST(req) {
     return NextResponse.json({ investment });
   } catch (err) {
     console.error('create investment error', err);
+    if (err?.code === '22P02' || err?.code === '23503') {
+      return NextResponse.json({ error: 'Invalid investment details. Check goal and field values.' }, { status: 400 });
+    }
     return NextResponse.json({ error: 'Could not create investment.' }, { status: 500 });
   }
 }
