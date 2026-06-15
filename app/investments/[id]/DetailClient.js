@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, fmtDate, labelFor } from '@/lib/format';
+import { inr, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
 
 export default function DetailClient({ user, investment: i, documents }) {
   const router = useRouter();
@@ -28,8 +28,22 @@ export default function DetailClient({ user, investment: i, documents }) {
     }
   };
 
+  const freq = i.payment_frequency || 'lump_sum';
   const monthlyInt = (Number(i.amount) * Number(i.rate_pct)) / 100 / 12;
   const monthlyPct = (Number(i.rate_pct) / 12).toFixed(3);
+
+  // Total invested for periodic types
+  let totalInvested = Number(i.amount);
+  if (freq === 'monthly' && i.tenure_months) {
+    // Count whole months only (days don't trigger an extra instalment for RD)
+    totalInvested = Number(i.amount) * Number(i.tenure_months);
+  } else if (freq === 'yearly' && i.tenure_months) {
+    totalInvested = Number(i.amount) * Math.floor(Number(i.tenure_months) / 12);
+  }
+
+  const isRecurring = freq === 'monthly' || freq === 'yearly';
+  const amountLabel = freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
+  const freqSuffix = freq === 'monthly' ? '/mo' : freq === 'yearly' ? '/yr' : '';
 
   return (
     <Shell user={user}>
@@ -39,18 +53,36 @@ export default function DetailClient({ user, investment: i, documents }) {
 
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
           <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(i)}</p>
-          <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}</p>
-          <p className="text-sm text-ink-soft mt-2">
-            Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || i.amount)}</span>
-            {i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}
-          </p>
+          {isRecurring ? (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">
+                {inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span>
+              </p>
+              <p className="text-sm text-ink-soft mt-1">Total invested: <span className="font-medium text-ink">{inr(totalInvested)}</span></p>
+              <p className="text-sm text-ink-soft mt-1">
+                Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || totalInvested)}</span>
+                {i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}</p>
+              <p className="text-sm text-ink-soft mt-2">
+                Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || i.amount)}</span>
+                {i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}
+              </p>
+            </>
+          )}
         </div>
 
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">
           <Row label="Bank" value={i.bank} />
           <Row label="Plan" value={i.plan_name} />
+          <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />
+          {isRecurring && <Row label="Total invested" value={inr(totalInvested)} />}
           <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />
-          <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />
+          {!isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
+          <Row label="Payment frequency" value={frequencyLabel(freq)} />
           <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />
           <Row label="Started" value={fmtDate(i.start_date)} />
           <Row label="Goal" value={i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : '—'} />
