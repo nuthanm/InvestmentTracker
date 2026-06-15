@@ -64,8 +64,8 @@ CREATE TABLE IF NOT EXISTS investments (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Run this once if upgrading an existing database:
--- ALTER TABLE investments ADD COLUMN IF NOT EXISTS payment_frequency TEXT DEFAULT 'lump_sum';
+-- If you are upgrading an older database, run:
+-- db/migrations/2026-06-15-safe-upgrade-investments.sql
 
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 CREATE INDEX IF NOT EXISTS idx_investments_goal ON investments(goal_id);

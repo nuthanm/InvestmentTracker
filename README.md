@@ -48,7 +48,20 @@ Edit `.env.local`:
 
 ```
 DATABASE_URL=postgresql://...your-neon-pooled-url-with-sslmode=require
-SESSION_SECRET=$(openssl rand -hex 32)
+SESSION_SECRET=your-64-char-random-hex
+```
+
+Generate `SESSION_SECRET` using any one method:
+
+```bash
+# OpenSSL
+openssl rand -hex 32
+
+# Node.js (works if Node is installed)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# PowerShell (Windows, no OpenSSL needed)
+powershell -Command "$b=New-Object byte[] 32; [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($b); ($b|% { $_.ToString('x2') }) -join ''"
 ```
 
 ### 4. Run locally
@@ -95,8 +108,10 @@ That's it — your app is live at `your-project.vercel.app`, free forever.
    Fill in `DATABASE_URL` (pooled connection string from Neon) and a random `SESSION_SECRET`:
 
    ```bash
-   # generate a strong secret
-   openssl rand -hex 32
+  # generate a strong secret (choose one)
+  openssl rand -hex 32
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  powershell -Command "$b=New-Object byte[] 32; [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($b); ($b|% { $_.ToString('x2') }) -join ''"
    ```
 
 4. **Run locally** to verify everything works:

@@ -176,6 +176,15 @@ export async function PATCH(req, { params }) {
     if (err?.code === '23503') {
       return NextResponse.json({ error: 'Selected goal does not exist.' }, { status: 400 });
     }
+    if (err?.code === '42703') {
+      return NextResponse.json(
+        {
+          error:
+            'Database schema is out of date. Run db/migrations/2026-06-15-safe-upgrade-investments.sql in Neon SQL Editor, then try again.',
+        },
+        { status: 500 }
+      );
+    }
     return NextResponse.json({ error: 'Could not update investment.' }, { status: 500 });
   }
 }
