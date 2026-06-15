@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { computeMaturity, addMonths } from '@/lib/format';
+import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
 
 export async function GET(req, { params }) {
   const me = await getCurrentUser();
@@ -59,12 +59,24 @@ export async function PATCH(req, { params }) {
 
     const startDate = body.start_date ? new Date(body.start_date) : new Date(currentRows[0].start_date);
     const tenureMonths = Number(body.tenure_months) + (Number(body.tenure_days || 0) / 30);
-    const maturityValue = computeMaturity({
-      amount: Number(body.amount),
-      ratePct: Number(body.rate_pct),
-      months: tenureMonths,
-      compounding: body.compounding || 'quarterly',
-    });
+    const paymentFrequency = body.payment_frequency || 'lump_sum';
+
+    let maturityValue;
+    if (paymentFrequency === 'monthly' || paymentFrequency === 'yearly') {
+      maturityValue = computeRecurringMaturity({
+        amountPerPeriod: Number(body.amount),
+        ratePct: Number(body.rate_pct),
+        months: tenureMonths,
+        paymentFrequency,
+      });
+    } else {
+      maturityValue = computeMaturity({
+        amount: Number(body.amount),
+        ratePct: Number(body.rate_pct),
+        months: tenureMonths,
+        compounding: body.compounding || 'quarterly',
+      });
+    }
     const maturityDate = addMonths(startDate, tenureMonths);
 
     const rows = await sql`
@@ -80,6 +92,7 @@ export async function PATCH(req, { params }) {
         tenure_months = ${body.tenure_months},
         tenure_days = ${body.tenure_days || 0},
         compounding = ${body.compounding || 'quarterly'},
+        payment_frequency = ${paymentFrequency},
         start_date = ${startDate.toISOString().slice(0, 10)},
         maturity_date = ${maturityDate.toISOString().slice(0, 10)},
         maturity_value = ${maturityValue},

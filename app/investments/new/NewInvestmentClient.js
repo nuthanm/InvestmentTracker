@@ -4,25 +4,36 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, fmtDate, addMonths, computeMaturity } from '@/lib/format';
+import { inr, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 
-const TYPES = ['FD', 'MF', 'ST', 'GD', 'PPF', 'OT'];
+const TYPES = ['FD', 'RD', 'MF', 'ST', 'GD', 'PPF', 'OT'];
 const PRESET_TYPES = ['Chit Fund', 'Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
 
-const TYPE_CHIP_LABEL = { FD: 'FD', MF: 'MF', ST: 'ST', GD: 'GD', PPF: 'PPF', OT: 'Other' };
+const TYPE_CHIP_LABEL = { FD: 'FD', RD: 'RD', MF: 'MF', ST: 'ST', GD: 'GD', PPF: 'PPF', OT: 'Other' };
 const TYPE_TOOLTIP = {
   FD:  'Fixed Deposit — guaranteed returns at a fixed interest rate (banks / NBFCs)',
+  RD:  'Recurring Deposit — fixed monthly deposits that earn compound interest over a chosen tenure',
   MF:  'Mutual Fund — market-linked pooled investment via SIP or lump sum',
   ST:  'Stocks — direct equity shares in a listed company',
   GD:  'Gold / SGB — physical gold, digital gold, or Sovereign Gold Bonds',
-  PPF: 'Public Provident Fund — 15-year government-backed tax-free savings scheme',
+  PPF: 'Public Provident Fund — 15-year government-backed tax-free savings (yearly contributions)',
   OT:  'Other — chit fund, crypto, real estate, NSC, or any custom investment type',
 };
+
+// Types where contributions recur on a schedule
+const PERIODIC_TYPES = { RD: 'monthly', PPF: 'yearly' };
+
 const TENURE_PRESETS = [
   { label: '3 mo', months: 3 },
   { label: '6 mo', months: 6 },
   { label: '12 mo', months: 12 },
   { label: '2 yr', months: 24 },
+];
+// PPF-specific tenure presets
+const PPF_TENURE_PRESETS = [
+  { label: '15 yr', months: 180 },
+  { label: '20 yr', months: 240 },
+  { label: '25 yr', months: 300 },
 ];
 const CUSTOM_TENURE_MODE = -1;
 
@@ -35,10 +46,11 @@ async function fileToDataUrl(file) {
   });
 }
 
-function getInitialTenureMode(initialInvestment) {
-  if (!initialInvestment) return 12;
+function getInitialTenureMode(initialInvestment, typeCode) {
+  if (!initialInvestment) return typeCode === 'PPF' ? 180 : 12;
+  const presets = typeCode === 'PPF' ? PPF_TENURE_PRESETS : TENURE_PRESETS;
   const matchedPreset = Number(initialInvestment.tenure_days) === 0
-    ? TENURE_PRESETS.find((preset) => preset.months === Number(initialInvestment.tenure_months))
+    ? presets.find((preset) => preset.months === Number(initialInvestment.tenure_months))
     : null;
   return matchedPreset ? matchedPreset.months : CUSTOM_TENURE_MODE;
 }
@@ -74,13 +86,16 @@ export default function NewInvestmentClient({
   const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
   const [bank, setBank] = useState(initialInvestment?.bank || '');
   const [planName, setPlanName] = useState(initialInvestment?.plan_name || '');
-  const [tenureMode, setTenureMode] = useState(getInitialTenureMode(initialInvestment));
+  const [tenureMode, setTenureMode] = useState(getInitialTenureMode(initialInvestment, initialInvestment?.type_code || 'FD'));
   const [customY, setCustomY] = useState(initialCustomTenure.years);
   const [customM, setCustomM] = useState(initialCustomTenure.months);
   const [customD, setCustomD] = useState(initialCustomTenure.days);
   const [amount, setAmount] = useState(initialInvestment ? String(initialInvestment.amount) : '');
   const [ratePct, setRatePct] = useState(initialInvestment ? String(initialInvestment.rate_pct) : '');
   const [compounding, setCompounding] = useState(initialInvestment?.compounding || 'quarterly');
+  const [paymentFrequency, setPaymentFrequency] = useState(
+    initialInvestment?.payment_frequency || PERIODIC_TYPES[initialInvestment?.type_code] || 'lump_sum'
+  );
   const [goalId, setGoalId] = useState(initialInvestment?.goal_id || goals[0]?.id || '');
   const [nominee, setNominee] = useState(initialInvestment?.nominee || '');
   const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
@@ -94,6 +109,20 @@ export default function NewInvestmentClient({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // When type changes, auto-set frequency and sensible tenure default
+  const handleTypeChange = (t) => {
+    setTypeCode(t);
+    const defaultFreq = PERIODIC_TYPES[t] || 'lump_sum';
+    setPaymentFrequency(defaultFreq);
+    if (t === 'PPF') setTenureMode(180);
+    else if (tenureMode === 180 || tenureMode === 240 || tenureMode === 300) setTenureMode(12);
+  };
+
+  // Effective frequency: periodic types always use their default; others use chosen value
+  const effectiveFrequency = PERIODIC_TYPES[typeCode] || paymentFrequency;
+
+  const tenurePresets = typeCode === 'PPF' ? PPF_TENURE_PRESETS : TENURE_PRESETS;
+
   const totalMonths = useMemo(() => {
     if (tenureMode === CUSTOM_TENURE_MODE) {
       return Number(customY) * 12 + Number(customM) + Number(customD) / 30;
@@ -105,17 +134,31 @@ export default function NewInvestmentClient({
     const a = Number(amount) || 0;
     const r = Number(ratePct) || 0;
     if (!a || !r || !totalMonths) return null;
-    const matVal = computeMaturity({ amount: a, ratePct: r, months: totalMonths, compounding });
+
+    let matVal;
+    let totalInvested;
+    if (effectiveFrequency === 'monthly') {
+      matVal = computeRecurringMaturity({ amountPerPeriod: a, ratePct: r, months: totalMonths, paymentFrequency: 'monthly' });
+      totalInvested = a * Math.floor(totalMonths);
+    } else if (effectiveFrequency === 'yearly') {
+      matVal = computeRecurringMaturity({ amountPerPeriod: a, ratePct: r, months: totalMonths, paymentFrequency: 'yearly' });
+      totalInvested = a * Math.floor(totalMonths / 12);
+    } else {
+      matVal = computeMaturity({ amount: a, ratePct: r, months: totalMonths, compounding });
+      totalInvested = a;
+    }
+
     const monthlyInt = (a * r) / 100 / 12;
     const monthlyPct = r / 12;
     return {
       matVal,
-      interest: matVal - a,
+      interest: matVal - totalInvested,
+      totalInvested,
       monthlyInt,
       monthlyPct,
       matDate: addMonths(startDate, totalMonths),
     };
-  }, [amount, ratePct, totalMonths, compounding, startDate]);
+  }, [amount, ratePct, totalMonths, compounding, effectiveFrequency, startDate]);
 
   const onUpload = async (e) => {
     const files = Array.from(e.target.files || []);
@@ -164,6 +207,7 @@ export default function NewInvestmentClient({
           tenure_months: Math.floor(totalMonths),
           tenure_days: Math.round((totalMonths - Math.floor(totalMonths)) * 30),
           compounding,
+          payment_frequency: effectiveFrequency,
           goal_id: goalId,
           nominee: nominee.trim(),
           auto_renew: autoRenew,
@@ -181,6 +225,14 @@ export default function NewInvestmentClient({
     }
   };
 
+  const amountLabel = effectiveFrequency === 'monthly'
+    ? 'Monthly contribution (₹)'
+    : effectiveFrequency === 'yearly'
+    ? 'Yearly contribution (₹)'
+    : 'Amount (₹)';
+
+  const amountPlaceholder = effectiveFrequency === 'monthly' ? '5000' : effectiveFrequency === 'yearly' ? '150000' : '300000';
+
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
@@ -192,10 +244,10 @@ export default function NewInvestmentClient({
 
           <section>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Type<span className="text-danger ml-0.5">*</span></p>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            <div className="flex flex-wrap gap-2">
               {TYPES.map((t) => (
                 <div key={t} className="relative group">
-                  <button type="button" onClick={() => setTypeCode(t)}
+                  <button type="button" onClick={() => handleTypeChange(t)}
                     className={`chip w-full ${typeCode === t ? 'on' : ''}`}>
                     {TYPE_CHIP_LABEL[t]}
                   </button>
@@ -221,6 +273,25 @@ export default function NewInvestmentClient({
             )}
           </section>
 
+          {/* Payment frequency — shown only for PPF (fixed yearly) and RD (fixed monthly) as info; for OT/others allow manual selection */}
+          {(typeCode === 'RD' || typeCode === 'PPF') && (
+            <div className="flex items-start gap-2.5 p-3 bg-paper-tint rounded-xl text-sm">
+              <span className="text-lg leading-none mt-0.5">
+                {typeCode === 'RD' ? '🔁' : '📅'}
+              </span>
+              <div>
+                <p className="font-medium">
+                  {typeCode === 'RD' ? 'Monthly contributions' : 'Yearly contributions'}
+                </p>
+                <p className="text-[11px] text-ink-soft mt-0.5">
+                  {typeCode === 'RD'
+                    ? 'Enter your fixed monthly deposit amount. Maturity is calculated using compound interest on each instalment.'
+                    : 'Enter your yearly deposit amount (max ₹1.5 L/yr). Maturity uses the PPF annuity formula.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           <section>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Plan details</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -230,7 +301,7 @@ export default function NewInvestmentClient({
               </div>
               <div>
                 <label className="block text-xs text-ink-soft mb-1.5">Plan name<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder="Senior FD - 5Y" value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input"/>
+                <input type="text" placeholder={typeCode === 'RD' ? 'Monthly RD - 2Y' : typeCode === 'PPF' ? 'PPF Account 2024' : 'Senior FD - 5Y'} value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input"/>
               </div>
             </div>
           </section>
@@ -238,7 +309,7 @@ export default function NewInvestmentClient({
           <section>
             <label className="block text-xs text-ink-soft mb-2">Tenure<span className="text-danger ml-0.5">*</span></label>
             <div className="flex flex-wrap gap-2">
-              {TENURE_PRESETS.map((p) => (
+              {tenurePresets.map((p) => (
               <button key={p.months} type="button" onClick={() => setTenureMode(p.months)}
                 className={`chip ${tenureMode === p.months ? 'on' : ''}`}>{p.label}</button>
               ))}
@@ -255,23 +326,25 @@ export default function NewInvestmentClient({
                   <label className="block text-[11px] text-ink-mute mb-1">Months</label>
                   <input type="number" min="0" max="11" value={customM} onChange={(e) => setCustomM(e.target.value)} className="field-input"/>
                 </div>
-                <div>
-                  <label className="block text-[11px] text-ink-mute mb-1">Days</label>
-                  <input type="number" min="0" max="30" value={customD} onChange={(e) => setCustomD(e.target.value)} className="field-input"/>
-                </div>
+                {effectiveFrequency === 'lump_sum' && (
+                  <div>
+                    <label className="block text-[11px] text-ink-mute mb-1">Days</label>
+                    <input type="number" min="0" max="30" value={customD} onChange={(e) => setCustomD(e.target.value)} className="field-input"/>
+                  </div>
+                )}
               </div>
             )}
           </section>
 
           <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-ink-soft mb-1.5">Amount (₹)<span className="text-danger ml-0.5">*</span></label>
-              <input type="number" inputMode="numeric" placeholder="300000" value={amount} onChange={(e) => setAmount(e.target.value)} className="field-input"/>
+              <label className="block text-xs text-ink-soft mb-1.5">{amountLabel}<span className="text-danger ml-0.5">*</span></label>
+              <input type="number" inputMode="numeric" placeholder={amountPlaceholder} value={amount} onChange={(e) => setAmount(e.target.value)} className="field-input"/>
             </div>
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Interest rate (% p.a.)<span className="text-danger ml-0.5">*</span></label>
-              <input type="number" step="0.05" placeholder="7.25" value={ratePct} onChange={(e) => setRatePct(e.target.value)} className="field-input"/>
-              {calc && (
+              <input type="number" step="0.05" placeholder={typeCode === 'PPF' ? '7.10' : '7.25'} value={ratePct} onChange={(e) => setRatePct(e.target.value)} className="field-input"/>
+              {calc && effectiveFrequency === 'lump_sum' && (
                 <div className="mt-2 px-2.5 py-2 bg-paper-tint rounded-lg text-xs">
                   <div className="flex justify-between"><span className="text-ink-soft">Monthly rate</span><span className="font-medium text-mint-600">{calc.monthlyPct.toFixed(3)}%</span></div>
                   <div className="flex justify-between mt-1 pt-1 border-t border-dashed border-edge"><span className="text-ink-soft">Monthly interest</span><span className="font-medium text-mint-600">{inr(calc.monthlyInt)}</span></div>
@@ -280,19 +353,27 @@ export default function NewInvestmentClient({
             </div>
           </section>
 
-          <section>
-            <label className="block text-xs text-ink-soft mb-1.5">Compounding</label>
-            <select value={compounding} onChange={(e) => setCompounding(e.target.value)} className="field-input max-w-xs">
-              <option value="quarterly">Quarterly</option>
-              <option value="monthly">Monthly</option>
-              <option value="half">Half-yearly</option>
-              <option value="yearly">Yearly</option>
-              <option value="simple">Simple interest</option>
-            </select>
-          </section>
+          {effectiveFrequency === 'lump_sum' && (
+            <section>
+              <label className="block text-xs text-ink-soft mb-1.5">Compounding</label>
+              <select value={compounding} onChange={(e) => setCompounding(e.target.value)} className="field-input max-w-xs">
+                <option value="quarterly">Quarterly</option>
+                <option value="monthly">Monthly</option>
+                <option value="half">Half-yearly</option>
+                <option value="yearly">Yearly</option>
+                <option value="simple">Simple interest</option>
+              </select>
+            </section>
+          )}
 
           {calc && (
             <div className="bg-paper-tint rounded-xl p-3.5 space-y-1.5 text-sm">
+              {effectiveFrequency !== 'lump_sum' && (
+                <div className="flex justify-between">
+                  <span className="text-ink-soft">Total invested</span>
+                  <span className="font-medium">{inr(calc.totalInvested)}</span>
+                </div>
+              )}
               <div className="flex justify-between"><span className="text-ink-soft">Maturity date</span><span className="font-medium">{fmtDate(calc.matDate)}</span></div>
               <div className="flex justify-between"><span className="text-ink-soft">Total interest</span><span className="font-medium text-mint-600">+ {inr(calc.interest)}</span></div>
               <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Maturity value</span><span className="text-lg font-medium text-mint-600">{inr(calc.matVal)}</span></div>

@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS goals (
 CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
 
 -- ---------- Investments ----------
+-- type_code values: FD, MF, ST, GD, PPF, RD, OT
+-- payment_frequency values: lump_sum (one-time), monthly (e.g. RD), yearly (e.g. PPF)
 CREATE TABLE IF NOT EXISTS investments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -48,11 +50,12 @@ CREATE TABLE IF NOT EXISTS investments (
   custom_type TEXT,
   bank TEXT NOT NULL,
   plan_name TEXT NOT NULL,
-  amount NUMERIC(14,2) NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,          -- per-period contribution for monthly/yearly types
   rate_pct NUMERIC(6,3) NOT NULL,
   tenure_months INT NOT NULL,
   tenure_days INT DEFAULT 0,
   compounding TEXT DEFAULT 'quarterly',
+  payment_frequency TEXT DEFAULT 'lump_sum', -- lump_sum | monthly | yearly
   start_date DATE NOT NULL DEFAULT CURRENT_DATE,
   maturity_date DATE,
   maturity_value NUMERIC(14,2),
@@ -60,6 +63,9 @@ CREATE TABLE IF NOT EXISTS investments (
   auto_renew BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Run this once if upgrading an existing database:
+-- ALTER TABLE investments ADD COLUMN IF NOT EXISTS payment_frequency TEXT DEFAULT 'lump_sum';
 
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 CREATE INDEX IF NOT EXISTS idx_investments_goal ON investments(goal_id);

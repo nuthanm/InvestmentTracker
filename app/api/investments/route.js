@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { computeMaturity, addMonths } from '@/lib/format';
+import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
 
 export async function GET() {
   const me = await getCurrentUser();
@@ -36,13 +36,26 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
     }
 
+    const paymentFrequency = body.payment_frequency || 'lump_sum';
     const tenureMonths = Number(body.tenure_months) + (Number(body.tenure_days || 0) / 30);
-    const maturityValue = computeMaturity({
-      amount: Number(body.amount),
-      ratePct: Number(body.rate_pct),
-      months: tenureMonths,
-      compounding: body.compounding || 'quarterly',
-    });
+
+    let maturityValue;
+    if (paymentFrequency === 'monthly' || paymentFrequency === 'yearly') {
+      maturityValue = computeRecurringMaturity({
+        amountPerPeriod: Number(body.amount),
+        ratePct: Number(body.rate_pct),
+        months: tenureMonths,
+        paymentFrequency,
+      });
+    } else {
+      maturityValue = computeMaturity({
+        amount: Number(body.amount),
+        ratePct: Number(body.rate_pct),
+        months: tenureMonths,
+        compounding: body.compounding || 'quarterly',
+      });
+    }
+
     const startDate = body.start_date ? new Date(body.start_date) : new Date();
     const maturityDate = addMonths(startDate, tenureMonths);
 
@@ -50,12 +63,13 @@ export async function POST(req) {
       INSERT INTO investments (
         user_id, goal_id, type_code, custom_type, bank, plan_name,
         amount, rate_pct, tenure_months, tenure_days, compounding,
-        start_date, maturity_date, maturity_value, nominee, auto_renew
+        payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew
       )
       VALUES (
         ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
         ${body.bank}, ${body.plan_name},
         ${body.amount}, ${body.rate_pct}, ${body.tenure_months}, ${body.tenure_days || 0}, ${body.compounding || 'quarterly'},
+        ${paymentFrequency},
         ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${maturityValue},
         ${body.nominee}, ${!!body.auto_renew}
       )
