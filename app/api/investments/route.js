@@ -103,8 +103,11 @@ export async function POST(req) {
     return NextResponse.json({ investment });
   } catch (err) {
     console.error('create investment error', err);
-    if (err?.code === '22P02' || err?.code === '23503') {
-      return NextResponse.json({ error: 'Invalid investment details. Check goal and field values.' }, { status: 400 });
+    if (err?.code === '22P02') {
+      return NextResponse.json({ error: 'Invalid ID format in request.' }, { status: 400 });
+    }
+    if (err?.code === '23503') {
+      return NextResponse.json({ error: 'Selected goal does not exist.' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Could not create investment.' }, { status: 500 });
   }
