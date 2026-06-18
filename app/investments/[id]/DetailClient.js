@@ -20,8 +20,8 @@ function buildSchedule(investment) {
     for (let m = 0; m < tenureMonths; m++) {
       const due = new Date(start);
       due.setMonth(due.getMonth() + m);
-      const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const label = mo[due.getMonth()] + ' ' + due.getFullYear();
+      // Use Intl for locale-aware short month name.
+      const label = due.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
       schedule.push({ period_label: label, due_date: due.toISOString().slice(0,10), amount });
     }
   } else {
@@ -37,7 +37,10 @@ function buildSchedule(investment) {
   return schedule;
 }
 
-// Returns days until maturity (negative if already past).
+// Returns a short month label using Intl.DateTimeFormat (e.g. 'Jun 2026').
+// (Consumed inline in buildSchedule above.)
+
+// Returns days until maturity (negative if already past). Returns null if no maturity date.
 function daysUntilMaturity(maturityDate) {
   if (!maturityDate) return null;
   const today = new Date();

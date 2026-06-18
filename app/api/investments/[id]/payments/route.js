@@ -53,6 +53,8 @@ export async function POST(req, { params }) {
       ON CONFLICT (investment_id, period_label)
       DO UPDATE SET
         paid = EXCLUDED.paid,
+        -- Keep the original paid_at timestamp (first time it was marked paid)
+        -- rather than overwriting it each time the user toggles the record.
         paid_at = CASE WHEN EXCLUDED.paid THEN COALESCE(payment_records.paid_at, EXCLUDED.paid_at) ELSE NULL END,
         notes = COALESCE(EXCLUDED.notes, payment_records.notes)
       RETURNING *
