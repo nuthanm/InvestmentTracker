@@ -235,7 +235,7 @@ export default function DetailClient({ user, investment: i, documents }) {
               )}
             </div>
             {paymentsError && (
-              <p className="text-[11px] text-danger mb-2">{paymentsError}</p>
+              <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{paymentsError}</p>
             )}
             {!paymentsLoaded ? (
               <div className="space-y-1.5">

@@ -31,7 +31,7 @@ export async function GET(req, { params }) {
       return NextResponse.json({
         records: [],
         writable: false,
-        warning: 'Payment records are not available yet. Please run the latest DB migration.',
+        warning: 'Payment records are not available yet. Run db/migrations/2026-06-18-add-account-holder-payment-records.sql in Neon SQL Editor.',
       });
     }
     console.error('payment records list error', err);
@@ -80,7 +80,7 @@ export async function POST(req, { params }) {
   } catch (err) {
     if (missingPaymentRecordsTable(err)) {
       return NextResponse.json(
-        { error: 'Payment records are not available yet. Please run the latest DB migration.' },
+        { error: 'Payment records are not available yet. Run db/migrations/2026-06-18-add-account-holder-payment-records.sql in Neon SQL Editor.' },
         { status: 409 }
       );
     }
