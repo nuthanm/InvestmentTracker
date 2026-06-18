@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
+function missingPaymentRecordsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('payment_records') && msg.includes('does not exist');
+}
+
 // GET /api/investments/[id]/payments — list all payment records for this investment
 export async function GET(req, { params }) {
   const me = await getCurrentUser();
@@ -13,13 +18,25 @@ export async function GET(req, { params }) {
   `;
   if (inv.length === 0) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
-  const records = await sql`
-    SELECT id, period_label, due_date, amount, paid, paid_at, notes
-    FROM payment_records
-    WHERE investment_id = ${params.id}
-    ORDER BY due_date ASC
-  `;
-  return NextResponse.json({ records });
+  try {
+    const records = await sql`
+      SELECT id, period_label, due_date, amount, paid, paid_at, notes
+      FROM payment_records
+      WHERE investment_id = ${params.id}
+      ORDER BY due_date ASC
+    `;
+    return NextResponse.json({ records, writable: true });
+  } catch (err) {
+    if (missingPaymentRecordsTable(err)) {
+      return NextResponse.json({
+        records: [],
+        writable: false,
+        warning: 'Payment records are not available yet. Please run the latest DB migration.',
+      });
+    }
+    console.error('payment records list error', err);
+    return NextResponse.json({ error: 'Could not load payment records.' }, { status: 500 });
+  }
 }
 
 // POST /api/investments/[id]/payments — upsert a payment record (toggle paid/unpaid)
@@ -61,6 +78,12 @@ export async function POST(req, { params }) {
     `;
     return NextResponse.json({ record: rows[0] });
   } catch (err) {
+    if (missingPaymentRecordsTable(err)) {
+      return NextResponse.json(
+        { error: 'Payment records are not available yet. Please run the latest DB migration.' },
+        { status: 409 }
+      );
+    }
     console.error('payment record error', err);
     return NextResponse.json({ error: 'Could not save payment record.' }, { status: 500 });
   }

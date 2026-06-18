@@ -61,6 +61,8 @@ export default function DetailClient({ user, investment: i, documents }) {
   const [paymentRecords, setPaymentRecords] = useState({});
   const [togglingPeriod, setTogglingPeriod] = useState(null);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [paymentsWritable, setPaymentsWritable] = useState(true);
+  const [paymentsError, setPaymentsError] = useState('');
 
   const freq = i.payment_frequency || 'lump_sum';
   const isRecurring = freq === 'monthly' || freq === 'yearly';
@@ -83,17 +85,28 @@ export default function DetailClient({ user, investment: i, documents }) {
   // Load payment records for recurring investments.
   useEffect(() => {
     if (!isRecurring) return;
+    setPaymentsError('');
     fetch(`/api/investments/${i.id}/payments`)
-      .then(r => r.json())
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not load payment history.');
+        return d;
+      })
       .then(d => {
         const map = {};
         (d.records || []).forEach(r => { map[r.period_label] = r; });
         setPaymentRecords(map);
-        setPaymentsLoaded(true);
-      });
+        setPaymentsWritable(d.writable !== false);
+        if (d.warning) setPaymentsError(d.warning);
+      })
+      .catch((err) => {
+        setPaymentsError(err.message || 'Could not load payment history.');
+      })
+      .finally(() => setPaymentsLoaded(true));
   }, [i.id, isRecurring]);
 
   const togglePayment = async (slot) => {
+    setPaymentsError('');
     setTogglingPeriod(slot.period_label);
     const current = paymentRecords[slot.period_label];
     const newPaid = !(current?.paid);
@@ -104,9 +117,10 @@ export default function DetailClient({ user, investment: i, documents }) {
         body: JSON.stringify({ ...slot, paid: newPaid }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setPaymentRecords(prev => ({ ...prev, [slot.period_label]: data.record }));
-      }
+      if (!res.ok) throw new Error(data.error || 'Could not update payment record.');
+      setPaymentRecords(prev => ({ ...prev, [slot.period_label]: data.record }));
+    } catch (err) {
+      setPaymentsError(err.message || 'Could not update payment record.');
     } finally {
       setTogglingPeriod(null);
     }
@@ -220,6 +234,9 @@ export default function DetailClient({ user, investment: i, documents }) {
                 </span>
               )}
             </div>
+            {paymentsError && (
+              <p className="text-[11px] text-danger mb-2">{paymentsError}</p>
+            )}
             {!paymentsLoaded ? (
               <div className="space-y-1.5">
                 {[0,1,2].map(n => <div key={n} className="h-10 bg-paper-tint rounded-xl animate-pulse" />)}
@@ -237,9 +254,10 @@ export default function DetailClient({ user, investment: i, documents }) {
                       className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
                       <button
                         onClick={() => togglePayment(slot)}
-                        disabled={isToggling}
+                        disabled={isToggling || !paymentsWritable}
                         className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition
-                          ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'}`}>
+                          ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'}
+                          ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         {paid && <span className="text-white text-[10px] font-bold">✓</span>}
                         {isToggling && <span className="text-ink-mute text-[9px]">…</span>}
                       </button>
