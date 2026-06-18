@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS investments (
   maturity_value NUMERIC(14,2),
   nominee TEXT NOT NULL,
   auto_renew BOOLEAN DEFAULT FALSE,
+  account_holder TEXT DEFAULT 'Self',    -- who owns this investment (e.g. Self, Wife, Father)
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -69,6 +70,26 @@ CREATE TABLE IF NOT EXISTS investments (
 
 CREATE INDEX IF NOT EXISTS idx_investments_user ON investments(user_id);
 CREATE INDEX IF NOT EXISTS idx_investments_goal ON investments(goal_id);
+
+-- ---------- Payment Records ----------
+-- Tracks whether each periodic instalment (monthly/yearly) was paid.
+-- period_label: 'Jun 2026' for monthly, '2026-27' for yearly.
+CREATE TABLE IF NOT EXISTS payment_records (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  investment_id  UUID NOT NULL REFERENCES investments(id) ON DELETE CASCADE,
+  user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  period_label   TEXT NOT NULL,
+  due_date       DATE NOT NULL,
+  amount         NUMERIC(14,2) NOT NULL,
+  paid           BOOLEAN DEFAULT FALSE,
+  paid_at        TIMESTAMPTZ,
+  notes          TEXT,
+  created_at     TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(investment_id, period_label)
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_records_investment ON payment_records(investment_id);
+CREATE INDEX IF NOT EXISTS idx_payment_records_user ON payment_records(user_id);
 
 -- ---------- Documents (PDF metadata; files stored separately) ----------
 CREATE TABLE IF NOT EXISTS documents (

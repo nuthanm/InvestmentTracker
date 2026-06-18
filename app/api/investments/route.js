@@ -76,7 +76,7 @@ export async function POST(req) {
       INSERT INTO investments (
         user_id, goal_id, type_code, custom_type, bank, plan_name,
         amount, rate_pct, tenure_months, tenure_days, compounding,
-        payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew
+        payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder
       )
       VALUES (
         ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
@@ -84,7 +84,7 @@ export async function POST(req) {
         ${body.amount}, ${body.rate_pct}, ${body.tenure_months}, ${body.tenure_days || 0}, ${body.compounding || 'quarterly'},
         ${paymentFrequency},
         ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${maturityValue},
-        ${body.nominee}, ${!!body.auto_renew}
+        ${body.nominee}, ${!!body.auto_renew}, ${body.account_holder || 'Self'}
       )
       RETURNING *
     `;

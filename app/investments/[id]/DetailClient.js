@@ -2,9 +2,50 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
+
+// Generate expected payment schedule for a recurring investment.
+function buildSchedule(investment) {
+  const freq = investment.payment_frequency;
+  if (freq !== 'monthly' && freq !== 'yearly') return [];
+
+  const start = new Date(investment.start_date);
+  const tenureMonths = Number(investment.tenure_months);
+  const amount = Number(investment.amount);
+  const schedule = [];
+
+  if (freq === 'monthly') {
+    for (let m = 0; m < tenureMonths; m++) {
+      const due = new Date(start);
+      due.setMonth(due.getMonth() + m);
+      const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const label = mo[due.getMonth()] + ' ' + due.getFullYear();
+      schedule.push({ period_label: label, due_date: due.toISOString().slice(0,10), amount });
+    }
+  } else {
+    const years = Math.floor(tenureMonths / 12);
+    for (let y = 0; y < years; y++) {
+      const due = new Date(start);
+      due.setFullYear(due.getFullYear() + y);
+      const startYr = due.getFullYear();
+      const label = `${startYr}-${String(startYr + 1).slice(2)}`;
+      schedule.push({ period_label: label, due_date: due.toISOString().slice(0,10), amount });
+    }
+  }
+  return schedule;
+}
+
+// Returns days until maturity (negative if already past).
+function daysUntilMaturity(maturityDate) {
+  if (!maturityDate) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const mat = new Date(maturityDate);
+  mat.setHours(0, 0, 0, 0);
+  return Math.round((mat - today) / (1000 * 60 * 60 * 24));
+}
 
 export default function DetailClient({ user, investment: i, documents }) {
   const router = useRouter();
@@ -12,6 +53,14 @@ export default function DetailClient({ user, investment: i, documents }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  // Payment records state
+  const [paymentRecords, setPaymentRecords] = useState({});
+  const [togglingPeriod, setTogglingPeriod] = useState(null);
+  const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+
+  const freq = i.payment_frequency || 'lump_sum';
+  const isRecurring = freq === 'monthly' || freq === 'yearly';
 
   const onDelete = async () => {
     setDeleteError('');
@@ -28,28 +77,91 @@ export default function DetailClient({ user, investment: i, documents }) {
     }
   };
 
-  const freq = i.payment_frequency || 'lump_sum';
+  // Load payment records for recurring investments.
+  useEffect(() => {
+    if (!isRecurring) return;
+    fetch(`/api/investments/${i.id}/payments`)
+      .then(r => r.json())
+      .then(d => {
+        const map = {};
+        (d.records || []).forEach(r => { map[r.period_label] = r; });
+        setPaymentRecords(map);
+        setPaymentsLoaded(true);
+      });
+  }, [i.id, isRecurring]);
+
+  const togglePayment = async (slot) => {
+    setTogglingPeriod(slot.period_label);
+    const current = paymentRecords[slot.period_label];
+    const newPaid = !(current?.paid);
+    try {
+      const res = await fetch(`/api/investments/${i.id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...slot, paid: newPaid }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPaymentRecords(prev => ({ ...prev, [slot.period_label]: data.record }));
+      }
+    } finally {
+      setTogglingPeriod(null);
+    }
+  };
+
   const monthlyInt = (Number(i.amount) * Number(i.rate_pct)) / 100 / 12;
   const monthlyPct = (Number(i.rate_pct) / 12).toFixed(3);
 
   // Total invested for periodic types
   let totalInvested = Number(i.amount);
   if (freq === 'monthly' && i.tenure_months) {
-    // Count whole months only (days don't trigger an extra instalment for RD)
     totalInvested = Number(i.amount) * Number(i.tenure_months);
   } else if (freq === 'yearly' && i.tenure_months) {
     totalInvested = Number(i.amount) * Math.floor(Number(i.tenure_months) / 12);
   }
 
-  const isRecurring = freq === 'monthly' || freq === 'yearly';
   const amountLabel = freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
   const freqSuffix = freq === 'monthly' ? '/mo' : freq === 'yearly' ? '/yr' : '';
+
+  // Maturity warning
+  const daysLeft = daysUntilMaturity(i.maturity_date);
+  const maturityUrgent = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
+  const maturityWarning = daysLeft !== null && daysLeft >= 0 && daysLeft <= 90 && !maturityUrgent;
+
+  // Payment schedule
+  const schedule = isRecurring ? buildSchedule(i) : [];
+  const paidCount = schedule.filter(s => paymentRecords[s.period_label]?.paid).length;
+  const totalPaid = paidCount * Number(i.amount);
+  const expectedPaid = (() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return schedule.filter(s => new Date(s.due_date) <= today).length;
+  })();
 
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full">
 
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Back</button>
+
+        {/* Maturity urgency banner */}
+        {(maturityUrgent || maturityWarning) && (
+          <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
+            <span className="text-xl leading-none">{maturityUrgent ? '🔔' : '📅'}</span>
+            <div>
+              <p className={`text-sm font-medium ${maturityUrgent ? 'text-danger' : 'text-honey-600'}`}>
+                {maturityUrgent
+                  ? `Matures in ${daysLeft} day${daysLeft === 1 ? '' : 's'}!`
+                  : `Matures in ${daysLeft} days`}
+              </p>
+              <p className="text-[11px] text-ink-soft mt-0.5">
+                {maturityUrgent
+                  ? 'This investment is about to mature. Plan your next steps — renew, withdraw, or reinvest.'
+                  : 'This investment is maturing soon. Consider your renewal or withdrawal options.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
           <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(i)}</p>
@@ -87,8 +199,68 @@ export default function DetailClient({ user, investment: i, documents }) {
           <Row label="Started" value={fmtDate(i.start_date)} />
           <Row label="Goal" value={i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : '—'} />
           <Row label="Nominee" value={i.nominee} />
+          <Row label="Account holder" value={i.account_holder || 'Self'} />
           <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />
         </div>
+
+        {/* Payment records section for recurring investments */}
+        {isRecurring && (
+          <section className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Payment history</p>
+              {paymentsLoaded && (
+                <span className="text-[11px] text-ink-soft">
+                  {paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(Number(i.amount) * schedule.length)}
+                  {expectedPaid > 0 && paidCount < expectedPaid && (
+                    <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>
+                  )}
+                </span>
+              )}
+            </div>
+            {!paymentsLoaded ? (
+              <div className="space-y-1.5">
+                {[0,1,2].map(n => <div key={n} className="h-10 bg-paper-tint rounded-xl animate-pulse" />)}
+              </div>
+            ) : (
+              <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
+                {schedule.map((slot, idx) => {
+                  const record = paymentRecords[slot.period_label];
+                  const paid = record?.paid;
+                  const today = new Date(); today.setHours(0,0,0,0);
+                  const isDue = new Date(slot.due_date) <= today;
+                  const isToggling = togglingPeriod === slot.period_label;
+                  return (
+                    <div key={slot.period_label}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
+                      <button
+                        onClick={() => togglePayment(slot)}
+                        disabled={isToggling}
+                        className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition
+                          ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'}`}>
+                        {paid && <span className="text-white text-[10px] font-bold">✓</span>}
+                        {isToggling && <span className="text-ink-mute text-[9px]">…</span>}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{slot.period_label}</p>
+                        <p className="text-[11px] text-ink-mute">{fmtDate(slot.due_date)}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm font-medium">{inr(slot.amount)}</p>
+                        {paid ? (
+                          <p className="text-[11px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p>
+                        ) : isDue ? (
+                          <p className="text-[11px] text-danger">Overdue</p>
+                        ) : (
+                          <p className="text-[11px] text-ink-mute">Upcoming</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         {documents.length > 0 && (
           <section className="mb-5">

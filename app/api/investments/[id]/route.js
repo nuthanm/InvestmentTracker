@@ -110,7 +110,8 @@ export async function PATCH(req, { params }) {
         maturity_date = ${maturityDate.toISOString().slice(0, 10)},
         maturity_value = ${maturityValue},
         nominee = ${body.nominee},
-        auto_renew = ${!!body.auto_renew}
+        auto_renew = ${!!body.auto_renew},
+        account_holder = ${body.account_holder || 'Self'}
       WHERE id = ${params.id} AND user_id = ${me.id}
       RETURNING *
     `;
