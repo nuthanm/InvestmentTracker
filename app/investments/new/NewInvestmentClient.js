@@ -98,6 +98,7 @@ export default function NewInvestmentClient({
   );
   const [goalId, setGoalId] = useState(initialInvestment?.goal_id || goals[0]?.id || '');
   const [nominee, setNominee] = useState(initialInvestment?.nominee || '');
+  const [accountHolder, setAccountHolder] = useState(initialInvestment?.account_holder || 'Self');
   const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
   const [docs, setDocs] = useState(
     initialDocuments.map((doc) => ({
@@ -210,6 +211,7 @@ export default function NewInvestmentClient({
           payment_frequency: effectiveFrequency,
           goal_id: goalId,
           nominee: nominee.trim(),
+          account_holder: accountHolder.trim() || 'Self',
           auto_renew: autoRenew,
           start_date: initialInvestment?.start_date || null,
           documents: docs,
@@ -394,6 +396,11 @@ export default function NewInvestmentClient({
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Nominee<span className="text-danger ml-0.5">*</span></label>
               <input type="text" placeholder="Full name" value={nominee} onChange={(e) => setNominee(e.target.value)} className="field-input"/>
+            </div>
+            <div>
+              <label className="block text-xs text-ink-soft mb-1.5">Account holder</label>
+              <input type="text" placeholder="Self, Wife, Father…" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} className="field-input"/>
+              <p className="text-[11px] text-ink-mute mt-1">Whose account / name this investment is in</p>
             </div>
           </section>
 
