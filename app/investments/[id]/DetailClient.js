@@ -63,6 +63,7 @@ export default function DetailClient({ user, investment: i, documents }) {
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [paymentsWritable, setPaymentsWritable] = useState(true);
   const [paymentsError, setPaymentsError] = useState('');
+  const [manualPaidDate, setManualPaidDate] = useState({});
 
   const freq = i.payment_frequency || 'lump_sum';
   const isRecurring = freq === 'monthly' || freq === 'yearly';
@@ -110,11 +111,12 @@ export default function DetailClient({ user, investment: i, documents }) {
     setTogglingPeriod(slot.period_label);
     const current = paymentRecords[slot.period_label];
     const newPaid = !(current?.paid);
+    const selectedDate = manualPaidDate[slot.period_label] || slot.due_date;
     try {
       const res = await fetch(`/api/investments/${i.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...slot, paid: newPaid }),
+        body: JSON.stringify({ ...slot, paid: newPaid, paid_at: newPaid ? selectedDate : null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update payment record.');
@@ -142,8 +144,9 @@ export default function DetailClient({ user, investment: i, documents }) {
 
   // Maturity warning
   const daysLeft = daysUntilMaturity(i.maturity_date);
-  const maturityUrgent = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
-  const maturityWarning = daysLeft !== null && daysLeft >= 0 && daysLeft <= 90 && !maturityUrgent;
+  const maturityMatured = daysLeft !== null && daysLeft <= 0;
+  const maturityUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 30;
+  const maturityWarning = daysLeft !== null && daysLeft > 30 && daysLeft <= 90;
 
   // Payment schedule
   const schedule = isRecurring ? buildSchedule(i) : [];
@@ -162,17 +165,21 @@ export default function DetailClient({ user, investment: i, documents }) {
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Back</button>
 
         {/* Maturity urgency banner */}
-        {(maturityUrgent || maturityWarning) && (
-          <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
-            <span className="text-xl leading-none">{maturityUrgent ? '🔔' : '📅'}</span>
+        {(maturityMatured || maturityUrgent || maturityWarning) && (
+          <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityMatured ? 'bg-mint-50 border border-mint-600/30' : maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
+            <span className="text-xl leading-none">{maturityMatured ? '✅' : maturityUrgent ? '🔔' : '📅'}</span>
             <div>
-              <p className={`text-sm font-medium ${maturityUrgent ? 'text-danger' : 'text-honey-600'}`}>
-                {maturityUrgent
+              <p className={`text-sm font-medium ${maturityMatured ? 'text-mint-700' : maturityUrgent ? 'text-danger' : 'text-honey-600'}`}>
+                {maturityMatured
+                  ? (daysLeft === 0 ? 'Matures today' : `Matured ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? '' : 's'} ago`)
+                  : maturityUrgent
                   ? `Matures in ${daysLeft} day${daysLeft === 1 ? '' : 's'}!`
                   : `Matures in ${daysLeft} days`}
               </p>
               <p className="text-[11px] text-ink-soft mt-0.5">
-                {maturityUrgent
+                {maturityMatured
+                  ? 'This investment reached maturity. You can mark closure or plan reinvestment.'
+                  : maturityUrgent
                   ? 'This investment is about to mature. Plan your next steps — renew, withdraw, or reinvest.'
                   : 'This investment is maturing soon. Consider your renewal or withdrawal options.'}
               </p>
@@ -249,6 +256,7 @@ export default function DetailClient({ user, investment: i, documents }) {
                   const today = new Date(); today.setHours(0,0,0,0);
                   const isDue = new Date(slot.due_date) <= today;
                   const isToggling = togglingPeriod === slot.period_label;
+                  const selectedPaidDate = manualPaidDate[slot.period_label] || slot.due_date;
                   return (
                     <div key={slot.period_label}
                       className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
@@ -257,13 +265,27 @@ export default function DetailClient({ user, investment: i, documents }) {
                         disabled={isToggling || !paymentsWritable}
                         className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition
                           ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'}
-                          ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={paid ? 'Mark unpaid' : 'Mark paid'}>
                         {paid && <span className="text-white text-[10px] font-bold">✓</span>}
                         {isToggling && <span className="text-ink-mute text-[9px]">…</span>}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{slot.period_label}</p>
                         <p className="text-[11px] text-ink-mute">{fmtDate(slot.due_date)}</p>
+                        {!paid && (
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <label className="text-[10px] text-ink-mute">Paid on</label>
+                            <input
+                              type="date"
+                              value={selectedPaidDate}
+                              max={new Date().toISOString().slice(0, 10)}
+                              onChange={(e) => setManualPaidDate(prev => ({ ...prev, [slot.period_label]: e.target.value }))}
+                              disabled={!paymentsWritable || isToggling}
+                              className="text-[11px] px-2 py-1 rounded-md border border-edge bg-paper-card"
+                            />
+                          </div>
+                        )}
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-medium">{inr(slot.amount)}</p>

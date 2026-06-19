@@ -46,6 +46,11 @@ export default function InvestmentsClient({ user }) {
     return d !== null && d >= 0 && d <= 90;
   }).length;
 
+  const maturedCount = investments.filter(i => {
+    const d = daysUntilMaturity(i.maturity_date);
+    return d !== null && d <= 0;
+  }).length;
+
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-4xl mx-auto w-full">
@@ -65,6 +70,16 @@ export default function InvestmentsClient({ user }) {
             <p className="text-sm text-honey-600">
               <span className="font-medium">{nearMaturityCount} investment{nearMaturityCount > 1 ? 's' : ''} maturing within 90 days.</span>
               {' '}Tap to review and decide: renew, withdraw, or reinvest.
+            </p>
+          </div>
+        )}
+
+        {!loading && maturedCount > 0 && (
+          <div className="flex items-start gap-3 bg-mint-50 border border-mint-600/30 rounded-xl p-3.5 mb-4">
+            <span className="text-xl leading-none">✅</span>
+            <p className="text-sm text-mint-700">
+              <span className="font-medium">{maturedCount} investment{maturedCount > 1 ? 's are' : ' is'} matured.</span>
+              {' '}Review closure, withdrawal, or reinvestment action.
             </p>
           </div>
         )}
@@ -96,11 +111,12 @@ export default function InvestmentsClient({ user }) {
               const tone = toneFor(i.type_code);
               const suffix = frequencySuffix(i.payment_frequency);
               const days = daysUntilMaturity(i.maturity_date);
+              const isMatured = days !== null && days <= 0;
               const isUrgent = days !== null && days >= 0 && days <= 30;
               const isWarning = days !== null && days >= 0 && days <= 90 && !isUrgent;
               return (
                 <Link key={i.id} href={`/investments/${i.id}`}
-                  className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
+                  className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>
                     {TYPE_META[i.type_code]?.short || 'OT'}
                   </div>
@@ -117,6 +133,7 @@ export default function InvestmentsClient({ user }) {
                   <div className="text-right flex-shrink-0 min-w-[5rem]">
                     <p className="text-sm font-medium">{inr(i.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
                     <p className="text-[11px] text-mint-600 mt-0.5">{i.rate_pct}% p.a.</p>
+                    {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
                     {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
                     {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
                   </div>

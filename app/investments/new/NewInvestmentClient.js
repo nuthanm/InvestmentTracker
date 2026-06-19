@@ -77,10 +77,10 @@ export default function NewInvestmentClient({
   const router = useRouter();
   const isEditing = mode === 'edit';
   const initialCustomTenure = getInitialCustomTenure(initialInvestment);
-  const startDate = useMemo(
-    () => (initialInvestment?.start_date ? new Date(initialInvestment.start_date) : new Date()),
-    [initialInvestment?.start_date]
+  const [startDateInput, setStartDateInput] = useState(
+    initialInvestment?.start_date || new Date().toISOString().slice(0, 10)
   );
+  const startDate = useMemo(() => new Date(startDateInput), [startDateInput]);
 
   const [typeCode, setTypeCode] = useState(initialInvestment?.type_code || 'FD');
   const [customType, setCustomType] = useState(initialInvestment?.custom_type || '');
@@ -213,7 +213,7 @@ export default function NewInvestmentClient({
           nominee: nominee.trim(),
           account_holder: accountHolder.trim() || 'Self',
           auto_renew: autoRenew,
-          start_date: initialInvestment?.start_date || null,
+          start_date: startDateInput,
           documents: docs,
         }),
       });
@@ -336,6 +336,21 @@ export default function NewInvestmentClient({
                 )}
               </div>
             )}
+          </section>
+
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-ink-soft mb-1.5">Start / debit date<span className="text-danger ml-0.5">*</span></label>
+              <input
+                type="date"
+                value={startDateInput}
+                onChange={(e) => setStartDateInput(e.target.value)}
+                className="field-input"
+              />
+              <p className="text-[11px] text-ink-mute mt-1">
+                For monthly/yearly plans, this date sets the recurring debit day anchor.
+              </p>
+            </div>
           </section>
 
           <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
