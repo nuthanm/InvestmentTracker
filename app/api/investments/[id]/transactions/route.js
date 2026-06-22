@@ -115,7 +115,8 @@ export async function POST(req, { params }) {
       ORDER BY trade_date ASC, created_at ASC
     `;
     const summary = summarizeMarketTransactions(existingTransactions);
-    if (SELL_TYPES.has(transactionType) && units > Number(summary.total_units || 0)) {
+    const availableUnits = Number(summary.total_units || 0);
+    if (SELL_TYPES.has(transactionType) && units - availableUnits > 0.000001) {
       return NextResponse.json({ error: 'Redeemed units cannot exceed your current holding.' }, { status: 400 });
     }
 

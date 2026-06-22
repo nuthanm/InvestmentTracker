@@ -190,8 +190,9 @@ export default function NewInvestmentClient({
 
     let initialTransaction = null;
     if (isMarketType) {
-      const hasAnyInitialInput = [initialUnits, initialPrice, initialCharges, initialTaxes, initialNotes]
-        .some((value) => String(value || '').trim() !== '' && String(value) !== '0');
+      const hasAnyInitialInput = [initialUnits, initialPrice, initialNotes].some((value) => String(value || '').trim() !== '')
+        || Number(initialCharges || 0) > 0
+        || Number(initialTaxes || 0) > 0;
       if (hasAnyInitialInput) {
         const units = Number(initialUnits || 0);
         const price = Number(initialPrice || 0);

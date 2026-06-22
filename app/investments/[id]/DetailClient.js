@@ -183,7 +183,8 @@ export default function DetailClient({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save transaction.');
-      setTransactions((prev) => [{ ...data.record, net_amount: data.record.net_amount ?? computeTransactionNetAmount(data.record) }, ...prev]);
+      setTransactions((prev) => ([{ ...data.record, net_amount: data.record.net_amount ?? computeTransactionNetAmount(data.record) }, ...prev]
+        .sort((a, b) => `${b.trade_date}|${b.created_at || b.id}`.localeCompare(`${a.trade_date}|${a.created_at || a.id}`))));
       setSummary(data.summary);
       setTxForm({ transaction_type: 'buy', trade_date: new Date().toISOString().slice(0, 10), units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' });
     } catch (err) {
