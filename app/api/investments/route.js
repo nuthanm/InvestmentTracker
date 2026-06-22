@@ -2,6 +2,63 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
+import {
+  attachInvestmentSummaries,
+  computeTransactionGross,
+  computeTransactionNetAmount,
+  isMarketInvestment,
+} from '@/lib/investments';
+
+function missingTransactionsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('investment_transactions') && msg.includes('does not exist');
+}
+
+function parseDateInput(value) {
+  const dt = value ? new Date(value) : new Date();
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function validateInitialTransaction(tx) {
+  if (!tx) return null;
+  const transactionType = String(tx.transaction_type || 'buy').toLowerCase();
+  const tradeDate = parseDateInput(tx.trade_date);
+  if (!tradeDate) return { error: 'Initial transaction date is invalid.' };
+
+  const units = Number(tx.units || 0);
+  const pricePerUnit = Number(tx.price_per_unit || 0);
+  const charges = Number(tx.charges || 0);
+  const taxes = Number(tx.taxes || 0);
+  const totalAmount = Number(tx.total_amount || units * pricePerUnit || 0);
+
+  if (transactionType !== 'buy') {
+    return { error: 'The initial transaction must be a buy.' };
+  }
+  if (units <= 0) {
+    return { error: 'Initial buy units must be greater than zero.' };
+  }
+  if (pricePerUnit <= 0) {
+    return { error: 'Initial buy price must be greater than zero.' };
+  }
+  if (totalAmount <= 0) {
+    return { error: 'Initial buy amount must be greater than zero.' };
+  }
+  if (charges < 0 || taxes < 0) {
+    return { error: 'Charges and taxes cannot be negative.' };
+  }
+
+  return {
+    transaction_type: transactionType,
+    trade_date: tradeDate.toISOString().slice(0, 10),
+    units,
+    price_per_unit: pricePerUnit,
+    total_amount: totalAmount,
+    charges,
+    taxes,
+    notes: tx.notes?.trim() || null,
+  };
+}
 
 export async function GET() {
   const me = await getCurrentUser();
@@ -15,7 +72,27 @@ export async function GET() {
     WHERE i.user_id = ${me.id}
     ORDER BY i.created_at DESC
   `;
-  return NextResponse.json({ investments });
+
+  const marketIds = investments.filter((investment) => isMarketInvestment(investment.type_code)).map((investment) => investment.id);
+  if (marketIds.length === 0) return NextResponse.json({ investments });
+
+  try {
+    const transactions = await sql`
+      SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
+      FROM investment_transactions
+      WHERE user_id = ${me.id} AND investment_id = ANY(${marketIds})
+      ORDER BY trade_date ASC, created_at ASC
+    `;
+    return NextResponse.json({ investments: attachInvestmentSummaries(investments, transactions) });
+  } catch (err) {
+    if (missingTransactionsTable(err)) {
+      return NextResponse.json({
+        investments,
+        warning: 'Market transactions are not available yet. Run db/migrations/2026-06-22-add-market-investment-transactions.sql in Neon SQL Editor.',
+      });
+    }
+    throw err;
+  }
 }
 
 export async function POST(req) {
@@ -23,17 +100,18 @@ export async function POST(req) {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   try {
     const body = await req.json();
-    const required = ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
-    for (const f of required) {
-      if (body[f] === undefined || body[f] === null || body[f] === '') {
-        return NextResponse.json({ error: `${f.replace(/_/g, ' ')} is required.` }, { status: 400 });
+    const marketInvestment = isMarketInvestment(body.type_code);
+    const required = marketInvestment
+      ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
+      : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+
+    for (const field of required) {
+      if (body[field] === undefined || body[field] === null || body[field] === '') {
+        return NextResponse.json({ error: `${field.replace(/_/g, ' ')} is required.` }, { status: 400 });
       }
     }
     if (body.type_code === 'OT' && !body.custom_type) {
       return NextResponse.json({ error: 'Please name your custom investment type.' }, { status: 400 });
-    }
-    if (Number(body.amount) <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
     }
 
     const goalRows = await sql`
@@ -44,6 +122,79 @@ export async function POST(req) {
     `;
     if (goalRows.length === 0) {
       return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
+    }
+
+    if (marketInvestment) {
+      const initialTransaction = validateInitialTransaction(body.initial_transaction);
+      if (initialTransaction?.error) {
+        return NextResponse.json({ error: initialTransaction.error }, { status: 400 });
+      }
+
+      const startDate = parseDateInput(initialTransaction?.trade_date || body.start_date);
+      if (!startDate) {
+        return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+      }
+
+      const startingAmount = initialTransaction ? computeTransactionNetAmount(initialTransaction) : 0;
+      const rows = await sql`
+        INSERT INTO investments (
+          user_id, goal_id, type_code, custom_type, bank, plan_name,
+          amount, rate_pct, tenure_months, tenure_days, compounding,
+          payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder
+        )
+        VALUES (
+          ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
+          ${body.bank.trim()}, ${body.plan_name.trim()},
+          ${startingAmount}, 0, 0, 0, 'quarterly',
+          'lump_sum', ${startDate.toISOString().slice(0, 10)}, NULL, NULL,
+          ${body.nominee.trim()}, false, ${body.account_holder || 'Self'}
+        )
+        RETURNING *
+      `;
+      const investment = rows[0];
+
+      if (initialTransaction) {
+        try {
+          await sql`
+            INSERT INTO investment_transactions (
+              investment_id, user_id, transaction_type, trade_date, units, price_per_unit,
+              total_amount, charges, taxes, notes
+            )
+            VALUES (
+              ${investment.id}, ${me.id}, ${initialTransaction.transaction_type}, ${initialTransaction.trade_date}, ${initialTransaction.units},
+              ${initialTransaction.price_per_unit}, ${computeTransactionGross(initialTransaction)}, ${initialTransaction.charges},
+              ${initialTransaction.taxes}, ${initialTransaction.notes}
+            )
+          `;
+        } catch (err) {
+          if (missingTransactionsTable(err)) {
+            return NextResponse.json(
+              { error: 'Market transactions are not available yet. Run db/migrations/2026-06-22-add-market-investment-transactions.sql in Neon SQL Editor.' },
+              { status: 409 }
+            );
+          }
+          throw err;
+        }
+      }
+
+      if (Array.isArray(body.documents)) {
+        for (const doc of body.documents) {
+          if (!doc.filename || !doc.data_url) continue;
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            VALUES (${investment.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          `;
+        }
+      }
+
+      return NextResponse.json({ investment });
+    }
+
+    if (Number(body.amount) <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
+    }
+    if (Number(body.rate_pct) <= 0) {
+      return NextResponse.json({ error: 'Interest rate must be greater than zero.' }, { status: 400 });
     }
 
     const paymentFrequency = body.payment_frequency || 'lump_sum';
@@ -66,8 +217,8 @@ export async function POST(req) {
       });
     }
 
-    const startDate = body.start_date ? new Date(body.start_date) : new Date();
-    if (Number.isNaN(startDate.getTime())) {
+    const startDate = parseDateInput(body.start_date);
+    if (!startDate) {
       return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
     }
     const maturityDate = addMonths(startDate, tenureMonths);
@@ -80,11 +231,11 @@ export async function POST(req) {
       )
       VALUES (
         ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
-        ${body.bank}, ${body.plan_name},
+        ${body.bank.trim()}, ${body.plan_name.trim()},
         ${body.amount}, ${body.rate_pct}, ${body.tenure_months}, ${body.tenure_days || 0}, ${body.compounding || 'quarterly'},
         ${paymentFrequency},
         ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${maturityValue},
-        ${body.nominee}, ${!!body.auto_renew}, ${body.account_holder || 'Self'}
+        ${body.nominee.trim()}, ${!!body.auto_renew}, ${body.account_holder || 'Self'}
       )
       RETURNING *
     `;
@@ -113,7 +264,7 @@ export async function POST(req) {
       return NextResponse.json(
         {
           error:
-            'Database schema is out of date. Run db/migrations/2026-06-15-safe-upgrade-investments.sql in Neon SQL Editor, then try again.',
+            'Database schema is out of date. Run the SQL files in db/migrations (including 2026-06-22-add-market-investment-transactions.sql) in Neon SQL Editor, then try again.',
         },
         { status: 500 }
       );
