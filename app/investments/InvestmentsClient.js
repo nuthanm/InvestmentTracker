@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveInvestedAmount, isMarketInvestment } from '@/lib/investments';
+import { effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -35,7 +35,7 @@ export default function InvestmentsClient({ user }) {
   }, []);
 
   const filtered = filter === 'ALL' ? investments : investments.filter((investment) => investment.type_code === filter);
-  const total = filtered.reduce((sum, investment) => sum + effectiveInvestedAmount(investment), 0);
+  const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
   const types = Array.from(new Set(investments.map((investment) => investment.type_code)));
 
   const nearMaturityCount = investments.filter((investment) => {

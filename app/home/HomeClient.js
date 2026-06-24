@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
-import { effectiveCurrentValue, effectiveInvestedAmount, isMarketInvestment } from '@/lib/investments';
+import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -30,7 +30,7 @@ export default function HomeClient({ user }) {
   }, []);
 
   const totalValue = investments.reduce((sum, investment) => sum + effectiveCurrentValue(investment), 0);
-  const totalInvested = investments.reduce((sum, investment) => sum + effectiveInvestedAmount(investment), 0);
+  const totalInvested = investments.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
   const totalReturns = totalValue - totalInvested;
   const returnPct = totalInvested ? ((totalReturns / totalInvested) * 100).toFixed(1) : '0.0';
 
