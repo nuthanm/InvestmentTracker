@@ -196,11 +196,13 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
 
   const maxVal = useMemo(() => {
     const dataMax = Math.max(...points.map((p) => p.value), 0);
-    return Math.max(dataMax, goalAmount || 0) * 1.15 || 1;
-  }, [points, goalAmount]);
+    return dataMax * 1.15 || 1;
+  }, [points]);
 
   const todayX = scaleX(today, from, to);
-  const goalLineY = goalAmount ? scaleY(goalAmount, maxVal) : null;
+  // Clamp goal line to the top of the chart area so it always renders even when
+  // the goal amount exceeds the data-driven y-axis maximum.
+  const goalLineY = goalAmount ? Math.max(T, scaleY(goalAmount, maxVal)) : null;
   const goalDateX = goalDate ? scaleX(new Date(goalDate), from, to) : null;
 
   // Hover: find nearest point
@@ -285,7 +287,7 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
           ))}
 
           {/* Goal amount dashed line */}
-          {goalLineY !== null && goalLineY >= T && goalLineY <= T + PH && (
+          {goalLineY !== null && goalLineY <= T + PH && (
             <>
               <line x1={L} y1={goalLineY.toFixed(1)} x2={L + PW} y2={goalLineY.toFixed(1)}
                 stroke="#3C3489" strokeWidth="1.5" strokeDasharray="6,4" />
