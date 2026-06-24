@@ -69,18 +69,19 @@ export default function HomeClient({ user }) {
         <div className="px-4 md:px-8 py-5 md:py-6 max-w-5xl mx-auto w-full">
           <div className="md:flex md:items-end md:justify-between mb-5">
             <div>
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Portfolio value</p>
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Future Value</p>
               <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalValue)}</h1>
               <p className={`text-sm mt-1.5 ${totalReturns >= 0 ? 'text-mint-600' : 'text-danger'}`}>{totalReturns >= 0 ? '+' : ''}{inr(totalReturns)} ({returnPct}%)</p>
             </div>
             <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-6">
             <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Active plans</p><p className="text-lg font-medium mt-1">{investments.length} <span className="text-ink-mute text-sm">→</span></p></Link>
             <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Maturing in 30 days</p><p className="text-lg font-medium mt-1 text-honey-600">{maturingSoon} <span className="text-ink-mute text-sm">→</span></p></Link>
             <Link href="/goals" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Goals</p><p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p></Link>
-            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Total invested</p><p className="text-lg font-medium mt-1">{inrShort(totalInvested)}</p></Link>
+            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Present Value</p><p className="text-lg font-medium mt-1">{inrShort(totalInvested)}</p></Link>
+            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition"><p className="text-[11px] text-ink-mute">Future Value</p><p className="text-lg font-medium mt-1 text-mint-600">{inrShort(totalValue)}</p></Link>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4 md:gap-5">
