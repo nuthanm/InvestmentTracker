@@ -264,7 +264,23 @@ export default function DetailClient({
           ) : isRecurring ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span></p>
-              <p className="text-sm text-ink-soft mt-1">Total invested: <span className="font-medium text-ink">{inr(totalInvested)}</span></p>
+              {paymentsLoaded ? (
+                <>
+                  <p className="text-sm text-ink-soft mt-1">
+                    Invested so far: <span className="font-medium text-ink">{inr(totalPaid)}</span>
+                    <span className="text-ink-mute"> / {inr(totalInvested)}</span>
+                  </p>
+                  <p className="text-sm text-ink-soft mt-0.5">
+                    <span className="font-medium text-ink">{paidCount}</span>
+                    <span className="text-ink-mute">/{schedule.length} {freq === 'yearly' ? 'years' : 'months'} paid</span>
+                    {schedule.length - paidCount > 0 && (
+                      <span className="text-ink-mute"> · {schedule.length - paidCount} remaining</span>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-ink-soft mt-1">Total invested: <span className="font-medium text-ink">{inr(totalInvested)}</span></p>
+              )}
               <p className="text-sm text-ink-soft mt-1">Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || totalInvested)}</span>{i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}</p>
             </>
           ) : (
@@ -279,7 +295,15 @@ export default function DetailClient({
           <Row label="Bank / platform" value={i.bank} />
           <Row label="Plan" value={i.plan_name} />
           {!marketType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
-          {!marketType && isRecurring && <Row label="Total invested" value={inr(totalInvested)} />}
+          {!marketType && isRecurring && (
+            <Row
+              label="Total invested"
+              value={paymentsLoaded
+                ? <><span>{inr(totalPaid)}</span><span className="text-ink-soft font-normal"> / {inr(totalInvested)}</span></>
+                : inr(totalInvested)
+              }
+            />
+          )}
           {!marketType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
           {!marketType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
           {!marketType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
