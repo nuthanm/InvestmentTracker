@@ -12,6 +12,7 @@ export default function GoalsClient({ user }) {
   const [goals, setGoals] = useState([]);
   const [investmentsByGoal, setInvestmentsByGoal] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -21,6 +22,7 @@ export default function GoalsClient({ user }) {
   const hostRef = useRef(null);
 
   const load = () => {
+    setLoadError('');
     Promise.all([
       fetch('/api/goals').then((r) => r.json()),
       fetch('/api/investments').then((r) => r.json()),
@@ -35,6 +37,7 @@ export default function GoalsClient({ user }) {
       setInvestmentsByGoal(grouped);
       setLoading(false);
     }).catch(() => {
+      setLoadError('Could not load goals right now. Please try again.');
       setLoading(false);
     });
   };
@@ -129,6 +132,7 @@ export default function GoalsClient({ user }) {
         </div>
 
         {loading && <div className="h-20 bg-paper-tint rounded-xl animate-pulse" />}
+        {!loading && loadError && <p className="text-sm text-danger mb-3">{loadError}</p>}
 
         {!loading && goals.length === 0 && (
           <div className="text-center py-16">
@@ -152,8 +156,11 @@ export default function GoalsClient({ user }) {
           return (
             <div key={g.id}
               onClick={isEditing ? undefined : (e) => {
-                celebrate(e, pct);
-                setExpandedGoalId((prev) => (prev === g.id ? null : g.id));
+                setExpandedGoalId((prev) => {
+                  const next = prev === g.id ? null : g.id;
+                  if (next === g.id) celebrate(e, pct);
+                  return next;
+                });
               }}
               className={`bg-paper-card border border-edge rounded-2xl p-4 mb-3 transition ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}>
 
