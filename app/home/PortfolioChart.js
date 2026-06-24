@@ -200,9 +200,12 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
   }, [points]);
 
   const todayX = scaleX(today, from, to);
-  // Clamp goal line to the top of the chart area so it always renders even when
-  // the goal amount exceeds the data-driven y-axis maximum.
-  const goalLineY = goalAmount ? Math.max(T, scaleY(goalAmount, maxVal)) : null;
+  // Don't clamp – only draw the goal line when it falls within the chart's
+  // data-driven Y range. When the goal is off-scale (e.g. a ₹5 Cr target
+  // while the chart only reaches ₹4.81 L), clamping would place the line at
+  // the wrong height and give a false impression of scale.
+  const goalLineY = goalAmount ? scaleY(goalAmount, maxVal) : null;
+  const goalInChartRange = goalLineY !== null && goalLineY >= T && goalLineY <= T + PH;
   const goalDateX = goalDate ? scaleX(new Date(goalDate), from, to) : null;
 
   // Hover: find nearest point
@@ -286,8 +289,8 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
             <text key={i} x={g.x} y={T + PH + 20} textAnchor="middle" fontSize="9" fill="#7A867F">{g.label}</text>
           ))}
 
-          {/* Goal amount dashed line */}
-          {goalLineY !== null && goalLineY <= T + PH && (
+          {/* Goal amount: dashed line when in range, text annotation when above range */}
+          {goalAmount && goalInChartRange && (
             <>
               <line x1={L} y1={goalLineY.toFixed(1)} x2={L + PW} y2={goalLineY.toFixed(1)}
                 stroke="#3C3489" strokeWidth="1.5" strokeDasharray="6,4" />
@@ -295,6 +298,11 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
                 Goal {inrShort(goalAmount)}
               </text>
             </>
+          )}
+          {goalAmount && !goalInChartRange && (
+            <text x={L + PW - 4} y={T + 10} textAnchor="end" fontSize="9" fill="#3C3489" fontWeight="500">
+              Goal {inrShort(goalAmount)} (above chart)
+            </text>
           )}
 
           {/* Goal date vertical marker */}
