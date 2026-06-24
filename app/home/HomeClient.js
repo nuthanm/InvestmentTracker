@@ -19,7 +19,7 @@ function InfoTip({ text }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <span className="relative inline-block ml-1 align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span className="relative inline-block ml-1 align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
       <button
         type="button"
         className="w-4 h-4 rounded-full bg-paper-tint text-ink-mute text-[10px] font-bold leading-none flex items-center justify-center hover:bg-paper-card hover:text-ink transition"
@@ -227,7 +227,7 @@ export default function HomeClient({ user }) {
               <p className="text-[11px] tracking-wider text-ink-mute uppercase">Projected Maturity Value</p>
               <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalValue)}</h1>
               {/* Expected gain row with info tooltip */}
-              <div className="relative inline-flex items-center mt-1.5" onMouseEnter={() => setShowGainInfo(true)} onMouseLeave={() => setShowGainInfo(false)}>
+              <div className="relative inline-flex items-center mt-1.5" onMouseEnter={() => setShowGainInfo(true)} onMouseLeave={() => setShowGainInfo(false)} onFocus={() => setShowGainInfo(true)} onBlur={() => setShowGainInfo(false)}>
                 <p className={`text-sm ${expectedGain >= 0 ? 'text-mint-600' : 'text-danger'}`}>
                   {expectedGain >= 0 ? '+' : ''}{inr(expectedGain)}
                   <span className="text-xs ml-1 opacity-80">({gainPct}% future return)</span>
