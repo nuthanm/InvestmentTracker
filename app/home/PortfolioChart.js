@@ -73,7 +73,11 @@ function getRangeWindow(key, investments) {
     const from = new Date(Math.min(...starts.map((d) => d.getTime()), today.getTime()));
     const to = new Date(Math.max(...ends.map((d) => d.getTime()), today.getTime()));
     // Ensure at least a 6-month window
-    if (to - from < 6 * MS_MONTH) to.setMonth(to.getMonth() + 6);
+    if (to - from < 6 * MS_MONTH) {
+      const extended = new Date(to);
+      extended.setMonth(extended.getMonth() + 6);
+      return { from, to: extended };
+    }
     return { from, to };
   }
 
