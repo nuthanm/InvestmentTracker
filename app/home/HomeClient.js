@@ -166,7 +166,6 @@ export default function HomeClient({ user }) {
   const [goals, setGoals] = useState([]);
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showGainInfo, setShowGainInfo] = useState(false);
   const [portfolioGoal, setPortfolioGoal] = useState(null);
 
   useEffect(() => {
@@ -182,11 +181,12 @@ export default function HomeClient({ user }) {
 
   // totalValue = sum of maturity values (future projected value)
   const totalValue = investments.reduce((sum, inv) => sum + effectiveCurrentValue(inv), 0);
+  const totalCurrentPortfolioValue = investments.reduce(
+    (sum, inv) => sum + (isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)),
+    0
+  );
   // totalInvested = amount invested so far (respects start_date for periodic investments)
   const totalInvested = investments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
-  // expectedGain = projected maturity gain over what's been invested so far
-  const expectedGain = totalValue - totalInvested;
-  const gainPct = totalInvested ? ((expectedGain / totalInvested) * 100).toFixed(1) : '0.0';
 
   const maturingSoon = investments.filter((inv) => {
     if (isMarketInvestment(inv.type_code) || !inv.maturity_date) return false;
@@ -224,40 +224,15 @@ export default function HomeClient({ user }) {
           {/* ── Header ── */}
           <div className="md:flex md:items-end md:justify-between mb-5">
             <div>
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Projected Maturity Value</p>
-              <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalValue)}</h1>
-              {/* Expected gain row with info tooltip */}
-              <div className="relative inline-flex items-center mt-1.5" onMouseEnter={() => setShowGainInfo(true)} onMouseLeave={() => setShowGainInfo(false)} onFocus={() => setShowGainInfo(true)} onBlur={() => setShowGainInfo(false)}>
-                <p className={`text-sm ${expectedGain >= 0 ? 'text-mint-600' : 'text-danger'}`}>
-                  {expectedGain >= 0 ? '+' : ''}{inr(expectedGain)}
-                  <span className="text-xs ml-1 opacity-80">({gainPct}% future return)</span>
-                </p>
-                <button
-                  type="button"
-                  className="ml-1.5 w-4 h-4 rounded-full bg-paper-tint text-ink-mute text-[10px] font-bold flex items-center justify-center hover:bg-paper-card hover:text-ink transition"
-                  aria-label="Explain this number"
-                >ⓘ</button>
-                {showGainInfo && (
-                  <div className="absolute z-20 left-0 top-7 w-72 bg-ink text-paper text-[11px] rounded-xl p-3 shadow-xl leading-relaxed">
-                    <p className="font-medium mb-1">What does this mean?</p>
-                    <p>
-                      <span className="text-mint-300 font-medium">{inr(totalValue)}</span> is the <strong>total projected maturity value</strong> — what all your investments are expected to be worth when they mature.
-                    </p>
-                    <p className="mt-1.5">
-                      <span className="font-medium text-mint-300">{expectedGain >= 0 ? '+' : ''}{inr(expectedGain)}</span> is your <strong>expected gain</strong> — the difference between that maturity value and the <span className="font-medium">{inr(totalInvested)}</span> you have invested so far.
-                    </p>
-                    <p className="mt-1.5">
-                      <span className="font-medium text-mint-300">{gainPct}%</span> is the <strong>projected total return</strong> on your invested amount — not a current profit, but what you stand to earn by maturity.
-                    </p>
-                  </div>
-                )}
-              </div>
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
+              <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalCurrentPortfolioValue)}</h1>
+              <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
             </div>
             <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
           </div>
 
           {/* ── Stat cards ── */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
             <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
               <p className="text-[11px] text-ink-mute">Active plans</p>
               <p className="text-lg font-medium mt-1">{investments.length} <span className="text-ink-mute text-sm">→</span></p>
@@ -269,13 +244,6 @@ export default function HomeClient({ user }) {
             <Link href="/goals" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
               <p className="text-[11px] text-ink-mute">Goals</p>
               <p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p>
-            </Link>
-            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-              <p className="text-[11px] text-ink-mute">
-                Invested so far
-                <InfoTip text="The total amount you have actually put in across all your investments up to today. For recurring investments (RD, PPF), only instalments due up to today are counted." />
-              </p>
-              <p className="text-lg font-medium mt-1">{inrShort(totalInvested)}</p>
             </Link>
             <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
               <p className="text-[11px] text-ink-mute">
