@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, effectiveInvestedAmount, isMarketInvestment } from '@/lib/investments';
+import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -36,7 +36,7 @@ export async function GET() {
   const counts = new Map();
   for (const investment of investments) {
     if (!investment.goal_id) continue;
-    totals.set(investment.goal_id, (totals.get(investment.goal_id) || 0) + effectiveInvestedAmount(investment));
+    totals.set(investment.goal_id, (totals.get(investment.goal_id) || 0) + effectiveInvestedSoFar(investment));
     counts.set(investment.goal_id, (counts.get(investment.goal_id) || 0) + 1);
   }
 
