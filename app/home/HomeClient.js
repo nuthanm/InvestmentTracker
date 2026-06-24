@@ -131,8 +131,8 @@ function WealthGoalCard({ currentValue, investedValue, onGoalChange }) {
     );
   }
 
-  const pct = Math.min(100, goal.amount > 0 ? Math.round((currentValue / goal.amount) * 100) : 0);
-  const remaining = Math.max(0, goal.amount - currentValue);
+  const pct = Math.min(100, goal.amount > 0 ? Math.round((investedValue / goal.amount) * 100) : 0);
+  const remaining = Math.max(0, goal.amount - investedValue);
 
   return (
     <div className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
