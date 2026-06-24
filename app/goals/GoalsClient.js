@@ -45,8 +45,9 @@ export default function GoalsClient({ user }) {
 
   useEffect(() => { load(); }, []);
 
-  const celebrate = (e, pct) => {
-    const target = e.currentTarget.getBoundingClientRect();
+  const celebrate = (targetEl, pct) => {
+    if (!targetEl || !hostRef.current) return;
+    const target = targetEl.getBoundingClientRect();
     const host = hostRef.current.getBoundingClientRect();
     const cx = target.left - host.left + target.width / 2;
     const cy = target.top - host.top + target.height / 2;
@@ -147,9 +148,11 @@ export default function GoalsClient({ user }) {
         {!loading && goals.map((g, idx) => {
           const cur = Number(g.current_amount || 0);
           const tgt = Number(g.target_amount || 1);
-          const pct = Math.min(100, Math.round((cur / tgt) * 100));
+          const progressRatio = tgt > 0 ? cur / tgt : 0;
+          const pct = Math.min(100, Math.floor(progressRatio * 100));
+          const reached = progressRatio >= 1;
           const color = FILL_COLORS[idx % FILL_COLORS.length];
-          const nearGoal = pct >= 85;
+          const nearGoal = progressRatio >= 0.85 && !reached;
           const isEditing = editId === g.id;
           const isExpanded = expandedGoalId === g.id;
           const associatedInvestments = investmentsByGoal[g.id] || [];
@@ -157,9 +160,10 @@ export default function GoalsClient({ user }) {
           return (
             <div key={g.id}
               onClick={isEditing ? undefined : (e) => {
+                const targetEl = e.currentTarget;
                 setExpandedGoalId((prev) => {
                   const next = prev === g.id ? null : g.id;
-                  if (prev !== g.id) celebrate(e, pct);
+                  if (prev !== g.id) celebrate(targetEl, pct);
                   return next;
                 });
               }}
@@ -214,8 +218,8 @@ export default function GoalsClient({ user }) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">{g.name}</span>
-                        {nearGoal && pct < 100 && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
-                        {pct >= 100 && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached!</span>}
+                        {nearGoal && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
+                        {reached && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached!</span>}
                       </div>
                       <p className="text-xs text-ink-soft mt-1">
                         {inr(cur)} of {inr(tgt)}
