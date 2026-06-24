@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
@@ -17,20 +17,11 @@ function formatUnits(value) {
 /** Small ⓘ tooltip to explain a metric. */
 function InfoTip({ text }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
 
   return (
-    <span ref={ref} className="relative inline-block ml-1 align-middle">
+    <span className="relative inline-block ml-1 align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
         className="w-4 h-4 rounded-full bg-paper-tint text-ink-mute text-[10px] font-bold leading-none flex items-center justify-center hover:bg-paper-card hover:text-ink transition"
         aria-label="More info"
       >ⓘ</button>
@@ -44,7 +35,7 @@ function InfoTip({ text }) {
 }
 
 /** Overall Wealth Goal card – shows current progress and lets user set/edit goal. */
-function WealthGoalCard({ currentValue, onGoalChange }) {
+function WealthGoalCard({ currentValue, investedValue, onGoalChange }) {
   const [goal, setGoal] = useState(null);   // { amount, date } | null
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ amount: '', date: '' });
@@ -160,7 +151,11 @@ function WealthGoalCard({ currentValue, onGoalChange }) {
         <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
       </div>
       <div className="flex justify-between items-center text-[11px] text-ink-mute">
-        <span>{inrShort(currentValue)} projected value</span>
+        <span>
+          <span>{inrShort(currentValue)} projected value</span>
+          <span className="mx-1.5 opacity-40">·</span>
+          <span>{inrShort(investedValue)} invested so far</span>
+        </span>
         <button onClick={openEdit} className="text-sky-600 hover:underline">edit goal</button>
       </div>
     </div>
@@ -173,7 +168,6 @@ export default function HomeClient({ user }) {
   const [loading, setLoading] = useState(true);
   const [showGainInfo, setShowGainInfo] = useState(false);
   const [portfolioGoal, setPortfolioGoal] = useState(null);
-  const gainInfoRef = useRef(null);
 
   useEffect(() => {
     Promise.all([
@@ -185,13 +179,6 @@ export default function HomeClient({ user }) {
       setLoading(false);
     });
   }, []);
-
-  useEffect(() => {
-    if (!showGainInfo) return;
-    function handle(e) { if (gainInfoRef.current && !gainInfoRef.current.contains(e.target)) setShowGainInfo(false); }
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [showGainInfo]);
 
   // totalValue = sum of maturity values (future projected value)
   const totalValue = investments.reduce((sum, inv) => sum + effectiveCurrentValue(inv), 0);
@@ -240,14 +227,13 @@ export default function HomeClient({ user }) {
               <p className="text-[11px] tracking-wider text-ink-mute uppercase">Projected Maturity Value</p>
               <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalValue)}</h1>
               {/* Expected gain row with info tooltip */}
-              <div ref={gainInfoRef} className="relative inline-flex items-center mt-1.5">
+              <div className="relative inline-flex items-center mt-1.5" onMouseEnter={() => setShowGainInfo(true)} onMouseLeave={() => setShowGainInfo(false)} onFocus={() => setShowGainInfo(true)} onBlur={() => setShowGainInfo(false)}>
                 <p className={`text-sm ${expectedGain >= 0 ? 'text-mint-600' : 'text-danger'}`}>
                   {expectedGain >= 0 ? '+' : ''}{inr(expectedGain)}
                   <span className="text-xs ml-1 opacity-80">({gainPct}% future return)</span>
                 </p>
                 <button
                   type="button"
-                  onClick={() => setShowGainInfo((v) => !v)}
                   className="ml-1.5 w-4 h-4 rounded-full bg-paper-tint text-ink-mute text-[10px] font-bold flex items-center justify-center hover:bg-paper-card hover:text-ink transition"
                   aria-label="Explain this number"
                 >ⓘ</button>
@@ -301,7 +287,7 @@ export default function HomeClient({ user }) {
           </div>
 
           {/* ── Overall Wealth Goal ── */}
-          <WealthGoalCard currentValue={totalValue} onGoalChange={setPortfolioGoal} />
+          <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
 
           {/* ── Portfolio projection chart ── */}
           <div className="mb-5">
