@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor } from '@/lib/format';
+import { effectiveInvestedSoFar } from '@/lib/investments';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
@@ -158,7 +159,7 @@ export default function GoalsClient({ user }) {
               onClick={isEditing ? undefined : (e) => {
                 setExpandedGoalId((prev) => {
                   const next = prev === g.id ? null : g.id;
-                  if (next === g.id) celebrate(e, pct);
+                  if (prev !== g.id) celebrate(e, pct);
                   return next;
                 });
               }}
@@ -241,9 +242,9 @@ export default function GoalsClient({ user }) {
                             onClick={(e) => e.stopPropagation()}
                             className="block rounded-lg border border-edge px-2.5 py-2 hover:border-mint-600 transition"
                           >
-                            <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
+                            <p className="text-xs font-medium truncate">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
                             <p className="text-[11px] text-ink-soft mt-0.5">
-                              {labelFor(investment)} · {inr(investment.amount || 0)}
+                              {labelFor(investment)} · {inr(effectiveInvestedSoFar(investment))}
                             </p>
                           </Link>
                         ))
