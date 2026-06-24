@@ -14,7 +14,7 @@ export async function GET() {
 
   const [goals, rawInvestments] = await Promise.all([
     sql`SELECT * FROM goals WHERE user_id = ${me.id} ORDER BY created_at DESC`,
-    sql`SELECT id, goal_id, type_code, amount, payment_frequency, tenure_months, maturity_value FROM investments WHERE user_id = ${me.id}`,
+    sql`SELECT id, goal_id, type_code, amount, payment_frequency, tenure_months, maturity_value, start_date FROM investments WHERE user_id = ${me.id}`,
   ]);
 
   let investments = rawInvestments;
