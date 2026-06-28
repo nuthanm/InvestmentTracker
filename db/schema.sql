@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   locked_until TIMESTAMPTZ,
   last_login_at TIMESTAMPTZ,
   mfa_enabled BOOLEAN DEFAULT FALSE,
+  mfa_skip_until TIMESTAMPTZ,
   mfa_secret TEXT,
   mfa_pending_secret TEXT,
   legal_accepted_at TIMESTAMPTZ,

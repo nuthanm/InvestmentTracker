@@ -25,7 +25,8 @@ export async function POST(req) {
       UPDATE users
       SET mfa_secret = mfa_pending_secret,
           mfa_pending_secret = NULL,
-          mfa_enabled = TRUE
+          mfa_enabled = TRUE,
+          mfa_skip_until = NULL
       WHERE id = ${me.id}
     `;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Shell from '@/components/Shell';
 import { toast } from '@/components/Toast';
@@ -38,24 +38,19 @@ export default function AccountClient({ user }) {
   const [mfaError, setMfaError] = useState('');
   const [mfaLoading, setMfaLoading] = useState(false);
 
-  const [events, setEvents] = useState([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [legacyModal, setLegacyModal] = useState(false);
+  const [legacyMobile, setLegacyMobile] = useState('');
+  const [legacyPin, setLegacyPin] = useState('');
+  const [legacyLoading, setLegacyLoading] = useState(false);
+  const [legacyError, setLegacyError] = useState('');
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const initials = (name || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-
-  useEffect(() => {
-    const loadEvents = async () => {
-      setEventsLoading(true);
-      try {
-        const res = await fetch('/api/auth/security-events', { cache: 'no-store' });
-        const data = await res.json();
-        if (res.ok) setEvents(data.events || []);
-      } catch {}
-      setEventsLoading(false);
-    };
-    loadEvents();
-  }, []);
 
   const saveName = async () => {
     if (!name.trim()) return;
@@ -226,6 +221,63 @@ export default function AccountClient({ user }) {
     setExportLoading(false);
   };
 
+  const syncLegacy = async () => {
+    setLegacyError('');
+    if (!legacyMobile.trim() || !legacyPin.trim()) {
+      setLegacyError('Legacy mobile and PIN are required.');
+      return;
+    }
+
+    setLegacyLoading(true);
+    try {
+      const res = await fetch('/api/auth/legacy/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mobile: legacyMobile, pin: legacyPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not sync legacy account.');
+
+      setLegacyModal(false);
+      setLegacyMobile('');
+      setLegacyPin('');
+      toast(data.message || 'Legacy data synced. PIN login has been disabled.');
+      router.refresh();
+    } catch (err) {
+      setLegacyError(err.message);
+    }
+    setLegacyLoading(false);
+  };
+
+  const deleteAccount = async () => {
+    setDeleteError('');
+    if (!deletePassword) {
+      setDeleteError('Current password is required.');
+      return;
+    }
+    if (deleteConfirm.trim().toUpperCase() !== 'DELETE') {
+      setDeleteError('Type DELETE to confirm account deletion.');
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      const res = await fetch('/api/auth/account/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: deletePassword, confirmText: deleteConfirm }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not delete account.');
+      toast('Account deleted successfully.');
+      router.push('/signup');
+      router.refresh();
+    } catch (err) {
+      setDeleteError(err.message || 'Could not delete account.');
+      setDeleteLoading(false);
+    }
+  };
+
   const signOut = async () => {
     await fetch('/api/auth/me', { method: 'DELETE' });
     router.push('/login');
@@ -276,6 +328,15 @@ export default function AccountClient({ user }) {
           </button>
         </div>
 
+        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Migration</p>
+        <div className="bg-paper-card border border-edge rounded-2xl mb-5">
+          <button onClick={() => setLegacyModal(true)} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-paper-tint/50 transition">
+            <span className="text-sm text-left">Sync legacy mobile data</span>
+            <span className="text-xs text-ink-soft">›</span>
+          </button>
+          <p className="px-4 pb-3 text-xs text-ink-soft">One-time merge from old mobile+PIN account. Financial records are preserved and moved to your email account.</p>
+        </div>
+
         <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Security</p>
         <div className="bg-paper-card border border-edge rounded-2xl mb-5">
           <div className="px-4 py-3.5 border-b border-edge flex justify-between items-center">
@@ -307,22 +368,22 @@ export default function AccountClient({ user }) {
           {mfaError && <p className="px-4 pb-3 text-xs text-danger">{mfaError}</p>}
         </div>
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Recent security activity</p>
-        <div className="bg-paper-card border border-edge rounded-2xl mb-5 px-4 py-3.5">
-          {eventsLoading ? (
-            <p className="text-xs text-ink-soft">Loading activity…</p>
-          ) : events.length === 0 ? (
-            <p className="text-xs text-ink-soft">No activity yet.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {events.slice(0, 8).map((e, idx) => (
-                <div key={`${e.created_at}-${idx}`} className="flex justify-between gap-3 text-xs">
-                  <span className="text-ink-soft">{String(e.event_type).replace(/_/g, ' ')}</span>
-                  <span className={e.status === 'failed' ? 'text-danger' : 'text-mint-600'}>{e.status}</span>
-                </div>
-              ))}
-            </div>
-          )}
+        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Security activity</p>
+        <div className="bg-paper-card border border-edge rounded-2xl mb-5">
+          <button onClick={() => router.push('/account/security-activity')} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-paper-tint/50 transition">
+            <span className="text-sm text-left">View full security activity</span>
+            <span className="text-xs text-ink-soft">›</span>
+          </button>
+          <p className="px-4 pb-3 text-xs text-ink-soft">Search by event or device, filter by status, and browse paged records in grid view.</p>
+        </div>
+
+        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Danger zone</p>
+        <div className="bg-paper-card border border-edge rounded-2xl mb-5">
+          <button onClick={() => setDeleteModal(true)} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-danger-soft/40 transition">
+            <span className="text-sm text-danger text-left">Delete account</span>
+            <span className="text-xs text-danger">›</span>
+          </button>
+          <p className="px-4 pb-3 text-xs text-ink-soft">This permanently removes your account and related investment data.</p>
         </div>
 
         <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Session</p>
@@ -417,6 +478,80 @@ export default function AccountClient({ user }) {
             <div className="mt-5 flex justify-center gap-2">
               <button onClick={() => setMfaDisableOpen(false)} className="text-xs px-3 py-2 border border-edge rounded-lg">Cancel</button>
               <button onClick={disableMfa} className="btn-primary text-xs px-3 py-2 rounded-lg" disabled={mfaLoading}>Disable</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {legacyModal && (
+        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setLegacyModal(false)}>
+          <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-medium text-center mb-1">Sync legacy mobile account</h2>
+            <p className="text-sm text-ink-soft text-center mb-4">After sync, legacy PIN login will be disabled for this account.</p>
+
+            <label className="block text-xs text-ink-soft mb-1.5">Legacy mobile number</label>
+            <input
+              type="tel"
+              value={legacyMobile}
+              onChange={(e) => setLegacyMobile(e.target.value)}
+              className="field-input mb-3"
+              placeholder="+91 98XXX XXXXX"
+              autoFocus
+            />
+
+            <label className="block text-xs text-ink-soft mb-1.5">Legacy PIN</label>
+            <input
+              type="password"
+              inputMode="numeric"
+              value={legacyPin}
+              onChange={(e) => setLegacyPin(e.target.value)}
+              className="field-input"
+              placeholder="6-digit PIN"
+            />
+
+            {legacyError && <p className="text-xs text-danger text-center mt-3">{legacyError}</p>}
+
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setLegacyModal(false)} className="text-xs px-3 py-2 border border-edge rounded-lg">Cancel</button>
+              <button onClick={syncLegacy} className="btn-primary text-xs px-3 py-2 rounded-lg" disabled={legacyLoading}>
+                {legacyLoading ? 'Syncing…' : 'Sync now'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setDeleteModal(false)}>
+          <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-medium text-center mb-1">Delete account</h2>
+            <p className="text-sm text-ink-soft text-center mb-4">This action is permanent. Enter your password and type DELETE to continue.</p>
+
+            <label className="block text-xs text-ink-soft mb-1.5">Current password</label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              className="field-input mb-3"
+              autoFocus
+            />
+
+            <label className="block text-xs text-ink-soft mb-1.5">Type DELETE</label>
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              className="field-input"
+              placeholder="DELETE"
+            />
+
+            {deleteError && <p className="text-xs text-danger text-center mt-3">{deleteError}</p>}
+
+            <div className="mt-5 flex justify-center gap-2">
+              <button onClick={() => setDeleteModal(false)} className="text-xs px-3 py-2 border border-edge rounded-lg" disabled={deleteLoading}>Cancel</button>
+              <button onClick={deleteAccount} className="text-xs px-3 py-2 rounded-lg bg-danger text-paper font-medium" disabled={deleteLoading}>
+                {deleteLoading ? 'Deleting…' : 'Delete permanently'}
+              </button>
             </div>
           </div>
         </div>

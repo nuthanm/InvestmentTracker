@@ -3,11 +3,8 @@ import { sql } from '@/lib/db';
 import {
   createSession,
   normalizeEmail,
-  normalizeMobile,
   validateEmail,
-  validatePin,
   verifyPassword,
-  verifyPin,
 } from '@/lib/auth';
 import { createLoginChallenge, logSecurityEvent } from '@/lib/security';
 
@@ -16,40 +13,7 @@ const LOCK_MINUTES = 15;
 
 export async function POST(req) {
   try {
-    const { email, password, mobile, pin } = await req.json();
-
-    if (mobile || pin) {
-      if (!mobile || !pin) {
-        return NextResponse.json({ error: 'Mobile and PIN are required.' }, { status: 400 });
-      }
-      if (!validatePin(pin)) {
-        return NextResponse.json({ error: 'PIN must be exactly 6 digits.' }, { status: 400 });
-      }
-
-      const normalizedMobile = normalizeMobile(mobile);
-      const rows = await sql`
-        SELECT id, mobile, email, name, pin_hash
-        FROM users
-        WHERE mobile = ${normalizedMobile}
-        LIMIT 1
-      `;
-      if (rows.length === 0) {
-        return NextResponse.json({ error: 'No account found for this mobile.' }, { status: 404 });
-      }
-      const user = rows[0];
-      const ok = await verifyPin(pin, user.pin_hash);
-      if (!ok) {
-        await logSecurityEvent({ req, userId: user.id, eventType: 'login_legacy', status: 'failed' });
-        return NextResponse.json({ error: 'Wrong PIN. Try again.' }, { status: 401 });
-      }
-
-      await createSession(user.id);
-      await logSecurityEvent({ req, userId: user.id, eventType: 'login_legacy', status: 'success' });
-      return NextResponse.json({
-        user: { id: user.id, mobile: user.mobile, email: user.email, name: user.name },
-        upgradeRecommended: true,
-      });
-    }
+    const { email, password } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required.' }, { status: 400 });

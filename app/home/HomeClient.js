@@ -14,6 +14,87 @@ function formatUnits(value) {
   return n.toFixed(n % 1 === 0 ? 0 : 3);
 }
 
+function buildUpcomingOptions({ investments, goals, maturingSoon }) {
+  const byType = investments.reduce((acc, inv) => {
+    const code = inv.type_code || 'OT';
+    acc[code] = (acc[code] || 0) + 1;
+    return acc;
+  }, {});
+
+  const monthlyPlans = investments.filter((inv) => inv.payment_frequency === 'monthly').length;
+  const yearlyPlans = investments.filter((inv) => inv.payment_frequency === 'yearly').length;
+
+  const options = [];
+
+  if (maturingSoon > 0) {
+    options.push({
+      key: 'rollover',
+      title: 'Maturity rollover window',
+      why: `${maturingSoon} plan${maturingSoon > 1 ? 's are' : ' is'} maturing soon. Keep returns working by planning reinvestment early.`,
+      tag: 'Time sensitive',
+      href: '/investments',
+      cta: 'Review maturing plans',
+    });
+  }
+
+  if (!byType.MF && !byType.ETF && !byType.ST) {
+    options.push({
+      key: 'growth',
+      title: 'Growth allocation option',
+      why: 'Your portfolio is mostly fixed-income right now. You can explore adding a growth bucket for long-term goals.',
+      tag: 'Balance mix',
+      href: '/investments/new',
+      cta: 'Add growth investment',
+    });
+  }
+
+  if (!byType.PPF) {
+    options.push({
+      key: 'ppf',
+      title: 'Long-horizon safety option',
+      why: 'No PPF plan found yet. Consider adding a long-term, disciplined account for family corpus building.',
+      tag: 'Long term',
+      href: '/investments/new',
+      cta: 'Add long-term plan',
+    });
+  }
+
+  if (monthlyPlans < 2) {
+    options.push({
+      key: 'monthly',
+      title: 'Monthly contribution option',
+      why: 'Monthly plans improve consistency. Add at least one recurring plan to reduce timing gaps.',
+      tag: 'Consistency',
+      href: '/investments/new',
+      cta: 'Create monthly plan',
+    });
+  }
+
+  if (goals.length > 0 && yearlyPlans === 0) {
+    options.push({
+      key: 'goal-yearly',
+      title: 'Yearly top-up option',
+      why: 'You have goals but no yearly contribution plans. A yearly top-up can boost goal pace.',
+      tag: 'Goal pace',
+      href: '/goals',
+      cta: 'Check goal gaps',
+    });
+  }
+
+  if (options.length === 0) {
+    options.push({
+      key: 'review',
+      title: 'Portfolio review opportunity',
+      why: 'Your mix looks healthy. Review rates, maturities, and account holders to optimize the next cycle.',
+      tag: 'Review',
+      href: '/investments',
+      cta: 'Open investments',
+    });
+  }
+
+  return options.slice(0, 3);
+}
+
 /** Small ⓘ tooltip to explain a metric. */
 function InfoTip({ text }) {
   const [open, setOpen] = useState(false);
@@ -194,6 +275,8 @@ export default function HomeClient({ user }) {
     return days > 0 && days <= 30;
   }).length;
 
+  const upcomingOptions = buildUpcomingOptions({ investments, goals, maturingSoon });
+
   const empty = !loading && goals.length === 0 && investments.length === 0;
 
   return (
@@ -256,6 +339,27 @@ export default function HomeClient({ user }) {
 
           {/* ── Overall Wealth Goal ── */}
           <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
+
+          {/* ── Upcoming investment options ── */}
+          <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
+            <div className="flex justify-between items-baseline mb-3">
+              <h2 className="text-sm font-medium">Upcoming investment options</h2>
+              <Link href="/investments/new" className="text-xs text-sky-600">add new</Link>
+            </div>
+            <p className="text-[11px] text-ink-mute mb-3">Suggestions are based on your current plan mix and timelines. This is a planning aid, not investment advice.</p>
+            <div className="grid md:grid-cols-3 gap-2.5">
+              {upcomingOptions.map((option) => (
+                <article key={option.key} className="border border-edge rounded-xl p-3 bg-paper-tint/60">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <h3 className="text-xs font-medium leading-5">{option.title}</h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap">{option.tag}</span>
+                  </div>
+                  <p className="text-[11px] text-ink-mute leading-5 min-h-[52px]">{option.why}</p>
+                  <Link href={option.href} className="inline-flex mt-2 text-[11px] font-medium text-sky-600 hover:underline">{option.cta} →</Link>
+                </article>
+              ))}
+            </div>
+          </section>
 
           {/* ── Portfolio projection chart ── */}
           <div className="mb-5">

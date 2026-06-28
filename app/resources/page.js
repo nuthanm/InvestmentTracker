@@ -2,13 +2,13 @@ import Link from 'next/link';
 
 export const metadata = {
   title: 'Resources',
-  description: 'Practical guides for debt discipline, SIP consistency, and goal-based money planning.',
+  description: 'Practical guides for SIP consistency and goal-based money planning.',
 };
 
 const guides = [
   {
-    title: 'Debt Snowball vs Debt Avalanche',
-    summary: 'Choose a payoff strategy based on behavior fit, not internet trends.',
+    title: 'SIP Frequency: Monthly vs Quarterly',
+    summary: 'Choose a contribution rhythm that aligns with your income cycle and consistency goals.',
   },
   {
     title: 'How to Review SIP Performance Quarterly',

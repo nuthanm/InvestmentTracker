@@ -203,7 +203,7 @@ scripts/
 - Run migration `db/migrations/2026-06-28-auth-hardening-email-password.sql` before enabling new login/signup in production.
 - Run migration `db/migrations/2026-06-28-add-mfa-reset-and-security-events.sql` before enabling MFA and password reset in production.
 - If you already ran the auth-hardening migration before latest changes, run `db/migrations/2026-06-28-add-recovery-key-hash.sql` as a follow-up patch.
-- Login screen includes a temporary "Legacy mobile + PIN" mode for existing users during migration.
+- Legacy login is removed; use Account -> Sync legacy mobile data for one-time migration from old mobile+PIN accounts.
 - Password recovery uses internal recovery keys (no paid email/SMS integration required).
 
 ## SEO and AdSense readiness notes

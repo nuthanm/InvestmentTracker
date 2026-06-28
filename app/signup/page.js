@@ -59,7 +59,7 @@ export default function SignupPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not create account.');
-      router.push('/home');
+      router.push('/onboarding/security');
       router.refresh();
     } catch (err) {
       setError(err.message);
