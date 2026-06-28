@@ -1,0 +1,2 @@
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS legal_accepted_at TIMESTAMPTZ;

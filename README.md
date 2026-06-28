@@ -5,6 +5,8 @@ A free, always-on investment tracker. Built with Next.js + Neon Postgres.
 Track FDs, mutual funds, stocks, gold, PPF, or any custom investment type.
 Set goals, attach PDF documents, get reminders.
 
+Public trust pages now live at `/`, `/privacy`, `/terms`, `/about`, `/resources`, and `/contact`.
+
 ---
 
 ## Screenshots
@@ -164,25 +166,52 @@ and the filenames are numbered in flow order.
 ```
 app/
   api/                  → REST endpoints (auth, goals, investments, notifications)
-  login/                → mobile + 6-digit PIN
-  signup/               → name + mobile, set new PIN
+  page.js               → public landing page (SEO + trust links)
+  privacy/terms/about   → legal and trust pages
+  resources/contact     → discoverability and support pages
+  robots.js/sitemap.js  → crawl directives and index map
+  login/                → email + password sign-in
+  forgot-password/      → password reset request screen
+  reset-password/       → password reset completion screen
+  signup/               → name + email + strong password + legal acceptance
   home/                 → dashboard with empty state, portfolio, goals, recent
   goals/                → list + new goal (name + amount required, date optional)
   investments/          → list, new (with all required fields), detail with PDF viewer
   notifications/        → reminders with mark-read and mark-all
-  account/              → edit name, change PIN, sign out
+  account/              → edit name, change password, sign out
 components/
   Shell.js              → bottom nav (mobile) + sidebar (desktop), bell badge
-  PinInput.js           → 6-digit PIN entry with auto-advance
+  PinInput.js           → legacy PIN entry component (kept for backward compatibility)
 lib/
   db.js                 → Neon client
-  auth.js               → PIN hashing, sessions, mobile normalization
+  auth.js               → password hashing/validation, sessions, email helpers
+  security.js           → MFA/reset tokens + security event logging helpers
   format.js             → ₹ formatting, maturity calculator, type metadata
 db/
   schema.sql            → Postgres tables (run once in Neon)
+  migrations/           → incremental upgrade scripts for production databases
 scripts/
   take-screenshots.js   → Playwright script that captures the full app flow
 ```
+
+## Compliance and launch notes
+
+- This app is a personal finance tracking tool, not financial advice.
+- No special government approval is typically required for this scope alone, but legal review is required before adding regulated features (advisory, lending, brokerage, custody).
+- If you collect personal data, keep Privacy Policy and Terms publicly accessible and linked from signup/login.
+- Run migration `db/migrations/2026-06-28-add-legal-acceptance-to-users.sql` to store policy acceptance timestamp.
+- Run migration `db/migrations/2026-06-28-auth-hardening-email-password.sql` before enabling new login/signup in production.
+- Run migration `db/migrations/2026-06-28-add-mfa-reset-and-security-events.sql` before enabling MFA and password reset in production.
+- If you already ran the auth-hardening migration before latest changes, run `db/migrations/2026-06-28-add-recovery-key-hash.sql` as a follow-up patch.
+- Login screen includes a temporary "Legacy mobile + PIN" mode for existing users during migration.
+- Password recovery uses internal recovery keys (no paid email/SMS integration required).
+
+## SEO and AdSense readiness notes
+
+- Public pages are indexable; authenticated routes are blocked in `robots.txt`.
+- `sitemap.xml` includes only public pages.
+- Ads should stay on public informational pages only; avoid ad placements inside authenticated financial workflows.
+- Maintain original, useful content in `/resources` to improve AdSense approval chances.
 
 ## Adding more investment types
 

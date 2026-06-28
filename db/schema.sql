@@ -8,13 +8,24 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ---------- Users ----------
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mobile TEXT UNIQUE NOT NULL,
+  mobile TEXT UNIQUE,
+  email TEXT UNIQUE,
   name TEXT NOT NULL,
-  pin_hash TEXT NOT NULL,
+  pin_hash TEXT,
+  password_hash TEXT,
+  recovery_key_hash TEXT,
+  failed_login_attempts INT DEFAULT 0,
+  locked_until TIMESTAMPTZ,
+  last_login_at TIMESTAMPTZ,
+  mfa_enabled BOOLEAN DEFAULT FALSE,
+  mfa_secret TEXT,
+  mfa_pending_secret TEXT,
+  legal_accepted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_mobile ON users(mobile);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- ---------- Sessions ----------
 CREATE TABLE IF NOT EXISTS sessions (
@@ -25,6 +36,41 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- ---------- Security Events ----------
+CREATE TABLE IF NOT EXISTS security_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  meta JSONB,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_events_user ON security_events(user_id, created_at DESC);
+
+-- ---------- Login Challenges (MFA step-up) ----------
+CREATE TABLE IF NOT EXISTS login_challenges (
+  token_hash TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_challenges_user ON login_challenges(user_id);
+
+-- ---------- Password Reset Tokens ----------
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
 
 -- ---------- Goals ----------
 CREATE TABLE IF NOT EXISTS goals (
