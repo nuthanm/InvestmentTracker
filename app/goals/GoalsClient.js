@@ -3,14 +3,18 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, fmtDate } from '@/lib/format';
+import { inr, fmtDate, labelFor } from '@/lib/format';
+import { effectiveInvestedSoFar } from '@/lib/investments';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 
 export default function GoalsClient({ user }) {
   const [goals, setGoals] = useState([]);
+  const [investmentsByGoal, setInvestmentsByGoal] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', amount: '', date: '', icon: 'house' });
@@ -19,16 +23,31 @@ export default function GoalsClient({ user }) {
   const hostRef = useRef(null);
 
   const load = () => {
-    fetch('/api/goals').then(r => r.json()).then(d => {
-      setGoals(d.goals || []);
+    setLoadError('');
+    Promise.all([
+      fetch('/api/goals').then((r) => r.json()),
+      fetch('/api/investments').then((r) => r.json()),
+    ]).then(([goalsData, investmentsData]) => {
+      const grouped = (investmentsData.investments || []).reduce((acc, investment) => {
+        if (!investment.goal_id) return acc;
+        if (!acc[investment.goal_id]) acc[investment.goal_id] = [];
+        acc[investment.goal_id].push(investment);
+        return acc;
+      }, {});
+      setGoals(goalsData.goals || []);
+      setInvestmentsByGoal(grouped);
+      setLoading(false);
+    }).catch(() => {
+      setLoadError('Could not load goals right now. Please try again.');
       setLoading(false);
     });
   };
 
   useEffect(() => { load(); }, []);
 
-  const celebrate = (e, pct) => {
-    const target = e.currentTarget.getBoundingClientRect();
+  const celebrate = (targetEl, pct) => {
+    if (!targetEl || !hostRef.current) return;
+    const target = targetEl.getBoundingClientRect();
     const host = hostRef.current.getBoundingClientRect();
     const cx = target.left - host.left + target.width / 2;
     const cy = target.top - host.top + target.height / 2;
@@ -109,12 +128,13 @@ export default function GoalsClient({ user }) {
         <div className="flex justify-between items-end mb-5">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Goals</h1>
-            <p className="text-sm text-ink-soft mt-1">tap any goal to celebrate progress</p>
+            <p className="text-sm text-ink-soft mt-1">tap any goal to celebrate progress and view linked investments</p>
           </div>
           <Link href="/goals/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium">+ New goal</Link>
         </div>
 
         {loading && <div className="h-20 bg-paper-tint rounded-xl animate-pulse" />}
+        {!loading && loadError && <p className="text-sm text-danger mb-3">{loadError}</p>}
 
         {!loading && goals.length === 0 && (
           <div className="text-center py-16">
@@ -128,14 +148,25 @@ export default function GoalsClient({ user }) {
         {!loading && goals.map((g, idx) => {
           const cur = Number(g.current_amount || 0);
           const tgt = Number(g.target_amount || 1);
-          const pct = Math.min(100, Math.round((cur / tgt) * 100));
+          const progressRatio = tgt > 0 ? cur / tgt : 0;
+          const pct = Math.min(100, Math.floor(progressRatio * 100));
+          const reached = progressRatio >= 1;
           const color = FILL_COLORS[idx % FILL_COLORS.length];
-          const nearGoal = pct >= 85;
+          const nearGoal = progressRatio >= 0.85 && !reached;
           const isEditing = editId === g.id;
+          const isExpanded = expandedGoalId === g.id;
+          const associatedInvestments = investmentsByGoal[g.id] || [];
 
           return (
             <div key={g.id}
-              onClick={isEditing ? undefined : (e) => celebrate(e, pct)}
+              onClick={isEditing ? undefined : (e) => {
+                const targetEl = e.currentTarget;
+                setExpandedGoalId((prev) => {
+                  const next = prev === g.id ? null : g.id;
+                  if (prev !== g.id) celebrate(targetEl, pct);
+                  return next;
+                });
+              }}
               className={`bg-paper-card border border-edge rounded-2xl p-4 mb-3 transition ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}>
 
               {isEditing ? (
@@ -187,8 +218,8 @@ export default function GoalsClient({ user }) {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">{g.name}</span>
-                        {nearGoal && pct < 100 && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
-                        {pct >= 100 && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached!</span>}
+                        {nearGoal && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
+                        {reached && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached!</span>}
                       </div>
                       <p className="text-xs text-ink-soft mt-1">
                         {inr(cur)} of {inr(tgt)}
@@ -203,6 +234,27 @@ export default function GoalsClient({ user }) {
                   <div className="h-2 bg-paper-tint rounded-full overflow-hidden">
                     <div className="fill-bar h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
                   </div>
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-edge space-y-2">
+                      {associatedInvestments.length === 0 ? (
+                        <p className="text-xs text-ink-soft">No investments linked to this goal yet.</p>
+                      ) : (
+                        associatedInvestments.map((investment) => (
+                          <Link
+                            key={investment.id}
+                            href={`/investments/${investment.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block rounded-lg border border-edge px-2.5 py-2 hover:border-mint-600 transition"
+                          >
+                            <p className="text-xs font-medium truncate">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
+                            <p className="text-[11px] text-ink-soft mt-0.5">
+                              {labelFor(investment)} · {inr(effectiveInvestedSoFar(investment))}
+                            </p>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-end items-center gap-3 mt-2">
                     <button onClick={(e) => openEdit(e, g)}
                       className="text-[11px] text-ink-mute hover:text-mint-600">edit</button>

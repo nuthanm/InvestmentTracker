@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
+import { isMarketInvestment } from '@/lib/investments';
+
+function parseDateInput(value, fallback) {
+  const dt = value ? new Date(value) : fallback ? new Date(fallback) : new Date();
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
 
 export async function GET(req, { params }) {
   const me = await getCurrentUser();
@@ -30,15 +37,20 @@ export async function PATCH(req, { params }) {
 
   try {
     const currentRows = await sql`
-      SELECT id, start_date
+      SELECT *
       FROM investments
       WHERE id = ${params.id} AND user_id = ${me.id}
       LIMIT 1
     `;
     if (currentRows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
 
+    const current = currentRows[0];
     const body = await req.json();
-    const required = ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+    const marketInvestment = isMarketInvestment(body.type_code);
+    const required = marketInvestment
+      ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
+      : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
         return NextResponse.json({ error: `${field.replace(/_/g, ' ')} is required.` }, { status: 400 });
@@ -46,15 +58,6 @@ export async function PATCH(req, { params }) {
     }
     if (body.type_code === 'OT' && !body.custom_type) {
       return NextResponse.json({ error: 'Please name your custom investment type.' }, { status: 400 });
-    }
-    if (Number(body.amount) <= 0) {
-      return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
-    }
-    if (Number(body.rate_pct) <= 0) {
-      return NextResponse.json({ error: 'Interest rate must be greater than zero.' }, { status: 400 });
-    }
-    if (Number(body.tenure_months) <= 0 && Number(body.tenure_days || 0) <= 0) {
-      return NextResponse.json({ error: 'Pick a valid tenure.' }, { status: 400 });
     }
 
     const goalRows = await sql`
@@ -67,10 +70,97 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
     }
 
-    const startDate = body.start_date ? new Date(body.start_date) : new Date(currentRows[0].start_date);
-    if (Number.isNaN(startDate.getTime())) {
+    const startDate = parseDateInput(body.start_date, current.start_date);
+    if (!startDate) {
       return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
     }
+
+    if (marketInvestment) {
+      const rows = await sql`
+        UPDATE investments
+        SET
+          goal_id = ${body.goal_id},
+          type_code = ${body.type_code},
+          custom_type = ${body.custom_type || null},
+          bank = ${body.bank.trim()},
+          plan_name = ${body.plan_name.trim()},
+          nominee = ${body.nominee.trim()},
+          account_holder = ${body.account_holder || 'Self'},
+          start_date = ${startDate.toISOString().slice(0, 10)},
+          payment_frequency = 'lump_sum',
+          rate_pct = 0,
+          tenure_months = 0,
+          tenure_days = 0,
+          maturity_date = NULL,
+          maturity_value = NULL,
+          auto_renew = FALSE
+        WHERE id = ${params.id} AND user_id = ${me.id}
+        RETURNING *
+      `;
+      if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
+
+      if (Array.isArray(body.documents)) {
+        const existingDocs = await sql`
+          SELECT id
+          FROM documents
+          WHERE investment_id = ${params.id}
+        `;
+        const nextDocIds = new Set();
+        for (const doc of body.documents) {
+          if (doc.id) nextDocIds.add(String(doc.id));
+        }
+        const docIdsToDelete = existingDocs.filter((doc) => !nextDocIds.has(String(doc.id))).map((doc) => doc.id);
+
+        if (docIdsToDelete.length) {
+          await sql`
+            DELETE FROM documents
+            WHERE investment_id = ${params.id} AND id = ANY(${docIdsToDelete})
+          `;
+        }
+
+        const newDocuments = [];
+        for (const doc of body.documents) {
+          if (doc.id || !doc.filename || !doc.data_url) continue;
+          newDocuments.push({
+            filename: doc.filename,
+            size_bytes: doc.size_bytes || 0,
+            page_count: doc.page_count || 1,
+            data_url: doc.data_url,
+          });
+        }
+
+        if (newDocuments.length) {
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            SELECT
+              ${params.id},
+              doc.filename,
+              doc.size_bytes,
+              doc.page_count,
+              doc.data_url
+            FROM json_to_recordset(${JSON.stringify(newDocuments)}::json) AS doc(
+              filename text,
+              size_bytes int,
+              page_count int,
+              data_url text
+            )
+          `;
+        }
+      }
+
+      return NextResponse.json({ investment: rows[0] });
+    }
+
+    if (Number(body.amount) <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than zero.' }, { status: 400 });
+    }
+    if (Number(body.rate_pct) <= 0) {
+      return NextResponse.json({ error: 'Interest rate must be greater than zero.' }, { status: 400 });
+    }
+    if (Number(body.tenure_months) <= 0 && Number(body.tenure_days || 0) <= 0) {
+      return NextResponse.json({ error: 'Pick a valid tenure.' }, { status: 400 });
+    }
+
     const tenureMonths = Number(body.tenure_months) + (Number(body.tenure_days || 0) / 30);
     const paymentFrequency = body.payment_frequency || 'lump_sum';
 
@@ -98,8 +188,8 @@ export async function PATCH(req, { params }) {
         goal_id = ${body.goal_id},
         type_code = ${body.type_code},
         custom_type = ${body.custom_type || null},
-        bank = ${body.bank},
-        plan_name = ${body.plan_name},
+        bank = ${body.bank.trim()},
+        plan_name = ${body.plan_name.trim()},
         amount = ${body.amount},
         rate_pct = ${body.rate_pct},
         tenure_months = ${body.tenure_months},
@@ -109,7 +199,7 @@ export async function PATCH(req, { params }) {
         start_date = ${startDate.toISOString().slice(0, 10)},
         maturity_date = ${maturityDate.toISOString().slice(0, 10)},
         maturity_value = ${maturityValue},
-        nominee = ${body.nominee},
+        nominee = ${body.nominee.trim()},
         auto_renew = ${!!body.auto_renew},
         account_holder = ${body.account_holder || 'Self'}
       WHERE id = ${params.id} AND user_id = ${me.id}
@@ -127,9 +217,7 @@ export async function PATCH(req, { params }) {
       for (const doc of body.documents) {
         if (doc.id) nextDocIds.add(String(doc.id));
       }
-      const docIdsToDelete = existingDocs
-        .filter((doc) => !nextDocIds.has(String(doc.id)))
-        .map((doc) => doc.id);
+      const docIdsToDelete = existingDocs.filter((doc) => !nextDocIds.has(String(doc.id))).map((doc) => doc.id);
 
       if (docIdsToDelete.length) {
         await sql`
@@ -181,7 +269,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json(
         {
           error:
-            'Database schema is out of date. Run db/migrations/2026-06-15-safe-upgrade-investments.sql in Neon SQL Editor, then try again.',
+            'Database schema is out of date. Run the SQL files in db/migrations (including 2026-06-22-add-market-investment-transactions.sql) in Neon SQL Editor, then try again.',
         },
         { status: 500 }
       );
