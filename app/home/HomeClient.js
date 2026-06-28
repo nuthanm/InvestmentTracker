@@ -14,85 +14,115 @@ function formatUnits(value) {
   return n.toFixed(n % 1 === 0 ? 0 : 3);
 }
 
-function buildUpcomingOptions({ investments, goals, maturingSoon }) {
-  const byType = investments.reduce((acc, inv) => {
-    const code = inv.type_code || 'OT';
-    acc[code] = (acc[code] || 0) + 1;
-    return acc;
-  }, {});
+function startOfDay(value) {
+  const dt = new Date(value);
+  dt.setHours(0, 0, 0, 0);
+  return dt;
+}
 
-  const monthlyPlans = investments.filter((inv) => inv.payment_frequency === 'monthly').length;
-  const yearlyPlans = investments.filter((inv) => inv.payment_frequency === 'yearly').length;
+function daysUntil(date, baseDate) {
+  return Math.round((startOfDay(date) - startOfDay(baseDate)) / (1000 * 60 * 60 * 24));
+}
 
-  const options = [];
+function eventWhenLabel(date, today) {
+  const diff = daysUntil(date, today);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff > 1 && diff <= 30) return `In ${diff} days`;
+  return fmtDate(date);
+}
 
-  if (maturingSoon > 0) {
-    options.push({
-      key: 'rollover',
-      title: 'Maturity rollover window',
-      why: `${maturingSoon} plan${maturingSoon > 1 ? 's are' : ' is'} maturing soon. Keep returns working by planning reinvestment early.`,
-      tag: 'Time sensitive',
-      href: '/investments',
-      cta: 'Review maturing plans',
-    });
+function dateKey(date) {
+  return startOfDay(date).toISOString().slice(0, 10);
+}
+
+function nextRecurringDueDate(inv, today) {
+  if (!inv.start_date) return null;
+
+  const frequency = inv.payment_frequency;
+  const start = startOfDay(inv.start_date);
+  const now = startOfDay(today);
+  const tenureMonths = Number(inv.tenure_months || 0);
+
+  if (frequency === 'monthly') {
+    const installments = tenureMonths;
+    if (installments <= 0) return null;
+
+    const monthsDiff = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    const dueThisMonth = new Date(start);
+    dueThisMonth.setMonth(dueThisMonth.getMonth() + monthsDiff);
+    const nextIndex = now < start ? 0 : (dueThisMonth <= now ? monthsDiff + 1 : monthsDiff);
+    if (nextIndex < 0 || nextIndex >= installments) return null;
+
+    const nextDate = new Date(start);
+    nextDate.setMonth(nextDate.getMonth() + nextIndex);
+    return nextDate;
   }
 
-  if (!byType.MF && !byType.ETF && !byType.ST) {
-    options.push({
-      key: 'growth',
-      title: 'Growth allocation option',
-      why: 'Your portfolio is mostly fixed-income right now. You can explore adding a growth bucket for long-term goals.',
-      tag: 'Balance mix',
-      href: '/investments/new',
-      cta: 'Add growth investment',
-    });
+  if (frequency === 'yearly') {
+    const installments = Math.floor(tenureMonths / 12);
+    if (installments <= 0) return null;
+
+    const yearsDiff = now.getFullYear() - start.getFullYear();
+    const dueThisYear = new Date(start);
+    dueThisYear.setFullYear(dueThisYear.getFullYear() + yearsDiff);
+    const nextIndex = now < start ? 0 : (dueThisYear <= now ? yearsDiff + 1 : yearsDiff);
+    if (nextIndex < 0 || nextIndex >= installments) return null;
+
+    const nextDate = new Date(start);
+    nextDate.setFullYear(nextDate.getFullYear() + nextIndex);
+    return nextDate;
   }
 
-  if (!byType.PPF) {
-    options.push({
-      key: 'ppf',
-      title: 'Long-horizon safety option',
-      why: 'No PPF plan found yet. Consider adding a long-term, disciplined account for family corpus building.',
-      tag: 'Long term',
-      href: '/investments/new',
-      cta: 'Add long-term plan',
-    });
+  return null;
+}
+
+function buildUpcomingEvents(investments) {
+  const today = new Date();
+  const events = [];
+
+  for (const inv of investments) {
+    if (isMarketInvestment(inv.type_code)) continue;
+
+    const typeLabel = labelFor(inv);
+    const shortType = TYPE_META[inv.type_code]?.short || 'OT';
+    const dueDate = nextRecurringDueDate(inv, today);
+
+    if (dueDate && dueDate >= startOfDay(today)) {
+      events.push({
+        key: `${inv.id}-due-${dateKey(dueDate)}`,
+        date: dueDate,
+        tag: `${shortType} ${inv.payment_frequency === 'yearly' ? 'yearly' : 'monthly'}`,
+        title: `${typeLabel} contribution due`,
+        detail: `${inv.bank} · ${inv.plan_name}`,
+        amountLine: `${inrShort(inv.amount)} contribution`,
+        when: eventWhenLabel(dueDate, today),
+        href: `/investments/${inv.id}`,
+        cta: 'View plan',
+      });
+    }
+
+    if (inv.maturity_date) {
+      const maturityDate = startOfDay(inv.maturity_date);
+      if (maturityDate >= startOfDay(today)) {
+        events.push({
+          key: `${inv.id}-maturity-${dateKey(maturityDate)}`,
+          date: maturityDate,
+          tag: `${shortType} maturity`,
+          title: `${typeLabel} matures`,
+          detail: `${inv.bank} · ${inv.plan_name}`,
+          amountLine: `${inrShort(inv.maturity_value || inv.amount)} projected`,
+          when: eventWhenLabel(maturityDate, today),
+          href: `/investments/${inv.id}`,
+          cta: 'Open details',
+        });
+      }
+    }
   }
 
-  if (monthlyPlans < 2) {
-    options.push({
-      key: 'monthly',
-      title: 'Monthly contribution option',
-      why: 'Monthly plans improve consistency. Add at least one recurring plan to reduce timing gaps.',
-      tag: 'Consistency',
-      href: '/investments/new',
-      cta: 'Create monthly plan',
-    });
-  }
-
-  if (goals.length > 0 && yearlyPlans === 0) {
-    options.push({
-      key: 'goal-yearly',
-      title: 'Yearly top-up option',
-      why: 'You have goals but no yearly contribution plans. A yearly top-up can boost goal pace.',
-      tag: 'Goal pace',
-      href: '/goals',
-      cta: 'Check goal gaps',
-    });
-  }
-
-  if (options.length === 0) {
-    options.push({
-      key: 'review',
-      title: 'Portfolio review opportunity',
-      why: 'Your mix looks healthy. Review rates, maturities, and account holders to optimize the next cycle.',
-      tag: 'Review',
-      href: '/investments',
-      cta: 'Open investments',
-    });
-  }
-
-  return options.slice(0, 3);
+  return events
+    .sort((a, b) => a.date - b.date)
+    .slice(0, 4);
 }
 
 /** Small ⓘ tooltip to explain a metric. */
@@ -275,7 +305,7 @@ export default function HomeClient({ user }) {
     return days > 0 && days <= 30;
   }).length;
 
-  const upcomingOptions = buildUpcomingOptions({ investments, goals, maturingSoon });
+  const upcomingEvents = buildUpcomingEvents(investments);
 
   const empty = !loading && goals.length === 0 && investments.length === 0;
 
@@ -303,125 +333,153 @@ export default function HomeClient({ user }) {
       )}
 
       {!loading && !empty && (
-        <div className="px-4 md:px-8 py-5 md:py-6 max-w-5xl mx-auto w-full">
-          {/* ── Header ── */}
-          <div className="md:flex md:items-end md:justify-between mb-5">
-            <div>
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
-              <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalCurrentPortfolioValue)}</h1>
-              <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
-            </div>
-            <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
-          </div>
+        <div className="px-4 md:px-8 py-5 md:py-6 max-w-7xl mx-auto w-full">
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-4 md:gap-5 items-start">
+            <div className="min-w-0">
+              {/* ── Header ── */}
+              <div className="md:flex md:items-end md:justify-between mb-5">
+                <div>
+                  <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
+                  <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalCurrentPortfolioValue)}</h1>
+                  <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
+                </div>
+                <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
+              </div>
 
-          {/* ── Stat cards ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
-            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-              <p className="text-[11px] text-ink-mute">Active plans</p>
-              <p className="text-lg font-medium mt-1">{investments.length} <span className="text-ink-mute text-sm">→</span></p>
-            </Link>
-            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-              <p className="text-[11px] text-ink-mute">Maturing in 30 days</p>
-              <p className="text-lg font-medium mt-1 text-honey-600">{maturingSoon} <span className="text-ink-mute text-sm">→</span></p>
-            </Link>
-            <Link href="/goals" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-              <p className="text-[11px] text-ink-mute">Goals</p>
-              <p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p>
-            </Link>
-            <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-              <p className="text-[11px] text-ink-mute">
-                Maturity value
-                <InfoTip text="The total amount you will receive when all your investments mature at their respective rates. This is a future projected value, not what you'd get if you withdrew today." />
-              </p>
-              <p className="text-lg font-medium mt-1 text-mint-600">{inrShort(totalValue)}</p>
-            </Link>
-          </div>
+              {/* ── Stat cards ── */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
+                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                  <p className="text-[11px] text-ink-mute">Active plans</p>
+                  <p className="text-lg font-medium mt-1">{investments.length} <span className="text-ink-mute text-sm">→</span></p>
+                </Link>
+                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                  <p className="text-[11px] text-ink-mute">Maturing in 30 days</p>
+                  <p className="text-lg font-medium mt-1 text-honey-600">{maturingSoon} <span className="text-ink-mute text-sm">→</span></p>
+                </Link>
+                <Link href="/goals" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                  <p className="text-[11px] text-ink-mute">Goals</p>
+                  <p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p>
+                </Link>
+                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                  <p className="text-[11px] text-ink-mute">
+                    Maturity value
+                    <InfoTip text="The total amount you will receive when all your investments mature at their respective rates. This is a future projected value, not what you'd get if you withdrew today." />
+                  </p>
+                  <p className="text-lg font-medium mt-1 text-mint-600">{inrShort(totalValue)}</p>
+                </Link>
+              </div>
 
-          {/* ── Overall Wealth Goal ── */}
-          <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
+              {/* ── Overall Wealth Goal ── */}
+              <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
 
-          {/* ── Upcoming investment options ── */}
-          <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
-            <div className="flex justify-between items-baseline mb-3">
-              <h2 className="text-sm font-medium">Upcoming investment options</h2>
-              <Link href="/investments/new" className="text-xs text-sky-600">add new</Link>
-            </div>
-            <p className="text-[11px] text-ink-mute mb-3">Suggestions are based on your current plan mix and timelines. This is a planning aid, not investment advice.</p>
-            <div className="grid md:grid-cols-3 gap-2.5">
-              {upcomingOptions.map((option) => (
-                <article key={option.key} className="border border-edge rounded-xl p-3 bg-paper-tint/60">
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <h3 className="text-xs font-medium leading-5">{option.title}</h3>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap">{option.tag}</span>
+              {/* ── Upcoming investment events ── */}
+              <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
+                <div className="flex justify-between items-baseline mb-3">
+                  <h2 className="text-sm font-medium">Upcoming investment events</h2>
+                  <Link href="/investments/new" className="text-xs text-sky-600">add new</Link>
+                </div>
+                {upcomingEvents.length === 0 ? (
+                  <div className="border border-dashed border-edge rounded-xl p-4 text-sm text-ink-mute">
+                    No upcoming events found. Add an RD, FD, PPF, or another dated plan to start tracking upcoming dates.
                   </div>
-                  <p className="text-[11px] text-ink-mute leading-5 min-h-[52px]">{option.why}</p>
-                  <Link href={option.href} className="inline-flex mt-2 text-[11px] font-medium text-sky-600 hover:underline">{option.cta} →</Link>
-                </article>
-              ))}
-            </div>
-          </section>
+                ) : (
+                  <div className="grid md:grid-cols-3 gap-2.5">
+                    {upcomingEvents.slice(0, 3).map((event) => (
+                      <article key={event.key} className="border border-edge rounded-xl p-3 bg-paper-tint/60">
+                        <div className="flex items-start justify-between gap-2 mb-1.5">
+                          <h3 className="text-xs font-medium leading-5">{event.title}</h3>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap">{event.tag}</span>
+                        </div>
+                        <p className="text-[11px] text-ink-mute leading-5">{event.detail}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[11px] text-ember-600 font-medium">{event.when}</span>
+                          <Link href={event.href} className="inline-flex text-[11px] font-medium text-sky-600 hover:underline">{event.cta} →</Link>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
 
-          {/* ── Portfolio projection chart ── */}
-          <div className="mb-5">
-            <PortfolioChart
-              investments={investments}
-              goalAmount={portfolioGoal?.amount ?? null}
-              goalDate={portfolioGoal?.date ?? null}
-            />
-          </div>
-
-          {/* ── Goals + Recent investments ── */}
-          <div className="grid md:grid-cols-2 gap-4 md:gap-5">
-            <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5">
-              <div className="flex justify-between items-baseline mb-3">
-                <h2 className="text-sm font-medium">Goals</h2>
-                <Link href="/goals" className="text-xs text-sky-600">see all</Link>
+              {/* ── Portfolio projection chart ── */}
+              <div className="mb-5">
+                <PortfolioChart
+                  investments={investments}
+                  goalAmount={portfolioGoal?.amount ?? null}
+                  goalDate={portfolioGoal?.date ?? null}
+                />
               </div>
-              {goals.length === 0 ? (
-                <Link href="/goals/new" className="block text-center py-6 text-sm text-ink-mute border border-dashed border-edge rounded-xl hover:bg-paper-tint">+ Add your first goal</Link>
-              ) : goals.slice(0, 3).map((g) => {
-                const cur = Number(g.current_amount || 0);
-                const tgt = Number(g.target_amount || 1);
-                const pct = Math.min(100, Math.round((cur / tgt) * 100));
-                return (
-                  <Link key={g.id} href="/goals" className="block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium">{g.name}</span>
-                      <span className="text-xs text-ink-soft">{pct}%</span>
-                    </div>
-                    <div className="h-1.5 bg-paper-card rounded-full overflow-hidden">
-                      <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </Link>
-                );
-              })}
-            </section>
 
-            <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5">
-              <div className="flex justify-between items-baseline mb-3">
-                <h2 className="text-sm font-medium">Recent investments</h2>
-                <Link href="/investments" className="text-xs text-sky-600">view all</Link>
-              </div>
-              {investments.slice(0, 4).map((investment) => {
-                const tone = toneFor(investment.type_code);
-                const marketType = isMarketInvestment(investment.type_code);
-                return (
-                  <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
-                    <div className="flex gap-2.5 items-center min-w-0 flex-1">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
-                        <p className="text-[11px] text-ink-mute mt-0.5">{labelFor(investment)} · {marketType ? `${formatUnits(investment.total_units)} units held` : `matures ${fmtDate(investment.maturity_date)}`}</p>
+              {/* ── Recent investments ── */}
+              <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5">
+                <div className="flex justify-between items-baseline mb-3">
+                  <h2 className="text-sm font-medium">Recent investments</h2>
+                  <Link href="/investments" className="text-xs text-sky-600">view all</Link>
+                </div>
+                {investments.slice(0, 4).map((investment) => {
+                  const tone = toneFor(investment.type_code);
+                  const marketType = isMarketInvestment(investment.type_code);
+                  return (
+                    <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
+                      <div className="flex gap-2.5 items-center min-w-0 flex-1">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
+                          <p className="text-[11px] text-ink-mute mt-0.5">{labelFor(investment)} · {marketType ? `${formatUnits(investment.total_units)} units held` : `matures ${fmtDate(investment.maturity_date)}`}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right ml-2 flex-shrink-0">
-                      <p className="text-xs font-medium">{inrShort(marketType ? investment.remaining_cost_basis : investment.amount)}</p>
-                      <p className={`text-[10px] mt-0.5 ${marketType ? 'text-sky-600' : 'text-mint-600'}`}>{marketType ? `${inrShort(investment.invested_amount)} invested` : `${investment.rate_pct}% p.a.`}</p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </section>
+                      <div className="text-right ml-2 flex-shrink-0">
+                        <p className="text-xs font-medium">{inrShort(marketType ? investment.remaining_cost_basis : investment.amount)}</p>
+                        <p className={`text-[10px] mt-0.5 ${marketType ? 'text-sky-600' : 'text-mint-600'}`}>{marketType ? `${inrShort(investment.invested_amount)} invested` : `${investment.rate_pct}% p.a.`}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </section>
+            </div>
+
+            <aside className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 lg:sticky lg:top-4">
+              <section>
+                <div className="flex justify-between items-baseline mb-3">
+                  <h2 className="text-sm font-medium">Goals</h2>
+                  <Link href="/goals" className="text-xs text-sky-600">see all</Link>
+                </div>
+                {goals.length === 0 ? (
+                  <Link href="/goals/new" className="block text-center py-4 text-sm text-ink-mute border border-dashed border-edge rounded-xl hover:bg-paper-tint">+ Add your first goal</Link>
+                ) : goals.slice(0, 3).map((g) => {
+                  const cur = Number(g.current_amount || 0);
+                  const tgt = Number(g.target_amount || 1);
+                  const pct = Math.min(100, Math.round((cur / tgt) * 100));
+                  return (
+                    <Link key={g.id} href="/goals" className="block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium truncate pr-2">{g.name}</span>
+                        <span className="text-xs text-ink-soft">{pct}%</span>
+                      </div>
+                      <div className="h-1.5 bg-paper-card rounded-full overflow-hidden">
+                        <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </section>
+
+              <section className="mt-5 pt-4 border-t border-edge">
+                <div className="flex justify-between items-baseline mb-3">
+                  <h2 className="text-sm font-medium">Recent investments</h2>
+                  <Link href="/investments" className="text-xs text-sky-600">view all</Link>
+                </div>
+                {investments.slice(0, 3).map((investment) => {
+                  const marketType = isMarketInvestment(investment.type_code);
+                  return (
+                    <Link key={`side-${investment.id}`} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2 border-b border-edge last:border-b-0 text-sm hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
+                      <span className="truncate pr-2">{investment.plan_name}</span>
+                      <span className="text-ink-soft text-xs whitespace-nowrap">{marketType ? 'Market holding' : `Matures ${fmtDate(investment.maturity_date)}`}</span>
+                    </Link>
+                  );
+                })}
+              </section>
+            </aside>
           </div>
         </div>
       )}
