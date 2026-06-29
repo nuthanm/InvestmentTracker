@@ -5,6 +5,29 @@ import { useRouter } from 'next/navigation';
 import Shell from '@/components/Shell';
 import { toast } from '@/components/Toast';
 
+const AUTHENTICATOR_APPS = [
+  {
+    name: 'Google Authenticator',
+    ios: 'https://apps.apple.com/app/google-authenticator/id388497605',
+    android: 'https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2',
+  },
+  {
+    name: 'Microsoft Authenticator',
+    ios: 'https://apps.apple.com/app/microsoft-authenticator/id981149162',
+    android: 'https://play.google.com/store/apps/details?id=com.azure.authenticator',
+  },
+  {
+    name: 'Authy',
+    ios: 'https://apps.apple.com/app/authy/id494868406',
+    android: 'https://play.google.com/store/apps/details?id=com.authy.authy',
+  },
+  {
+    name: '1Password',
+    ios: 'https://apps.apple.com/app/1password-password-manager/id568903335',
+    android: 'https://play.google.com/store/apps/details?id=com.onepassword.android',
+  },
+];
+
 export default function AccountClient({ user }) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
@@ -409,7 +432,7 @@ export default function AccountClient({ user }) {
         <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setPasswordModal(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Change password</h2>
-            <p className="text-sm text-ink-soft text-center mb-5">Use at least 10 chars with upper/lower/number/symbol</p>
+            <p className="text-sm text-ink-soft text-center mb-5">Use at least 8 chars with upper/lower/number/symbol</p>
             <label className="block text-xs text-ink-soft mb-1.5">Current password</label>
             <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="field-input mb-3" autoFocus />
             <label className="block text-xs text-ink-soft mb-1.5">New password</label>
@@ -451,7 +474,35 @@ export default function AccountClient({ user }) {
         <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaSetupOpen(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Enable MFA</h2>
-            <p className="text-sm text-ink-soft text-center mb-4">Scan with Google Authenticator, Authy, or 1Password.</p>
+            <p className="text-sm text-ink-soft text-center mb-4">Scan with any of these authenticator apps:</p>
+
+            {/* Authenticator Apps Links */}
+            <div className="bg-edge/30 rounded-lg p-3 mb-4 space-y-2">
+              {AUTHENTICATOR_APPS.map((app) => (
+                <div key={app.name} className="flex items-center justify-between">
+                  <span className="text-xs text-ink-soft">{app.name}</span>
+                  <div className="flex gap-1.5">
+                    <a
+                      href={app.ios}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-1.5 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] rounded hover:bg-mint-600/30 transition"
+                    >
+                      iOS
+                    </a>
+                    <a
+                      href={app.android}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-1.5 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] rounded hover:bg-mint-600/30 transition"
+                    >
+                      Android
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {mfaQrCode ? <img src={mfaQrCode} alt="MFA QR code" className="w-40 h-40 mx-auto mb-3 rounded-lg border border-edge" /> : null}
             <p className="text-[11px] text-ink-soft break-all mb-3">Manual code: {mfaSetupSecret}</p>
             <label className="block text-xs text-ink-soft mb-1.5">Verification code</label>

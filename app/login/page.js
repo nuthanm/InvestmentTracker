@@ -10,14 +10,35 @@ export default function LoginPage() {
   const [mfaCode, setMfaCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Field-level errors
+  const [fieldErrors, setFieldErrors] = useState({
+    email: '',
+    password: '',
+    mfaCode: '',
+    submit: '',
+  });
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    if (!email.trim() || !password) {
-      setError('Email and password are required.');
+    setFieldErrors({ email: '', password: '', mfaCode: '', submit: '' });
+
+    let isValid = true;
+    const errors = {};
+
+    if (!email.trim()) {
+      errors.email = 'Enter your email address';
+      isValid = false;
+    }
+
+    if (!password) {
+      errors.password = 'Enter your password';
+      isValid = false;
+    }
+
+    if (!isValid) {
+      setFieldErrors(errors);
       return;
     }
 
@@ -38,16 +59,17 @@ export default function LoginPage() {
       router.push('/home');
       router.refresh();
     } catch (err) {
-      setError(err.message);
+      setFieldErrors((prev) => ({ ...prev, submit: err.message }));
       setLoading(false);
     }
   };
 
   const onVerifyMfa = async (e) => {
     e.preventDefault();
-    setError('');
+    setFieldErrors({ email: '', password: '', mfaCode: '', submit: '' });
+
     if (!mfaCode.trim()) {
-      setError('Enter your verification code.');
+      setFieldErrors((prev) => ({ ...prev, mfaCode: 'Enter your verification code' }));
       return;
     }
 
@@ -63,7 +85,7 @@ export default function LoginPage() {
       router.push('/home');
       router.refresh();
     } catch (err) {
-      setError(err.message);
+      setFieldErrors((prev) => ({ ...prev, submit: err.message }));
       setLoading(false);
     }
   };
@@ -78,6 +100,7 @@ export default function LoginPage() {
             <h1 className="text-xl font-medium text-center">Welcome back</h1>
             <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Sign in securely with your account email</p>
 
+            {/* Email Field */}
             <label className="block text-xs text-ink-soft mb-1.5">Email address<span className="text-danger ml-0.5">*</span></label>
             <input
               type="email"
@@ -85,21 +108,30 @@ export default function LoginPage() {
               autoFocus
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="field-input mb-3"
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
+              }}
+              className={`field-input mb-1 ${fieldErrors.email ? 'border-danger bg-danger/5' : ''}`}
             />
+            {fieldErrors.email && <p className="text-xs text-danger mb-3">{fieldErrors.email}</p>}
 
+            {/* Password Field */}
             <label className="block text-xs text-ink-soft mb-1.5">Password<span className="text-danger ml-0.5">*</span></label>
             <input
               type="password"
               autoComplete="current-password"
               placeholder="Your password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="field-input"
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
+              }}
+              className={`field-input mb-1 ${fieldErrors.password ? 'border-danger bg-danger/5' : ''}`}
             />
+            {fieldErrors.password && <p className="text-xs text-danger mb-3">{fieldErrors.password}</p>}
 
-            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+            {fieldErrors.submit && <p className="text-xs text-danger mb-3">{fieldErrors.submit}</p>}
 
             <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium mt-5">
               {loading ? 'Signing in…' : 'Sign in'}
@@ -138,12 +170,16 @@ export default function LoginPage() {
               inputMode="numeric"
               placeholder="123456"
               value={mfaCode}
-              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="field-input"
+              onChange={(e) => {
+                setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                if (fieldErrors.mfaCode) setFieldErrors((prev) => ({ ...prev, mfaCode: '' }));
+              }}
+              className={`field-input mb-1 ${fieldErrors.mfaCode ? 'border-danger bg-danger/5' : ''}`}
               autoFocus
             />
+            {fieldErrors.mfaCode && <p className="text-xs text-danger mb-3">{fieldErrors.mfaCode}</p>}
 
-            {error && <p className="mt-3 text-xs text-danger">{error}</p>}
+            {fieldErrors.submit && <p className="text-xs text-danger mb-3">{fieldErrors.submit}</p>}
 
             <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium mt-5">
               {loading ? 'Verifying…' : 'Verify and continue'}

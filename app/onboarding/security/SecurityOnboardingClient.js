@@ -3,6 +3,29 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+const AUTHENTICATOR_APPS = [
+  {
+    name: 'Google Authenticator',
+    ios: 'https://apps.apple.com/app/google-authenticator/id388497605',
+    android: 'https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2',
+  },
+  {
+    name: 'Microsoft Authenticator',
+    ios: 'https://apps.apple.com/app/microsoft-authenticator/id981149162',
+    android: 'https://play.google.com/store/apps/details?id=com.azure.authenticator',
+  },
+  {
+    name: 'Authy',
+    ios: 'https://apps.apple.com/app/authy/id494868406',
+    android: 'https://play.google.com/store/apps/details?id=com.authy.authy',
+  },
+  {
+    name: '1Password',
+    ios: 'https://apps.apple.com/app/1password-password-manager/id568903335',
+    android: 'https://play.google.com/store/apps/details?id=com.onepassword.android',
+  },
+];
+
 export default function SecurityOnboardingClient({ user }) {
   const router = useRouter();
   const [step, setStep] = useState('choice');
@@ -11,6 +34,7 @@ export default function SecurityOnboardingClient({ user }) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAuthApps, setShowAuthApps] = useState(false);
 
   const skipFor7Days = async () => {
     setLoading(true);
@@ -101,6 +125,45 @@ export default function SecurityOnboardingClient({ user }) {
               <div>Protects your portfolio from password-only attacks</div>
               <div>Works with free authenticator apps</div>
               <div>Takes under 60 seconds to finish</div>
+            </div>
+
+            {/* Authenticator Apps Info */}
+            <div className="mt-5 p-4 bg-edge/50 rounded-lg border border-edge">
+              <button
+                type="button"
+                onClick={() => setShowAuthApps(!showAuthApps)}
+                className="flex items-center justify-between w-full text-sm font-medium text-ink-soft hover:text-ink transition-colors"
+              >
+                <span>📱 Supported authenticator apps</span>
+                <span className={`transition-transform ${showAuthApps ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              {showAuthApps && (
+                <div className="mt-3 space-y-2">
+                  {AUTHENTICATOR_APPS.map((app) => (
+                    <div key={app.name} className="flex items-center justify-between text-xs">
+                      <span className="text-ink-soft">{app.name}</span>
+                      <div className="flex gap-2">
+                        <a
+                          href={app.ios}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[11px] hover:bg-ink/20 transition-colors"
+                        >
+                          iOS
+                        </a>
+                        <a
+                          href={app.android}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[11px] hover:bg-ink/20 transition-colors"
+                        >
+                          Android
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && <p className="text-xs text-danger mt-3">{error}</p>}

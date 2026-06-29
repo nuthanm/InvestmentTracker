@@ -10,7 +10,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Reset token and new password are required.' }, { status: 400 });
     }
     if (!validatePassword(newPassword)) {
-      return NextResponse.json({ error: 'Password must be at least 10 chars with upper, lower, number, and symbol.' }, { status: 400 });
+      return NextResponse.json({ error: 'Password must be at least 8 chars with uppercase, lowercase, number, and symbol.' }, { status: 400 });
     }
 
     const userId = await consumePasswordResetToken(token);

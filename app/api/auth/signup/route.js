@@ -21,10 +21,10 @@ export async function POST(req) {
       return NextResponse.json({ error: 'You must accept Terms and Privacy Policy.' }, { status: 400 });
     }
     if (!validateEmail(email)) {
-      return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
+      return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }
     if (!validatePassword(password)) {
-      return NextResponse.json({ error: 'Password must be at least 10 chars with upper, lower, number, and symbol.' }, { status: 400 });
+      return NextResponse.json({ error: 'Password must be at least 8 chars with uppercase, lowercase, number, and symbol.' }, { status: 400 });
     }
     if (!validateRecoveryKey(recoveryKey)) {
       return NextResponse.json({ error: 'Recovery key must be at least 8 characters.' }, { status: 400 });
