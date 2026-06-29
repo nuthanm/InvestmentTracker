@@ -272,7 +272,7 @@ input:focus, select:focus, textarea:focus {
   max-width: 1120px;
   margin: 18px auto 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 

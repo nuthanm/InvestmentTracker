@@ -32,13 +32,13 @@ export default async function RootPage() {
         <nav className="landing-top-nav">
           <Link href="/resources">Guides</Link>
           <Link href="/privacy">Privacy</Link>
-          <Link href="/login" className="landing-signin">Sign in</Link>
+          <Link href="/login" className="hero-primary">Sign in</Link>
         </nav>
       </header>
 
       <section className="hero-grid">
         <div>
-          <p className="hero-kicker">Calm Money OS for modern families</p>
+          <p className="hero-kicker">Simple money planner for families</p>
           <h1 className="hero-title">One living board for investments and every future bill.</h1>
           <p className="hero-sub">
             Instead of juggling notes and reminders, create a single source of truth where each goal,
@@ -186,13 +186,6 @@ export default async function RootPage() {
           <p>
             Security controls, MFA, recovery key, and audit events are built into the product journey.
             This is intentional software for long-term planning, not attention-hacking finance media.
-          </p>
-        </article>
-        <article>
-          <h2>Free core forever.</h2>
-          <p>
-            No paid integrations are required for account access and recovery. You only pay for your own
-            hosting choices like domain or storage upgrades.
           </p>
         </article>
       </section>
