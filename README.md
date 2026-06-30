@@ -9,6 +9,54 @@ Public trust pages now live at `/`, `/privacy`, `/terms`, `/about`, `/resources`
 
 ---
 
+## Main page preview
+
+![Landing page](screenshots/00-landing-page-desktop.jpg)
+
+---
+
+## Recent updates (June 2026)
+
+### Password reset and recovery
+
+- Fixed malformed reset-password form JSX and restored confirm-password validation behavior.
+- Replaced browser `alert()` after backup-code copy with in-app toast feedback.
+- Updated signup backup-codes screen:
+  - removed the `Print codes` action
+  - aligned `Copy codes` and `Continue to security setup` in one row
+  - matched button styles
+  - adjusted width and no-wrap behavior so labels stay clean
+- Improved forgot-password network error copy:
+  - shows a meaningful message when API is unreachable instead of generic `Failed to fetch`
+- Improved backup-code API messaging:
+  - `already used` returns a dedicated message
+  - invalid/not-found code returns a clear backup-code-specific error
+
+### MFA reliability and labeling
+
+- Fixed MFA otpauth URI generation to prevent `InvestmentTracker: undefined` labels.
+- Corrected `otplib` URI field usage (`label`), ensuring authenticator apps receive the intended account label.
+- Sanitized account-label source values (`undefined`/`null`/empty handling) before MFA URI generation.
+- Standardized current label behavior to use plain email where available.
+
+### MFA UX and responsive modal improvements
+
+- Added a structured in-app guide for deleting and recreating authenticator entries in:
+  - Account MFA setup modal
+  - Onboarding security MFA step
+- Redesigned Account MFA setup modal layout:
+  - app list and QR/manual code shown side-by-side on larger screens
+  - stacked layout on smaller screens
+  - viewport-safe max height with internal scroll for short displays
+  - improved spacing and typography across mobile/tablet/laptop/desktop
+
+### General UI consistency
+
+- Added global toaster mounting in app layout for consistent in-app notification rendering.
+- Sanitized account identifier display in account UI to avoid showing literal `undefined` / `null`.
+
+---
+
 ## Screenshots
 
 | Login | Dashboard | Add investment |
@@ -141,7 +189,7 @@ That's it — your app is live at `your-project.vercel.app`, free forever.
 ## Re-running screenshots
 
 The script `scripts/take-screenshots.js` drives a real browser through the full app
-flow and saves 16 PNGs to `screenshots/`. Run it whenever you make UI changes:
+flow and saves 16 app-flow PNGs to `screenshots/`. Run it whenever you make UI changes:
 
 ```bash
 # one-time setup (skip if already done)
@@ -153,6 +201,12 @@ npm run dev
 
 # capture all screenshots in another terminal
 node scripts/take-screenshots.js
+```
+
+To refresh the landing page screenshot used at the top of this README:
+
+```bash
+node -e "const { chromium } = require('playwright'); (async () => { const browser = await chromium.launch({ headless: true }); const page = await browser.newPage({ viewport: { width: 1440, height: 900 } }); await page.goto('http://localhost:3000/', { waitUntil: 'networkidle' }); await page.screenshot({ path: 'screenshots/00-landing-page.png', fullPage: true }); await browser.close(); })();"
 ```
 
 The script creates a fresh demo user with a timestamp-based mobile number each run,
