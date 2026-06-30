@@ -9,13 +9,13 @@ import {
   validatePassword,
   validateRecoveryKey,
 } from '@/lib/auth';
-import { logSecurityEvent } from '@/lib/security';
+import { logSecurityEvent, saveBackupCodes, saveSecurityQuestions, generateBackupCodes } from '@/lib/security';
 
 export async function POST(req) {
   try {
-    const { name, email, password, recoveryKey, acceptedLegal } = await req.json();
-    if (!name || !email || !password || !recoveryKey) {
-      return NextResponse.json({ error: 'Name, email, password, and recovery key are required.' }, { status: 400 });
+    const { name, email, password, recoveryKey, securityQuestions, acceptedLegal } = await req.json();
+    if (!name || !email || !password || !recoveryKey || !securityQuestions || !Array.isArray(securityQuestions) || securityQuestions.length < 2) {
+      return NextResponse.json({ error: 'Name, email, password, recovery key, and 2 security questions are required.' }, { status: 400 });
     }
     if (!acceptedLegal) {
       return NextResponse.json({ error: 'You must accept Terms and Privacy Policy.' }, { status: 400 });
@@ -55,6 +55,13 @@ export async function POST(req) {
     }
     const user = rows[0];
 
+    // Save security questions
+    await saveSecurityQuestions(user.id, securityQuestions);
+
+    // Generate and save backup recovery codes
+    const backupCodes = generateBackupCodes(10);
+    await saveBackupCodes(user.id, backupCodes);
+
     await sql`
       INSERT INTO notifications (user_id, title, message)
       VALUES (${user.id}, 'Welcome!', 'Add your first goal or investment to get started.')
@@ -62,7 +69,11 @@ export async function POST(req) {
 
     await createSession(user.id);
     await logSecurityEvent({ req, userId: user.id, eventType: 'signup', status: 'success' });
-    return NextResponse.json({ user });
+    
+    return NextResponse.json({ 
+      user,
+      backupCodes // Return backup codes to show user during onboarding
+    });
   } catch (err) {
     console.error('signup error', err);
     return NextResponse.json({ error: 'Could not create account.' }, { status: 500 });

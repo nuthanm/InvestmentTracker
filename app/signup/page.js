@@ -3,7 +3,17 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from '@/components/Toast';
 import { getPasswordStrength, validateEmail, validatePassword } from '@/lib/validation';
+
+const SECURITY_QUESTIONS = [
+  'What was the name of your first pet?',
+  'What city were you born in?',
+  'What was the name of your first school?',
+  'What is your mother\'s maiden name?',
+  'What is your favorite book?',
+  'What was your first job title?',
+];
 
 export default function SignupPage() {
   const router = useRouter();
@@ -12,8 +22,13 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryKey, setRecoveryKey] = useState('');
+  const [securityQ1, setSecurityQ1] = useState('');
+  const [securityA1, setSecurityA1] = useState('');
+  const [securityQ2, setSecurityQ2] = useState('');
+  const [securityA2, setSecurityA2] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [backupCodes, setBackupCodes] = useState([]);
 
   // Field-level errors
   const [fieldErrors, setFieldErrors] = useState({
@@ -22,6 +37,10 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
     recoveryKey: '',
+    securityQ1: '',
+    securityA1: '',
+    securityQ2: '',
+    securityA2: '',
     agreed: '',
   });
 
@@ -72,6 +91,21 @@ export default function SignupPage() {
       isValid = false;
     }
 
+    if (!securityQ1 || !securityA1.trim()) {
+      errors.securityA1 = 'Please answer the first security question';
+      isValid = false;
+    }
+
+    if (!securityQ2 || !securityA2.trim()) {
+      errors.securityA2 = 'Please answer the second security question';
+      isValid = false;
+    }
+
+    if (securityQ1 === securityQ2) {
+      errors.securityQ2 = 'Choose different questions';
+      isValid = false;
+    }
+
     if (!agreed) {
       errors.agreed = 'Please accept Terms and Privacy Policy';
       isValid = false;
@@ -98,13 +132,17 @@ export default function SignupPage() {
           email,
           password,
           recoveryKey,
+          securityQuestions: [
+            { question: securityQ1, answer: securityA1 },
+            { question: securityQ2, answer: securityA2 },
+          ],
           acceptedLegal: true,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not create account.');
-      router.push('/onboarding/security');
-      router.refresh();
+      setBackupCodes(data.backupCodes || []);
+      // Don't redirect yet - show backup codes first
     } catch (err) {
       setFieldErrors((prev) => ({ ...prev, submit: err.message }));
       setLoading(false);
@@ -116,10 +154,60 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade">
+      <div className={`w-full ${backupCodes.length > 0 ? 'max-w-md' : 'max-w-sm'} bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade`}>
         <div className="w-12 h-12 rounded-2xl bg-ink text-paper flex items-center justify-center text-xl font-medium mx-auto mb-4">₹</div>
 
-        <form onSubmit={submit}>
+        {backupCodes.length > 0 ? (
+          // Backup Codes Display Screen
+          <>
+            <h1 className="text-xl font-medium text-center">Save your backup codes</h1>
+            <p className="text-sm text-ink-soft text-center mt-1.5 mb-5">
+              Store these codes somewhere safe. You can use each code once to recover your account if you lose your password and recovery key.
+            </p>
+
+            <div className="bg-honey/10 border border-honey/30 rounded-lg p-4 mb-5">
+              <div className="grid grid-cols-2 gap-2">
+                {backupCodes.map((code, idx) => (
+                  <div key={idx} className="font-mono text-sm bg-paper px-2.5 py-1.5 rounded border border-edge text-center">
+                    {code}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-[11px] text-ink-mute mb-4 text-center">
+              💾 Copy these codes and save them to a password manager.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const codesText = backupCodes.join('\n');
+                  navigator.clipboard.writeText(codesText);
+                  toast('Backup codes copied to clipboard!');
+                }}
+                className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium whitespace-nowrap"
+              >
+                Copy codes
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBackupCodes([]);
+                  router.push('/onboarding/security');
+                  router.refresh();
+                }}
+                className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium whitespace-nowrap"
+              >
+                Continue to security setup
+              </button>
+            </div>
+          </>
+        ) : (
+          // Signup Form
+          <form onSubmit={submit}>
           <h1 className="text-xl font-medium text-center">Create account</h1>
           <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Start tracking your money with stronger account security</p>
 
@@ -239,6 +327,64 @@ export default function SignupPage() {
 
           <p className="text-[11px] text-ink-mute mb-4">No external email/SMS is used. Keep this recovery key secure.</p>
 
+          {/* Security Question 1 */}
+          <label className="block text-xs text-ink-soft mb-1.5">Security question 1<span className="text-danger ml-0.5">*</span></label>
+          <select
+            value={securityQ1}
+            onChange={(e) => {
+              setSecurityQ1(e.target.value);
+              if (fieldErrors.securityQ1) setFieldErrors((prev) => ({ ...prev, securityQ1: '' }));
+            }}
+            className={`field-input mb-1 ${fieldErrors.securityQ1 ? 'border-danger bg-danger/5' : ''}`}
+          >
+            <option value="">Choose a question...</option>
+            {SECURITY_QUESTIONS.map((q) => (
+              <option key={q} value={q}>{q}</option>
+            ))}
+          </select>
+          {fieldErrors.securityQ1 && <p className="text-xs text-danger mb-3">{fieldErrors.securityQ1}</p>}
+          <input
+            type="text"
+            placeholder="Your answer"
+            value={securityA1}
+            onChange={(e) => {
+              setSecurityA1(e.target.value);
+              if (fieldErrors.securityA1) setFieldErrors((prev) => ({ ...prev, securityA1: '' }));
+            }}
+            className={`field-input mb-1 ${fieldErrors.securityA1 ? 'border-danger bg-danger/5' : ''}`}
+          />
+          {fieldErrors.securityA1 && <p className="text-xs text-danger mb-3">{fieldErrors.securityA1}</p>}
+
+          {/* Security Question 2 */}
+          <label className="block text-xs text-ink-soft mb-1.5 mt-3">Security question 2<span className="text-danger ml-0.5">*</span></label>
+          <select
+            value={securityQ2}
+            onChange={(e) => {
+              setSecurityQ2(e.target.value);
+              if (fieldErrors.securityQ2) setFieldErrors((prev) => ({ ...prev, securityQ2: '' }));
+            }}
+            className={`field-input mb-1 ${fieldErrors.securityQ2 ? 'border-danger bg-danger/5' : ''}`}
+          >
+            <option value="">Choose a question...</option>
+            {SECURITY_QUESTIONS.map((q) => (
+              <option key={q} value={q} disabled={q === securityQ1}>{q}</option>
+            ))}
+          </select>
+          {fieldErrors.securityQ2 && <p className="text-xs text-danger mb-3">{fieldErrors.securityQ2}</p>}
+          <input
+            type="text"
+            placeholder="Your answer"
+            value={securityA2}
+            onChange={(e) => {
+              setSecurityA2(e.target.value);
+              if (fieldErrors.securityA2) setFieldErrors((prev) => ({ ...prev, securityA2: '' }));
+            }}
+            className={`field-input mb-1 ${fieldErrors.securityA2 ? 'border-danger bg-danger/5' : ''}`}
+          />
+          {fieldErrors.securityA2 && <p className="text-xs text-danger mb-3">{fieldErrors.securityA2}</p>}
+
+          <p className="text-[11px] text-ink-mute mb-4">Backup recovery method if you forget both password and recovery key.</p>
+
           {/* Terms Checkbox */}
           <label className="flex items-start gap-2 text-[12px] text-ink-soft mb-3">
             <input
@@ -270,6 +416,7 @@ export default function SignupPage() {
             <Link href="/login" className="text-mint-600">Sign in</Link>
           </p>
         </form>
+        )}
       </div>
     </div>
   );

@@ -134,18 +134,18 @@ export default function ResetPasswordClient({ token }) {
           )}
 
           {/* Confirm Password Field */}
-          <labconst newConfirmPass = e.target.value;
+          <label className="block text-xs text-ink-soft mb-1.5">Confirm password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => {
+              const newConfirmPass = e.target.value;
               setConfirmPassword(newConfirmPass);
               if (newConfirmPass && newPassword && newPassword !== newConfirmPass) {
                 setFieldErrors((prev) => ({ ...prev, confirmPassword: 'Passwords do not match' }));
               } else {
                 setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
               }
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => {
-              setConfirmPassword(e.target.value);
-              if (fieldErrors.confirmPassword) setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
             }}
             className={`field-input mb-1 ${fieldErrors.confirmPassword ? 'border-danger bg-danger/5' : ''}`}
             placeholder="Type password again"

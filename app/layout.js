@@ -1,4 +1,5 @@
 import './globals.css';
+import Toaster from '@/components/Toast';
 
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://investmenttracker.app'),
@@ -31,7 +32,10 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
