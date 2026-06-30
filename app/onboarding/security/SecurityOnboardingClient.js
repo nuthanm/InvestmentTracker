@@ -185,6 +185,16 @@ export default function SecurityOnboardingClient({ user }) {
             {qr ? <img src={qr} alt="MFA QR" className="onboard-qr" /> : null}
             <p className="onboard-secret">Manual code: {secret}</p>
 
+            <div className="mt-3 p-3 bg-edge/50 rounded-lg border border-edge">
+              <p className="text-xs font-medium text-ink mb-1.5">If your authenticator entry looks wrong</p>
+              <ol className="text-[11px] text-ink-soft space-y-1 list-decimal pl-4">
+                <li>Go to Account and disable MFA.</li>
+                <li>Delete the old InvestmentTracker entry in your authenticator app.</li>
+                <li>Enable MFA again and scan this new QR.</li>
+                <li>Enter the latest 6-digit code to finish setup.</li>
+              </ol>
+            </div>
+
             <input
               type="text"
               inputMode="numeric"

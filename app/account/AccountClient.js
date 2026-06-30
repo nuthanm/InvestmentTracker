@@ -29,6 +29,14 @@ const AUTHENTICATOR_APPS = [
 
 export default function AccountClient({ user }) {
   const router = useRouter();
+  const sanitizeIdentifier = (value) => {
+    const normalized = String(value ?? '').trim();
+    if (!normalized) return '';
+    const lower = normalized.toLowerCase();
+    return lower === 'undefined' || lower === 'null' ? '' : normalized;
+  };
+
+  const displayIdentifier = sanitizeIdentifier(user.email) || sanitizeIdentifier(user.mobile);
   const [name, setName] = useState(user.name);
   const [editingName, setEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
@@ -278,7 +286,7 @@ export default function AccountClient({ user }) {
           <div className="w-12 h-12 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-medium">{initials}</div>
           <div className="flex-1 min-w-0">
             <p className="font-medium">{user.name}</p>
-            <p className="text-xs text-ink-soft mt-0.5">{user.email || user.mobile || 'No email on file'}</p>
+            <p className="text-xs text-ink-soft mt-0.5">{displayIdentifier || 'No email on file'}</p>
           </div>
         </div>
 
@@ -300,7 +308,7 @@ export default function AccountClient({ user }) {
           </div>
           <div className="px-4 py-3.5 border-b border-edge flex justify-between items-center">
             <span className="text-sm">Email</span>
-            <span className="text-xs text-ink-soft">{user.email || 'Legacy account'}</span>
+            <span className="text-xs text-ink-soft">{sanitizeIdentifier(user.email) || 'Legacy account'}</span>
           </div>
           <button onClick={() => setPasswordModal(true)} className="w-full px-4 py-3.5 border-b border-edge flex justify-between items-center hover:bg-paper-tint/50 transition">
             <span className="text-sm text-left">Change password</span>
@@ -399,39 +407,54 @@ export default function AccountClient({ user }) {
 
       {mfaSetupOpen && (
         <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaSetupOpen(false)}>
-          <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-medium text-center mb-1">Enable MFA</h2>
-            <p className="text-sm text-ink-soft text-center mb-4">Scan with any of these authenticator apps:</p>
+          <div className="bg-paper-card rounded-2xl p-5 sm:p-6 md:p-7 w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg sm:text-xl font-medium text-center mb-1">Enable MFA</h2>
+            <p className="text-sm text-ink-soft text-center mb-4 md:mb-5">Scan with any of these authenticator apps:</p>
 
-            {/* Authenticator Apps Links */}
-            <div className="bg-edge/30 rounded-lg p-3 mb-4 space-y-2">
-              {AUTHENTICATOR_APPS.map((app) => (
-                <div key={app.name} className="flex items-center justify-between">
-                  <span className="text-xs text-ink-soft">{app.name}</span>
-                  <div className="flex gap-1.5">
-                    <a
-                      href={app.ios}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-1.5 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] rounded hover:bg-mint-600/30 transition"
-                    >
-                      iOS
-                    </a>
-                    <a
-                      href={app.android}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-1.5 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] rounded hover:bg-mint-600/30 transition"
-                    >
-                      Android
-                    </a>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-3 items-start">
+              {/* Authenticator Apps Links */}
+              <div className="bg-edge/30 rounded-lg p-3 sm:p-4 space-y-2.5">
+                {AUTHENTICATOR_APPS.map((app) => (
+                  <div key={app.name} className="flex items-center justify-between">
+                    <span className="text-xs sm:text-sm text-ink-soft pr-2">{app.name}</span>
+                    <div className="flex gap-1.5">
+                      <a
+                        href={app.ios}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
+                      >
+                        iOS
+                      </a>
+                      <a
+                        href={app.android}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
+                      >
+                        Android
+                      </a>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+
+              <div className="bg-edge/20 rounded-lg p-3 sm:p-4 border border-edge">
+                {mfaQrCode ? <img src={mfaQrCode} alt="MFA QR code" className="w-36 h-36 sm:w-40 sm:h-40 md:w-44 md:h-44 mx-auto mb-2 rounded-lg border border-edge" /> : null}
+                <p className="text-xs text-ink-soft break-all text-center">Manual code: {mfaSetupSecret}</p>
+              </div>
             </div>
 
-            {mfaQrCode ? <img src={mfaQrCode} alt="MFA QR code" className="w-40 h-40 mx-auto mb-3 rounded-lg border border-edge" /> : null}
-            <p className="text-[11px] text-ink-soft break-all mb-3">Manual code: {mfaSetupSecret}</p>
+            <div className="bg-edge/30 border border-edge rounded-lg p-3 mb-3">
+              <p className="text-xs font-medium text-ink mb-1.5">Need help resetting MFA entry?</p>
+              <ol className="text-[11px] text-ink-soft space-y-1 list-decimal pl-4">
+                <li>Disable MFA in this account screen.</li>
+                <li>Delete the old InvestmentTracker entry in your authenticator app.</li>
+                <li>Enable MFA again and scan the new QR code.</li>
+                <li>Enter the fresh 6-digit code and confirm.</li>
+              </ol>
+            </div>
+
             <label className="block text-xs text-ink-soft mb-1.5">Verification code</label>
             <input type="text" inputMode="numeric" value={mfaCode} onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))} className="field-input" placeholder="123456" />
             {mfaError && <p className="text-xs text-danger text-center mt-3">{mfaError}</p>}

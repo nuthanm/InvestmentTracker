@@ -9,8 +9,21 @@ export async function POST(req) {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   try {
-    const secret = generateMfaSecret(me.email || me.id);
-    const otpauthUrl = buildMfaOtpauthUrl(me.email || me.id, secret);
+    const sanitizeValue = (value) => {
+      const normalized = String(value ?? '').trim();
+      if (!normalized) return '';
+      const lower = normalized.toLowerCase();
+      if (lower === 'undefined' || lower === 'null') return '';
+      return normalized;
+    };
+
+    const cleanEmail = sanitizeValue(me.email);
+    const cleanMobile = sanitizeValue(me.mobile);
+    const accountLabel = cleanEmail
+      ? cleanEmail
+      : (cleanMobile || (me.id ? `user-${me.id}` : 'user'));
+    const secret = generateMfaSecret(accountLabel);
+    const otpauthUrl = buildMfaOtpauthUrl(accountLabel, secret);
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
     await sql`
