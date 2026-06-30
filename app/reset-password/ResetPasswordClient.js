@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { getPasswordStrength } from '@/lib/auth';
+import { getPasswordStrength, validatePassword } from '@/lib/validation';
 
 export default function ResetPasswordClient({ token }) {
   const router = useRouter();
@@ -98,8 +98,13 @@ export default function ResetPasswordClient({ token }) {
             type="password"
             value={newPassword}
             onChange={(e) => {
-              setNewPassword(e.target.value);
-              if (fieldErrors.newPassword) setFieldErrors((prev) => ({ ...prev, newPassword: '' }));
+              const newPass = e.target.value;
+              setNewPassword(newPass);
+              if (newPass.length > 0 && !validatePassword(newPass)) {
+                setFieldErrors((prev) => ({ ...prev, newPassword: 'Add uppercase, lowercase, number, and symbol' }));
+              } else {
+                setFieldErrors((prev) => ({ ...prev, newPassword: '' }));
+              }
             }}
             className={`field-input mb-1 ${fieldErrors.newPassword ? 'border-danger bg-danger/5' : ''}`}
             placeholder="At least 8 chars: upper, lower, number, symbol"
@@ -115,7 +120,9 @@ export default function ResetPasswordClient({ token }) {
               <div className="w-full h-1.5 bg-edge rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    passwordStrength.score === 1
+                    passwordStrength.score === 0
+                      ? 'w-1/6 bg-danger'
+                      : passwordStrength.score === 1
                       ? 'w-1/4 bg-danger'
                       : passwordStrength.score === 2
                       ? 'w-1/2 bg-honey'
@@ -127,8 +134,13 @@ export default function ResetPasswordClient({ token }) {
           )}
 
           {/* Confirm Password Field */}
-          <label className="block text-xs text-ink-soft mb-1.5">Confirm password</label>
-          <input
+          <labconst newConfirmPass = e.target.value;
+              setConfirmPassword(newConfirmPass);
+              if (newConfirmPass && newPassword && newPassword !== newConfirmPass) {
+                setFieldErrors((prev) => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+              } else {
+                setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+              }
             type="password"
             value={confirmPassword}
             onChange={(e) => {

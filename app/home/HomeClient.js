@@ -372,35 +372,6 @@ export default function HomeClient({ user }) {
               {/* ── Overall Wealth Goal ── */}
               <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
 
-              {/* ── Upcoming investment events ── */}
-              <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
-                <div className="flex justify-between items-baseline mb-3">
-                  <h2 className="text-sm font-medium">Upcoming investment events</h2>
-                  <Link href="/investments/new" className="text-xs text-sky-600">add new</Link>
-                </div>
-                {upcomingEvents.length === 0 ? (
-                  <div className="border border-dashed border-edge rounded-xl p-4 text-sm text-ink-mute">
-                    No upcoming events found. Add an RD, FD, PPF, or another dated plan to start tracking upcoming dates.
-                  </div>
-                ) : (
-                  <div className="grid md:grid-cols-3 gap-2.5">
-                    {upcomingEvents.slice(0, 3).map((event) => (
-                      <article key={event.key} className="border border-edge rounded-xl p-3 bg-paper-tint/60">
-                        <div className="flex items-start justify-between gap-2 mb-1.5">
-                          <h3 className="text-xs font-medium leading-5">{event.title}</h3>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap">{event.tag}</span>
-                        </div>
-                        <p className="text-[11px] text-ink-mute leading-5">{event.detail}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-[11px] text-ember-600 font-medium">{event.when}</span>
-                          <Link href={event.href} className="inline-flex text-[11px] font-medium text-sky-600 hover:underline">{event.cta} →</Link>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
               {/* ── Portfolio projection chart ── */}
               <div className="mb-5">
                 <PortfolioChart
@@ -462,6 +433,31 @@ export default function HomeClient({ user }) {
                     </Link>
                   );
                 })}
+              </section>
+
+              <section className="mt-5 pt-4 border-t border-edge">
+                <div className="mb-3">
+                  <h2 className="text-sm font-medium">Upcoming events</h2>
+                </div>
+                {upcomingEvents.length === 0 ? (
+                  <div className="text-[11px] text-ink-mute text-center py-2">No upcoming events</div>
+                ) : (
+                  <div className="space-y-2">
+                    {upcomingEvents.slice(0, 2).map((event) => (
+                      <Link key={event.key} href={event.href} className="block border border-edge rounded-lg p-2 bg-paper-tint/60 hover:border-mint-600 transition text-[11px]">
+                        <div className="flex items-start justify-between gap-1 mb-1">
+                          <span className="font-medium truncate flex-1">{event.title}</span>
+                          <span className="text-[9px] px-1 py-0.5 rounded bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap flex-shrink-0">{event.tag}</span>
+                        </div>
+                        <p className="text-ink-mute truncate mb-1">{event.detail}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-ember-600 font-medium text-[10px]">{event.when}</span>
+                          <span className="text-sky-600 text-[10px]">View →</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="mt-5 pt-4 border-t border-edge">

@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Shell from '@/components/Shell';
 
 function formatEvent(value) {
   return String(value || '')
@@ -11,7 +9,6 @@ function formatEvent(value) {
 }
 
 export default function SecurityActivityClient({ user }) {
-  const router = useRouter();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,15 +54,13 @@ export default function SecurityActivityClient({ user }) {
   };
 
   return (
-    <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-6xl mx-auto w-full">
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Security Activity</h1>
-            <p className="text-sm text-ink-soft">Review sign-in and security actions on your account.</p>
-          </div>
-          <button onClick={() => router.push('/account')} className="text-xs px-3 py-2 rounded-lg border border-edge">Back to account</button>
+    <div className="px-4 md:px-8 py-5 md:py-6 max-w-6xl mx-auto w-full">
+      <div className="mb-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Security Activity</h1>
+          <p className="text-sm text-ink-soft">Review sign-in and security actions on your account.</p>
         </div>
+      </div>
 
         <div className="bg-paper-card border border-edge rounded-2xl p-4 mb-4">
           <div className="grid md:grid-cols-[1fr_180px_120px] gap-3">
@@ -149,7 +144,5 @@ export default function SecurityActivityClient({ user }) {
             </div>
           </div>
         </div>
-      </div>
-    </Shell>
-  );
-}
+    </div>
+  )};

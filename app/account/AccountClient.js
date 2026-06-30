@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Shell from '@/components/Shell';
 import { toast } from '@/components/Toast';
 
 const AUTHENTICATOR_APPS = [
@@ -34,8 +33,6 @@ export default function AccountClient({ user }) {
   const [editingName, setEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
 
-  const [confirmSignOut, setConfirmSignOut] = useState(false);
-
   const [passwordModal, setPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -62,11 +59,6 @@ export default function AccountClient({ user }) {
   const [mfaLoading, setMfaLoading] = useState(false);
 
   const [exportLoading, setExportLoading] = useState(false);
-  const [legacyModal, setLegacyModal] = useState(false);
-  const [legacyMobile, setLegacyMobile] = useState('');
-  const [legacyPin, setLegacyPin] = useState('');
-  const [legacyLoading, setLegacyLoading] = useState(false);
-  const [legacyError, setLegacyError] = useState('');
   const [deleteModal, setDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState('');
@@ -227,14 +219,17 @@ export default function AccountClient({ user }) {
     setExportLoading(true);
     try {
       const res = await fetch('/api/auth/export');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not export data.');
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Could not export data.');
+      }
 
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const csv = await res.text();
+      const blob = new Blob([csv], { type: 'text/csv; charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `investmenttracker-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `investmenttracker-export-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       toast('Data export downloaded.');
@@ -242,34 +237,6 @@ export default function AccountClient({ user }) {
       toast(err.message || 'Could not export data.');
     }
     setExportLoading(false);
-  };
-
-  const syncLegacy = async () => {
-    setLegacyError('');
-    if (!legacyMobile.trim() || !legacyPin.trim()) {
-      setLegacyError('Legacy mobile and PIN are required.');
-      return;
-    }
-
-    setLegacyLoading(true);
-    try {
-      const res = await fetch('/api/auth/legacy/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mobile: legacyMobile, pin: legacyPin }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not sync legacy account.');
-
-      setLegacyModal(false);
-      setLegacyMobile('');
-      setLegacyPin('');
-      toast(data.message || 'Legacy data synced. PIN login has been disabled.');
-      router.refresh();
-    } catch (err) {
-      setLegacyError(err.message);
-    }
-    setLegacyLoading(false);
   };
 
   const deleteAccount = async () => {
@@ -301,15 +268,9 @@ export default function AccountClient({ user }) {
     }
   };
 
-  const signOut = async () => {
-    await fetch('/api/auth/me', { method: 'DELETE' });
-    router.push('/login');
-    router.refresh();
-  };
-
   return (
-    <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
+    <>
+    <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
         <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Account</h1>
         <p className="text-sm text-ink-soft mb-6">Manage your profile, security, and export your data anytime.</p>
 
@@ -351,15 +312,6 @@ export default function AccountClient({ user }) {
           </button>
         </div>
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Migration</p>
-        <div className="bg-paper-card border border-edge rounded-2xl mb-5">
-          <button onClick={() => setLegacyModal(true)} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-paper-tint/50 transition">
-            <span className="text-sm text-left">Sync legacy mobile data</span>
-            <span className="text-xs text-ink-soft">›</span>
-          </button>
-          <p className="px-4 pb-3 text-xs text-ink-soft">One-time merge from old mobile+PIN account. Financial records are preserved and moved to your email account.</p>
-        </div>
-
         <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Security</p>
         <div className="bg-paper-card border border-edge rounded-2xl mb-5">
           <div className="px-4 py-3.5 border-b border-edge flex justify-between items-center">
@@ -381,23 +333,14 @@ export default function AccountClient({ user }) {
           <div className="px-4 py-3.5 flex justify-between items-center">
             <div>
               <p className="text-sm">Export your data</p>
-              <p className="text-xs text-ink-soft mt-0.5">Download all your records as JSON. No data is removed.</p>
+              <p className="text-xs text-ink-soft mt-0.5">Download all your records as CSV. No data is removed.</p>
             </div>
             <button onClick={exportData} disabled={exportLoading} className="text-xs px-3 py-2 rounded-lg border border-edge">
-              {exportLoading ? 'Preparing…' : 'Export'}
+              {exportLoading ? 'Preparing…' : 'Export (CSV)'}
             </button>
           </div>
 
           {mfaError && <p className="px-4 pb-3 text-xs text-danger">{mfaError}</p>}
-        </div>
-
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Security activity</p>
-        <div className="bg-paper-card border border-edge rounded-2xl mb-5">
-          <button onClick={() => router.push('/account/security-activity')} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-paper-tint/50 transition">
-            <span className="text-sm text-left">View full security activity</span>
-            <span className="text-xs text-ink-soft">›</span>
-          </button>
-          <p className="px-4 pb-3 text-xs text-ink-soft">Search by event or device, filter by status, and browse paged records in grid view.</p>
         </div>
 
         <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Danger zone</p>
@@ -409,23 +352,7 @@ export default function AccountClient({ user }) {
           <p className="px-4 pb-3 text-xs text-ink-soft">This permanently removes your account and related investment data.</p>
         </div>
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Session</p>
-        <div className="bg-paper-card border border-edge rounded-2xl">
-          {confirmSignOut ? (
-            <div className="px-4 py-3.5 flex items-center justify-between gap-3">
-              <span className="text-sm text-ink-soft">Sure you want to sign out?</span>
-              <div className="flex gap-2">
-                <button onClick={() => setConfirmSignOut(false)} className="text-xs px-3 py-1.5 rounded-lg border border-edge hover:bg-paper-tint">Cancel</button>
-                <button onClick={signOut} className="text-xs px-3 py-1.5 rounded-lg bg-danger text-paper font-medium">Sign out</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setConfirmSignOut(true)} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-danger-soft/40 transition">
-              <span className="text-sm text-danger text-left">Sign out</span>
-              <span className="text-xs text-danger">›</span>
-            </button>
-          )}
-        </div>
+
       </div>
 
       {passwordModal && (
@@ -534,44 +461,6 @@ export default function AccountClient({ user }) {
         </div>
       )}
 
-      {legacyModal && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setLegacyModal(false)}>
-          <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-medium text-center mb-1">Sync legacy mobile account</h2>
-            <p className="text-sm text-ink-soft text-center mb-4">After sync, legacy PIN login will be disabled for this account.</p>
-
-            <label className="block text-xs text-ink-soft mb-1.5">Legacy mobile number</label>
-            <input
-              type="tel"
-              value={legacyMobile}
-              onChange={(e) => setLegacyMobile(e.target.value)}
-              className="field-input mb-3"
-              placeholder="+91 98XXX XXXXX"
-              autoFocus
-            />
-
-            <label className="block text-xs text-ink-soft mb-1.5">Legacy PIN</label>
-            <input
-              type="password"
-              inputMode="numeric"
-              value={legacyPin}
-              onChange={(e) => setLegacyPin(e.target.value)}
-              className="field-input"
-              placeholder="6-digit PIN"
-            />
-
-            {legacyError && <p className="text-xs text-danger text-center mt-3">{legacyError}</p>}
-
-            <div className="mt-5 flex justify-center gap-2">
-              <button onClick={() => setLegacyModal(false)} className="text-xs px-3 py-2 border border-edge rounded-lg">Cancel</button>
-              <button onClick={syncLegacy} className="btn-primary text-xs px-3 py-2 rounded-lg" disabled={legacyLoading}>
-                {legacyLoading ? 'Syncing…' : 'Sync now'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {deleteModal && (
         <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setDeleteModal(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
@@ -607,6 +496,6 @@ export default function AccountClient({ user }) {
           </div>
         </div>
       )}
-    </Shell>
+    </>
   );
 }

@@ -103,7 +103,7 @@ export default function LoginPage() {
             {/* Email Field */}
             <label className="block text-xs text-ink-soft mb-1.5">Email address<span className="text-danger ml-0.5">*</span></label>
             <input
-              type="email"
+              type="text"
               autoComplete="email"
               autoFocus
               placeholder="you@example.com"

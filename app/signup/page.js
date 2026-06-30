@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { getPasswordStrength } from '@/lib/auth';
+import { getPasswordStrength, validateEmail, validatePassword } from '@/lib/validation';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -142,13 +142,18 @@ export default function SignupPage() {
           {/* Email Field */}
           <label className="block text-xs text-ink-soft mb-1.5">Email address<span className="text-danger ml-0.5">*</span></label>
           <input
-            type="email"
+            type="text"
             autoComplete="email"
             placeholder="you@example.com"
             value={email}
             onChange={(e) => {
-              setEmail(e.target.value);
-              if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: '' }));
+              const newEmail = e.target.value;
+              setEmail(newEmail);
+              if (newEmail.trim() && !validateEmail(newEmail)) {
+                setFieldErrors((prev) => ({ ...prev, email: 'Enter a valid email address' }));
+              } else {
+                setFieldErrors((prev) => ({ ...prev, email: '' }));
+              }
             }}
             className={`field-input mb-1 ${fieldErrors.email ? 'border-danger bg-danger/5' : ''}`}
           />
@@ -162,8 +167,13 @@ export default function SignupPage() {
             placeholder="At least 8 chars: upper, lower, number, symbol"
             value={password}
             onChange={(e) => {
-              setPassword(e.target.value);
-              if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
+              const newPassword = e.target.value;
+              setPassword(newPassword);
+              if (newPassword.length > 0 && !validatePassword(newPassword)) {
+                setFieldErrors((prev) => ({ ...prev, password: 'Add uppercase, lowercase, number, and symbol' }));
+              } else {
+                setFieldErrors((prev) => ({ ...prev, password: '' }));
+              }
             }}
             className={`field-input mb-1 ${fieldErrors.password ? 'border-danger bg-danger/5' : ''}`}
           />
@@ -177,7 +187,9 @@ export default function SignupPage() {
               <div className="w-full h-1.5 bg-edge rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    passwordStrength.score === 1
+                    passwordStrength.score === 0
+                      ? 'w-1/6 bg-danger'
+                      : passwordStrength.score === 1
                       ? 'w-1/4 bg-danger'
                       : passwordStrength.score === 2
                       ? 'w-1/2 bg-honey'
@@ -196,8 +208,13 @@ export default function SignupPage() {
             placeholder="Type password again"
             value={confirmPassword}
             onChange={(e) => {
-              setConfirmPassword(e.target.value);
-              if (fieldErrors.confirmPassword) setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+              const newConfirmPassword = e.target.value;
+              setConfirmPassword(newConfirmPassword);
+              if (newConfirmPassword && password && password !== newConfirmPassword) {
+                setFieldErrors((prev) => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+              } else {
+                setFieldErrors((prev) => ({ ...prev, confirmPassword: '' }));
+              }
             }}
             className={`field-input mb-1 ${fieldErrors.confirmPassword ? 'border-danger bg-danger/5' : ''}`}
           />
@@ -251,19 +268,6 @@ export default function SignupPage() {
           <p className="text-xs text-center mt-4 text-ink-soft">
             Already have an account?{' '}
             <Link href="/login" className="text-mint-600">Sign in</Link>
-          </p>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-          <div className="flex items-center gap-3 my-5 text-[11px] text-ink-mute uppercase tracking-wider">
-            <div className="flex-1 h-px bg-edge" /> already a user? <div className="flex-1 h-px bg-edge" />
-          </div>
-
-          <p className="text-sm text-ink-soft text-center">
-            <Link href="/login" className="text-mint-600 font-medium">Log in instead</Link>
           </p>
         </form>
       </div>
