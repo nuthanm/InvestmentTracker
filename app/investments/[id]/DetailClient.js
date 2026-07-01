@@ -96,7 +96,11 @@ export default function DetailClient({
     notes: '',
   });
   const [makingChargePct, setMakingChargePct] = useState('0');
-  const [gstPct, setGstPct] = useState(metalType ? '3' : '0');
+  const [gstInputMode, setGstInputMode] = useState('percentage');
+  const [sgstPct, setSgstPct] = useState('1.5');
+  const [cgstPct, setCgstPct] = useState('1.5');
+  const [sgstValue, setSgstValue] = useState('0');
+  const [cgstValue, setCgstValue] = useState('0');
   const [autoCalcCharges, setAutoCalcCharges] = useState(true);
   const [purchaseMode, setPurchaseMode] = useState('general');
   const [schemeActualMakingPct, setSchemeActualMakingPct] = useState('12');
@@ -184,7 +188,8 @@ export default function DetailClient({
 
       if (metalBuyTransaction) {
         if (Number(makingChargePct || 0) < 0) throw new Error('Making charge % cannot be negative.');
-        if (Number(gstPct || 0) < 0) throw new Error('GST % cannot be negative.');
+        if (Number(sgstPct || 0) < 0 || Number(cgstPct || 0) < 0) throw new Error('SGST/CGST % cannot be negative.');
+        if (Number(sgstValue || 0) < 0 || Number(cgstValue || 0) < 0) throw new Error('SGST/CGST values cannot be negative.');
         if (purchaseMode === 'scheme') {
           if (Number(schemeActualMakingPct || 0) < 0 || Number(schemeGivenMakingPct || 0) < 0) {
             throw new Error('Scheme making charge % values cannot be negative.');
@@ -206,13 +211,23 @@ export default function DetailClient({
       const notesLines = [];
       if (txForm.notes.trim()) notesLines.push(txForm.notes.trim());
       if (metalBuyTransaction) {
-        notesLines.push(`Pricing: making ${Number(makingChargePct || 0).toFixed(2)}%, GST ${Number(gstPct || 0).toFixed(2)}%`);
-        if (purchaseMode === 'scheme' && metalPricing) {
+        if (metalPricing) {
           notesLines.push(
-            `Scheme compare: general ${inr(metalPricing.generalTotal)} vs scheme ${inr(metalPricing.schemeTotal)} (${metalPricing.comparisonDifference >= 0 ? 'saving' : 'loss'} ${inr(Math.abs(metalPricing.comparisonDifference))})`
+            `Pricing: actual making ${metalPricing.actualMakingPct.toFixed(2)}% (${inr(metalPricing.actualMakingAmount)}), payable making ${metalPricing.schemeMakingPct.toFixed(2)}% (${inr(metalPricing.payableMakingAmount)})`
           );
           notesLines.push(
-            `Scheme making: actual ${Number(schemeActualMakingPct || 0).toFixed(2)}% (${inr(metalPricing.schemeActualMakingAmount)}), given ${Number(schemeGivenMakingPct || 0).toFixed(2)}% (${inr(metalPricing.schemeGivenMakingAmount)}), benefit ${inr(Number(schemeBenefitAmount || 0))}`
+            `Discount: making ${metalPricing.makingDiscountPct.toFixed(2)}% (${inr(metalPricing.makingDiscountAmount)}), scheme benefit ${inr(metalPricing.manualBenefit)}, total discount ${inr(metalPricing.totalDiscountAmount)}`
+          );
+          notesLines.push(
+            `GST: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inr(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inr(metalPricing.cgstAmount)}), total ${metalPricing.totalGstPct.toFixed(2)}% (${inr(metalPricing.totalGst)})`
+          );
+          notesLines.push(
+            `Bill compare: general ${inr(metalPricing.generalTotal)} vs current ${inr(metalPricing.schemeTotal)} (${metalPricing.comparisonDifference >= 0 ? 'saving' : 'loss'} ${inr(Math.abs(metalPricing.comparisonDifference))})`
+          );
+        }
+        if (purchaseMode === 'scheme' && metalPricing) {
+          notesLines.push(
+            `Scheme making input: actual ${Number(schemeActualMakingPct || 0).toFixed(2)}%, offered ${Number(schemeGivenMakingPct || 0).toFixed(2)}%`
           );
           if (schemeStatus === 'active') {
             notesLines.push(
@@ -245,7 +260,13 @@ export default function DetailClient({
       setSummary(data.summary);
       setTxForm({ transaction_type: 'buy', trade_date: new Date().toISOString().slice(0, 10), units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' });
       setAutoCalcCharges(true);
-      if (metalType) setGstPct('3');
+      if (metalType) {
+        setGstInputMode('percentage');
+        setSgstPct('1.5');
+        setCgstPct('1.5');
+        setSgstValue('0');
+        setCgstValue('0');
+      }
     } catch (err) {
       setTransactionError(err.message || 'Could not save transaction.');
     } finally {
@@ -289,23 +310,42 @@ export default function DetailClient({
     const units = Number(txForm.units || 0);
     const price = Number(txForm.price_per_unit || 0);
     const baseValue = units * price;
-    const gst = Number(gstPct || 0);
-    const generalMakingPct = purchaseMode === 'scheme'
+    const manualBenefit = purchaseMode === 'scheme' ? Number(schemeBenefitAmount || 0) : 0;
+
+    const actualMakingPct = purchaseMode === 'scheme'
       ? Number(schemeActualMakingPct || 0)
       : Number(makingChargePct || 0);
+    const schemeMakingPct = purchaseMode === 'scheme'
+      ? Number(schemeGivenMakingPct || 0)
+      : Number(makingChargePct || 0);
 
-    const generalMakingAmount = (baseValue * generalMakingPct) / 100;
-    const generalGstAmount = ((baseValue + generalMakingAmount) * gst) / 100;
-    const generalTotal = baseValue + generalMakingAmount + generalGstAmount;
+    const actualMakingAmount = (baseValue * actualMakingPct) / 100;
+    const payableMakingAmount = (baseValue * schemeMakingPct) / 100;
+    const makingDiscountPct = Math.max(actualMakingPct - schemeMakingPct, 0);
+    const makingDiscountAmount = Math.max(actualMakingAmount - payableMakingAmount, 0);
 
-    const schemeActualPct = Number(schemeActualMakingPct || 0);
-    const schemeGivenPct = Number(schemeGivenMakingPct || 0);
-    const schemeBenefit = Number(schemeBenefitAmount || 0);
-    const schemeActualMakingAmount = (baseValue * schemeActualPct) / 100;
-    const schemeGivenMakingAmount = (baseValue * schemeGivenPct) / 100;
-    const schemeGstAmount = ((baseValue + schemeGivenMakingAmount) * gst) / 100;
-    const schemeBeforeBenefit = baseValue + schemeGivenMakingAmount + schemeGstAmount;
-    const schemeTotal = Math.max(schemeBeforeBenefit - schemeBenefit, 0);
+    const taxableValue = baseValue + payableMakingAmount;
+    const sgstPctNum = Number(sgstPct || 0);
+    const cgstPctNum = Number(cgstPct || 0);
+
+    const sgstFromPct = (taxableValue * sgstPctNum) / 100;
+    const cgstFromPct = (taxableValue * cgstPctNum) / 100;
+    const sgstFromValue = Number(sgstValue || 0);
+    const cgstFromValue = Number(cgstValue || 0);
+
+    const sgstAmount = gstInputMode === 'value' ? sgstFromValue : sgstFromPct;
+    const cgstAmount = gstInputMode === 'value' ? cgstFromValue : cgstFromPct;
+    const totalGst = sgstAmount + cgstAmount;
+    const derivedSgstPct = taxableValue > 0 ? (sgstAmount / taxableValue) * 100 : 0;
+    const derivedCgstPct = taxableValue > 0 ? (cgstAmount / taxableValue) * 100 : 0;
+    const totalGstPct = derivedSgstPct + derivedCgstPct;
+
+    const schemeTotal = Math.max(baseValue + payableMakingAmount + totalGst - manualBenefit, 0);
+
+    const generalMakingAmount = actualMakingAmount;
+    const generalTaxableValue = baseValue + generalMakingAmount;
+    const generalGstAmount = (generalTaxableValue * totalGstPct) / 100;
+    const generalTotal = generalTaxableValue + generalGstAmount;
 
     const totalSchemeMonths = Number(schemeMonths || 0);
     const monthlyScheme = Number(schemeMonthlyAmount || 0);
@@ -316,12 +356,25 @@ export default function DetailClient({
     const closureDelta = schemeTotal - paidAmount;
 
     return {
+      baseValue,
+      actualMakingPct,
+      schemeMakingPct,
+      actualMakingAmount,
+      payableMakingAmount,
+      makingDiscountPct,
+      makingDiscountAmount,
+      manualBenefit,
+      totalDiscountAmount: makingDiscountAmount + manualBenefit,
+      taxableValue,
+      sgstAmount,
+      cgstAmount,
+      derivedSgstPct,
+      derivedCgstPct,
+      totalGst,
+      totalGstPct,
       generalMakingAmount,
       generalGstAmount,
       generalTotal,
-      schemeActualMakingAmount,
-      schemeGivenMakingAmount,
-      schemeGstAmount,
       schemeTotal,
       comparisonDifference: generalTotal - schemeTotal,
       expectedSchemeAmount,
@@ -330,10 +383,14 @@ export default function DetailClient({
       closureDelta,
     };
   }, [
-    gstPct,
+    cgstPct,
+    cgstValue,
+    gstInputMode,
     makingChargePct,
     metalBuyType,
     purchaseMode,
+    sgstPct,
+    sgstValue,
     schemeActualMakingPct,
     schemeBenefitAmount,
     schemeGivenMakingPct,
@@ -347,19 +404,11 @@ export default function DetailClient({
   useEffect(() => {
     if (!metalBuyType || !autoCalcCharges || !metalPricing) return;
 
-    if (purchaseMode === 'scheme') {
-      setTxForm((prev) => ({
-        ...prev,
-        charges: metalPricing.schemeGivenMakingAmount.toFixed(2),
-        taxes: metalPricing.schemeGstAmount.toFixed(2),
-      }));
-    } else {
-      setTxForm((prev) => ({
-        ...prev,
-        charges: metalPricing.generalMakingAmount.toFixed(2),
-        taxes: metalPricing.generalGstAmount.toFixed(2),
-      }));
-    }
+    setTxForm((prev) => ({
+      ...prev,
+      charges: metalPricing.payableMakingAmount.toFixed(2),
+      taxes: metalPricing.totalGst.toFixed(2),
+    }));
   }, [autoCalcCharges, metalBuyType, metalPricing, purchaseMode]);
 
   const currentSummary = summary || {
@@ -503,6 +552,14 @@ export default function DetailClient({
                 <span className="text-[11px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>
               </div>
               {transactionError && <p className="text-[11px] text-danger mb-3">{transactionError}</p>}
+              {metalType && (
+                <div className="mb-3 rounded-xl border border-honey-600/25 bg-honey-50 px-3 py-2 text-[12px]">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-honey-700 font-medium">Accumulated so far: {formatUnits(currentSummary.total_units)} g</span>
+                    <span className="text-honey-700">Cost basis: {inr(currentSummary.remaining_cost_basis || 0)}</span>
+                  </div>
+                </div>
+              )}
               <form onSubmit={submitTransaction} className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-ink-soft mb-1.5">Transaction type</label>
@@ -549,8 +606,52 @@ export default function DetailClient({
                           <input type="number" step="0.01" value={makingChargePct} onChange={(e) => { setMakingChargePct(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
                         </div>
                         <div>
-                          <label className="block text-xs text-ink-soft mb-1.5">GST (%)</label>
-                          <input type="number" step="0.01" value={gstPct} onChange={(e) => { setGstPct(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
+                          <label className="block text-xs text-ink-soft mb-1.5">Payable making (%)</label>
+                          <input type="number" step="0.01" value={purchaseMode === 'scheme' ? schemeGivenMakingPct : makingChargePct} onChange={(e) => {
+                            if (purchaseMode === 'scheme') setSchemeGivenMakingPct(e.target.value);
+                            else setMakingChargePct(e.target.value);
+                            setAutoCalcCharges(true);
+                          }} className="field-input" />
+                        </div>
+
+                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
+                          <div className="flex justify-between"><span className="text-ink-soft">Actual making charge</span><span className="font-medium">{metalPricing ? `${metalPricing.actualMakingPct.toFixed(2)}% · ${inr(metalPricing.actualMakingAmount)}` : '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Scheme/Payable making</span><span className="font-medium">{metalPricing ? `${metalPricing.schemeMakingPct.toFixed(2)}% · ${inr(metalPricing.payableMakingAmount)}` : '—'}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Making discount given</span><span className="font-medium text-mint-600">{metalPricing ? `${metalPricing.makingDiscountPct.toFixed(2)}% · ${inr(metalPricing.makingDiscountAmount)}` : '—'}</span></div>
+                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Payable making charge</span><span className="font-medium text-honey-600">{inr(Number(txForm.charges || 0))}</span></div>
+                        </div>
+
+                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                            <label className="text-xs text-ink-soft">GST input mode</label>
+                            <select value={gstInputMode} onChange={(e) => { setGstInputMode(e.target.value); setAutoCalcCharges(true); }} className="field-input text-xs max-w-[180px]">
+                              <option value="percentage">Percentage mode</option>
+                              <option value="value">Value mode</option>
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1">SGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
+                              <input type="number" step="0.01" value={gstInputMode === 'percentage' ? sgstPct : sgstValue} onChange={(e) => {
+                                if (gstInputMode === 'percentage') setSgstPct(e.target.value);
+                                else setSgstValue(e.target.value);
+                                setAutoCalcCharges(true);
+                              }} className="field-input" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1">CGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
+                              <input type="number" step="0.01" value={gstInputMode === 'percentage' ? cgstPct : cgstValue} onChange={(e) => {
+                                if (gstInputMode === 'percentage') setCgstPct(e.target.value);
+                                else setCgstValue(e.target.value);
+                                setAutoCalcCharges(true);
+                              }} className="field-input" />
+                            </div>
+                          </div>
+                          <div className="mt-2 text-[11px] text-ink-mute">
+                            {metalPricing
+                              ? `Converted GST: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inr(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inr(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inr(metalPricing.totalGst)})`
+                              : 'Enter weight and price to view GST conversion.'}
+                          </div>
                         </div>
 
                         {purchaseMode === 'scheme' && (
@@ -606,6 +707,7 @@ export default function DetailClient({
                             <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
                               <div className="flex justify-between"><span className="text-ink-soft">General purchase total</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
                               <div className="flex justify-between"><span className="text-ink-soft">Scheme purchase total</span><span className="font-medium">{inr(metalPricing?.schemeTotal || 0)}</span></div>
+                              <div className="flex justify-between"><span className="text-ink-soft">Final discount (making + benefit)</span><span className="font-medium text-mint-600">{inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
                               <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Profit / loss vs general</span><span className={`font-medium ${(metalPricing?.comparisonDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.comparisonDifference || 0) >= 0 ? `Profit ${inr(metalPricing?.comparisonDifference || 0)}` : `Loss ${inr(Math.abs(metalPricing?.comparisonDifference || 0))}`}</span></div>
                             </div>
                           </>
@@ -617,13 +719,18 @@ export default function DetailClient({
                       <label className="block text-xs text-ink-soft mb-1.5">{metalBuyType ? 'Making charge amount (₹)' : 'Charges (₹)'}</label>
                       <input type="number" step="0.01" value={txForm.charges} onChange={(e) => { setTxForm((prev) => ({ ...prev, charges: e.target.value })); if (metalBuyType) setAutoCalcCharges(false); }} className="field-input" />
                     </div>
-                    <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">{metalBuyType ? 'GST amount (₹)' : 'Taxes (₹)'}</label>
-                      <input type="number" step="0.01" value={txForm.taxes} onChange={(e) => { setTxForm((prev) => ({ ...prev, taxes: e.target.value })); if (metalBuyType) setAutoCalcCharges(false); }} className="field-input" />
-                      {metalBuyType && (
+                    {metalBuyType ? (
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">GST total (SGST + CGST) (₹)</label>
+                        <input type="number" step="0.01" value={txForm.taxes} readOnly className="field-input bg-paper-tint" />
                         <button type="button" onClick={() => setAutoCalcCharges(true)} className="mt-1 text-[11px] text-sky-700 hover:underline">Use auto-calculated values</button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Taxes (₹)</label>
+                        <input type="number" step="0.01" value={txForm.taxes} onChange={(e) => setTxForm((prev) => ({ ...prev, taxes: e.target.value }))} className="field-input" />
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="md:col-span-2">
@@ -633,9 +740,11 @@ export default function DetailClient({
                 {metalBuyType && (
                   <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-2.5 text-sm">
                     <div className="flex justify-between"><span className="text-ink-soft">Metal value</span><span className="font-medium">{inr((Number(txForm.units || 0) * Number(txForm.price_per_unit || 0)))}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Making charge</span><span className="font-medium">{inr(Number(txForm.charges || 0))}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">GST</span><span className="font-medium">{inr(Number(txForm.taxes || 0))}</span></div>
-                    <div className="flex justify-between mt-1 pt-1.5 border-t border-edge"><span className="text-ink-soft">Total cost</span><span className="font-medium text-mint-600">{inr((Number(txForm.units || 0) * Number(txForm.price_per_unit || 0)) + Number(txForm.charges || 0) + Number(txForm.taxes || 0))}</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Actual making charge</span><span className="font-medium">{inr(metalPricing?.actualMakingAmount || 0)}</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Final discount</span><span className="font-medium text-mint-600">- {inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Payable making charge</span><span className="font-medium">{inr(Number(txForm.charges || 0))}</span></div>
+                    <div className="flex justify-between mt-1"><span className="text-ink-soft">GST (SGST + CGST)</span><span className="font-medium">{inr(Number(txForm.taxes || 0))}</span></div>
+                    <div className="flex justify-between mt-1 pt-1.5 border-t border-edge"><span className="text-ink-soft">Final payable amount</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || ((Number(txForm.units || 0) * Number(txForm.price_per_unit || 0)) + Number(txForm.charges || 0) + Number(txForm.taxes || 0)))}</span></div>
                   </div>
                 )}
                 <div className="md:col-span-2 flex justify-end">
