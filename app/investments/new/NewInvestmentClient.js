@@ -112,6 +112,7 @@ export default function NewInvestmentClient({
   const [cgstValue, setCgstValue] = useState('0');
   const [gstTotalValue, setGstTotalValue] = useState('0');
   const [autoCalcCharges, setAutoCalcCharges] = useState(true);
+  const [acquisitionFlow, setAcquisitionFlow] = useState('purchase_now');
   const [purchaseMode, setPurchaseMode] = useState('general');
   const [schemeActualMakingPct, setSchemeActualMakingPct] = useState('12');
   const [schemeGivenMakingPct, setSchemeGivenMakingPct] = useState('8');
@@ -129,6 +130,7 @@ export default function NewInvestmentClient({
   const isMarketType = isMarketInvestment(typeCode);
   const isMetalType = isMetalInvestment(typeCode);
   const isTransactionType = isMarketType || isMetalType;
+  const schemeReadyForPurchase = Number(schemeMonths || 0) > 0 && Number(schemePaidMonths || 0) >= Number(schemeMonths || 0);
 
   const handleTypeChange = (t) => {
     setTypeCode(t);
@@ -363,9 +365,10 @@ export default function NewInvestmentClient({
 
     let initialTransaction = null;
     if (isTransactionType) {
-      const hasAnyInitialInput = [initialUnits, initialPrice, initialNotes].some((value) => String(value || '').trim() !== '')
+      const deferPurchaseForScheme = isMetalType && acquisitionFlow === 'scheme_monthly' && !schemeReadyForPurchase;
+      const hasAnyInitialInput = !deferPurchaseForScheme && ([initialUnits, initialPrice, initialNotes].some((value) => String(value || '').trim() !== '')
         || Number(initialCharges || 0) > 0
-        || Number(initialTaxes || 0) > 0;
+        || Number(initialTaxes || 0) > 0);
       if (hasAnyInitialInput) {
         const units = Number(initialUnits || 0);
         const price = Number(initialPrice || 0);
@@ -646,20 +649,59 @@ export default function NewInvestmentClient({
 
           {isTransactionType ? (
             <section className="space-y-3">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalType ? 'First purchase' : 'Initial buy'} <span className="text-[10px] normal-case ml-1">optional</span></p>
+              <div>
+                <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalType ? 'Initial purchase now' : 'Initial buy now'} <span className="text-[10px] normal-case ml-1">optional</span></p>
+                <p className="text-[11px] text-ink-mute mt-1">You can leave this empty and save. Add transactions later from the investment detail page.</p>
+              </div>
               {isEditing ? (
                 <div className="rounded-xl border border-edge bg-paper-tint p-3 text-[12px] text-ink-soft">{isMetalType ? 'Use the investment detail page to add another purchase or record a sale.' : 'Use the investment detail page to add another buy, redeem units, or record dividends.'}</div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Weight (grams)' : 'Units'}</label>
-                    <input type="number" step={isMetalType ? '0.001' : '0.000001'} placeholder={isMetalType ? '10.000' : '12.500000'} value={initialUnits} onChange={(e) => setInitialUnits(e.target.value)} className="field-input" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Price per gram (₹)' : 'Price / NAV per unit (₹)'}</label>
-                    <input type="number" step="0.01" placeholder={isMetalType ? (typeCode === 'GOLD' ? '7200.00' : '95.00') : '112.35'} value={initialPrice} onChange={(e) => setInitialPrice(e.target.value)} className="field-input" />
-                  </div>
                   {isMetalType && (
+                    <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm">
+                      <p className="text-xs text-ink-soft mb-2">How are you adding this?</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setAcquisitionFlow('purchase_now')} className={`chip ${acquisitionFlow === 'purchase_now' ? 'on' : ''}`}>Purchased now</button>
+                        <button type="button" onClick={() => setAcquisitionFlow('scheme_monthly')} className={`chip ${acquisitionFlow === 'scheme_monthly' ? 'on' : ''}`}>Scheme - pay monthly</button>
+                      </div>
+
+                      {acquisitionFlow === 'scheme_monthly' && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1">Scheme months</label>
+                            <input type="number" min="1" step="1" value={schemeMonths} onChange={(e) => setSchemeMonths(e.target.value)} className="field-input" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1">Monthly payment (₹)</label>
+                            <input type="number" min="0" step="0.01" value={schemeMonthlyAmount} onChange={(e) => setSchemeMonthlyAmount(e.target.value)} className="field-input" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1">Months paid</label>
+                            <input type="number" min="0" step="1" value={schemePaidMonths} onChange={(e) => setSchemePaidMonths(e.target.value)} className="field-input" />
+                          </div>
+                        </div>
+                      )}
+
+                      {acquisitionFlow === 'scheme_monthly' && !schemeReadyForPurchase && (
+                        <p className="text-[11px] text-honey-700 mt-2">Purchase entry will be logged only after scheme months are completed. Save now and add purchase details once paid months reaches total months.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {(!isMetalType || acquisitionFlow === 'purchase_now' || schemeReadyForPurchase) && (
+                    <>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Weight (grams)' : 'Units'}</label>
+                        <input type="number" step={isMetalType ? '0.001' : '0.000001'} placeholder={isMetalType ? '10.000' : '12.500000'} value={initialUnits} onChange={(e) => setInitialUnits(e.target.value)} className="field-input" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Price per gram (₹)' : 'Price / NAV per unit (₹)'}</label>
+                        <input type="number" step="0.01" placeholder={isMetalType ? (typeCode === 'GOLD' ? '7200.00' : '95.00') : '112.35'} value={initialPrice} onChange={(e) => setInitialPrice(e.target.value)} className="field-input" />
+                      </div>
+                    </>
+                  )}
+
+                  {isMetalType && (acquisitionFlow === 'purchase_now' || schemeReadyForPurchase) && (
                     <>
                       <div className="md:col-span-2">
                         <label className="block text-xs text-ink-soft mb-1.5">Purchase method</label>
