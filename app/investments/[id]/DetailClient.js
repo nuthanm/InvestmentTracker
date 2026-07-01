@@ -96,11 +96,16 @@ export default function DetailClient({
     notes: '',
   });
   const [makingChargePct, setMakingChargePct] = useState('0');
+  const [useMakingPercent, setUseMakingPercent] = useState(true);
+  const [actualMakingValue, setActualMakingValue] = useState('0');
+  const [payableMakingValue, setPayableMakingValue] = useState('0');
   const [gstInputMode, setGstInputMode] = useState('percentage');
+  const [useGstSplit, setUseGstSplit] = useState(true);
   const [sgstPct, setSgstPct] = useState('1.5');
   const [cgstPct, setCgstPct] = useState('1.5');
   const [sgstValue, setSgstValue] = useState('0');
   const [cgstValue, setCgstValue] = useState('0');
+  const [gstTotalValue, setGstTotalValue] = useState('0');
   const [autoCalcCharges, setAutoCalcCharges] = useState(true);
   const [purchaseMode, setPurchaseMode] = useState('general');
   const [schemeActualMakingPct, setSchemeActualMakingPct] = useState('12');
@@ -187,9 +192,25 @@ export default function DetailClient({
       const metalBuyTransaction = metalType && type === 'buy';
 
       if (metalBuyTransaction) {
-        if (Number(makingChargePct || 0) < 0) throw new Error('Making charge % cannot be negative.');
-        if (Number(sgstPct || 0) < 0 || Number(cgstPct || 0) < 0) throw new Error('SGST/CGST % cannot be negative.');
-        if (Number(sgstValue || 0) < 0 || Number(cgstValue || 0) < 0) throw new Error('SGST/CGST values cannot be negative.');
+        if (useMakingPercent) {
+          if (Number(makingChargePct || 0) < 0) throw new Error('Making charge % cannot be negative.');
+        } else {
+          if (Number(actualMakingValue || 0) < 0 || Number(payableMakingValue || 0) < 0) {
+            throw new Error('Making charge values cannot be negative.');
+          }
+        }
+
+        if (useGstSplit) {
+          if (gstInputMode === 'percentage' && (Number(sgstPct || 0) < 0 || Number(cgstPct || 0) < 0)) {
+            throw new Error('SGST/CGST % cannot be negative.');
+          }
+          if (gstInputMode === 'value' && (Number(sgstValue || 0) < 0 || Number(cgstValue || 0) < 0)) {
+            throw new Error('SGST/CGST values cannot be negative.');
+          }
+        } else if (Number(gstTotalValue || 0) < 0) {
+          throw new Error('GST total cannot be negative.');
+        }
+
         if (purchaseMode === 'scheme') {
           if (Number(schemeActualMakingPct || 0) < 0 || Number(schemeGivenMakingPct || 0) < 0) {
             throw new Error('Scheme making charge % values cannot be negative.');
@@ -261,11 +282,16 @@ export default function DetailClient({
       setTxForm({ transaction_type: 'buy', trade_date: new Date().toISOString().slice(0, 10), units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' });
       setAutoCalcCharges(true);
       if (metalType) {
+        setUseMakingPercent(true);
+        setActualMakingValue('0');
+        setPayableMakingValue('0');
         setGstInputMode('percentage');
+        setUseGstSplit(true);
         setSgstPct('1.5');
         setCgstPct('1.5');
         setSgstValue('0');
         setCgstValue('0');
+        setGstTotalValue('0');
       }
     } catch (err) {
       setTransactionError(err.message || 'Could not save transaction.');
@@ -312,15 +338,21 @@ export default function DetailClient({
     const baseValue = units * price;
     const manualBenefit = purchaseMode === 'scheme' ? Number(schemeBenefitAmount || 0) : 0;
 
-    const actualMakingPct = purchaseMode === 'scheme'
+    const actualMakingPctInput = purchaseMode === 'scheme'
       ? Number(schemeActualMakingPct || 0)
       : Number(makingChargePct || 0);
-    const schemeMakingPct = purchaseMode === 'scheme'
+    const schemeMakingPctInput = purchaseMode === 'scheme'
       ? Number(schemeGivenMakingPct || 0)
       : Number(makingChargePct || 0);
 
-    const actualMakingAmount = (baseValue * actualMakingPct) / 100;
-    const payableMakingAmount = (baseValue * schemeMakingPct) / 100;
+    const actualMakingAmount = useMakingPercent
+      ? (baseValue * actualMakingPctInput) / 100
+      : Number(actualMakingValue || 0);
+    const payableMakingAmount = useMakingPercent
+      ? (baseValue * schemeMakingPctInput) / 100
+      : Number(payableMakingValue || 0);
+    const actualMakingPct = baseValue > 0 ? (actualMakingAmount / baseValue) * 100 : 0;
+    const schemeMakingPct = baseValue > 0 ? (payableMakingAmount / baseValue) * 100 : 0;
     const makingDiscountPct = Math.max(actualMakingPct - schemeMakingPct, 0);
     const makingDiscountAmount = Math.max(actualMakingAmount - payableMakingAmount, 0);
 
@@ -333,12 +365,18 @@ export default function DetailClient({
     const sgstFromValue = Number(sgstValue || 0);
     const cgstFromValue = Number(cgstValue || 0);
 
-    const sgstAmount = gstInputMode === 'value' ? sgstFromValue : sgstFromPct;
-    const cgstAmount = gstInputMode === 'value' ? cgstFromValue : cgstFromPct;
-    const totalGst = sgstAmount + cgstAmount;
+    const sgstAmount = useGstSplit
+      ? (gstInputMode === 'value' ? sgstFromValue : sgstFromPct)
+      : 0;
+    const cgstAmount = useGstSplit
+      ? (gstInputMode === 'value' ? cgstFromValue : cgstFromPct)
+      : 0;
+    const totalGst = useGstSplit ? (sgstAmount + cgstAmount) : Number(gstTotalValue || 0);
     const derivedSgstPct = taxableValue > 0 ? (sgstAmount / taxableValue) * 100 : 0;
     const derivedCgstPct = taxableValue > 0 ? (cgstAmount / taxableValue) * 100 : 0;
-    const totalGstPct = derivedSgstPct + derivedCgstPct;
+    const totalGstPct = useGstSplit
+      ? (derivedSgstPct + derivedCgstPct)
+      : (taxableValue > 0 ? (totalGst / taxableValue) * 100 : 0);
 
     const schemeTotal = Math.max(baseValue + payableMakingAmount + totalGst - manualBenefit, 0);
 
@@ -391,6 +429,11 @@ export default function DetailClient({
     purchaseMode,
     sgstPct,
     sgstValue,
+    gstTotalValue,
+    useGstSplit,
+    useMakingPercent,
+    actualMakingValue,
+    payableMakingValue,
     schemeActualMakingPct,
     schemeBenefitAmount,
     schemeGivenMakingPct,
@@ -409,6 +452,9 @@ export default function DetailClient({
       charges: metalPricing.payableMakingAmount.toFixed(2),
       taxes: metalPricing.totalGst.toFixed(2),
     }));
+    setActualMakingValue(metalPricing.actualMakingAmount.toFixed(2));
+    setPayableMakingValue(metalPricing.payableMakingAmount.toFixed(2));
+    setGstTotalValue(metalPricing.totalGst.toFixed(2));
   }, [autoCalcCharges, metalBuyType, metalPricing, purchaseMode]);
 
   const currentSummary = summary || {
@@ -602,17 +648,55 @@ export default function DetailClient({
                         </div>
 
                         <div>
-                          <label className="block text-xs text-ink-soft mb-1.5">Making charge (%)</label>
-                          <input type="number" step="0.01" value={makingChargePct} onChange={(e) => { setMakingChargePct(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
+                          <label className="block text-xs text-ink-soft mb-1.5">Making input mode</label>
+                          <select value={useMakingPercent ? 'percentage' : 'value'} onChange={(e) => { setUseMakingPercent(e.target.value === 'percentage'); setAutoCalcCharges(true); }} className="field-input">
+                            <option value="percentage">Use percentages</option>
+                            <option value="value">Use direct values</option>
+                          </select>
                         </div>
-                        <div>
-                          <label className="block text-xs text-ink-soft mb-1.5">Payable making (%)</label>
-                          <input type="number" step="0.01" value={purchaseMode === 'scheme' ? schemeGivenMakingPct : makingChargePct} onChange={(e) => {
-                            if (purchaseMode === 'scheme') setSchemeGivenMakingPct(e.target.value);
-                            else setMakingChargePct(e.target.value);
-                            setAutoCalcCharges(true);
-                          }} className="field-input" />
-                        </div>
+                        {useMakingPercent ? (
+                          <>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Actual making (%)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={purchaseMode === 'scheme' ? schemeActualMakingPct : makingChargePct}
+                                onChange={(e) => {
+                                  if (purchaseMode === 'scheme') setSchemeActualMakingPct(e.target.value);
+                                  else setMakingChargePct(e.target.value);
+                                  setAutoCalcCharges(true);
+                                }}
+                                className="field-input"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Payable making (%)</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={purchaseMode === 'scheme' ? schemeGivenMakingPct : makingChargePct}
+                                onChange={(e) => {
+                                  if (purchaseMode === 'scheme') setSchemeGivenMakingPct(e.target.value);
+                                  else setMakingChargePct(e.target.value);
+                                  setAutoCalcCharges(true);
+                                }}
+                                className="field-input"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Actual making value (₹)</label>
+                              <input type="number" step="0.01" value={actualMakingValue} onChange={(e) => { setActualMakingValue(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Payable making value (₹)</label>
+                              <input type="number" step="0.01" value={payableMakingValue} onChange={(e) => { setPayableMakingValue(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
+                            </div>
+                          </>
+                        )}
 
                         <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
                           <div className="flex justify-between"><span className="text-ink-soft">Actual making charge</span><span className="font-medium">{metalPricing ? `${metalPricing.actualMakingPct.toFixed(2)}% · ${inr(metalPricing.actualMakingAmount)}` : '—'}</span></div>
@@ -621,32 +705,82 @@ export default function DetailClient({
                           <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Payable making charge</span><span className="font-medium text-honey-600">{inr(Number(txForm.charges || 0))}</span></div>
                         </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
-                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                            <label className="text-xs text-ink-soft">GST input mode</label>
-                            <select value={gstInputMode} onChange={(e) => { setGstInputMode(e.target.value); setAutoCalcCharges(true); }} className="field-input text-xs max-w-[180px]">
-                              <option value="percentage">Percentage mode</option>
-                              <option value="value">Value mode</option>
-                            </select>
+                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-2.5 text-sm space-y-2">
+                          <p className="text-[11px] tracking-wider text-ink-mute uppercase">With Scheme</p>
+                          <div className="flex justify-between"><span className="text-ink-soft">Grams × cost per day</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Scheme discount</span><span className="font-medium text-mint-600">- {inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">GST value</span><span className="font-medium">{inr(metalPricing?.totalGst || 0)}</span></div>
+                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Total value (with scheme)</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || 0)}</span></div>
+
+                          <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without Scheme</p>
+                          <div className="flex justify-between"><span className="text-ink-soft">Grams × cost per day</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Making charges</span><span className="font-medium">{inr(metalPricing?.generalMakingAmount || 0)}</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">GST</span><span className="font-medium">{inr(metalPricing?.generalGstAmount || 0)}</span></div>
+                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Total value (without scheme)</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
+
+                          <div className="flex justify-between pt-2 mt-1 border-t border-edge">
+                            <span className="text-ink-soft">Amount to pay now</span>
+                            <span className="font-medium text-honey-600">
+                              {inr(
+                                purchaseMode === 'scheme'
+                                  ? (schemeStatus === 'active' ? Math.max(metalPricing?.closureDelta || 0, 0) : (metalPricing?.schemeTotal || 0))
+                                  : (metalPricing?.generalTotal || 0)
+                              )}
+                            </span>
                           </div>
+                          <div className="flex justify-end">
+                            <span className={`text-[11px] px-2 py-1 rounded-full border ${(metalPricing?.comparisonDifference || 0) >= 0 ? 'text-mint-700 bg-mint-50 border-mint-200' : 'text-danger bg-danger-soft border-danger/30'}`}>
+                              {(metalPricing?.comparisonDifference || 0) >= 0
+                                ? `Savings from scheme: ${inr(metalPricing?.comparisonDifference || 0)}`
+                                : `Extra cost vs general: ${inr(Math.abs(metalPricing?.comparisonDifference || 0))}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             <div>
-                              <label className="block text-xs text-ink-soft mb-1">SGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
-                              <input type="number" step="0.01" value={gstInputMode === 'percentage' ? sgstPct : sgstValue} onChange={(e) => {
-                                if (gstInputMode === 'percentage') setSgstPct(e.target.value);
-                                else setSgstValue(e.target.value);
-                                setAutoCalcCharges(true);
-                              }} className="field-input" />
+                              <label className="block text-xs text-ink-soft mb-1">GST style</label>
+                              <select value={useGstSplit ? 'split' : 'total'} onChange={(e) => { setUseGstSplit(e.target.value === 'split'); setAutoCalcCharges(true); }} className="field-input">
+                                <option value="split">SGST + CGST split</option>
+                                <option value="total">Single GST total</option>
+                              </select>
                             </div>
-                            <div>
-                              <label className="block text-xs text-ink-soft mb-1">CGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
-                              <input type="number" step="0.01" value={gstInputMode === 'percentage' ? cgstPct : cgstValue} onChange={(e) => {
-                                if (gstInputMode === 'percentage') setCgstPct(e.target.value);
-                                else setCgstValue(e.target.value);
-                                setAutoCalcCharges(true);
-                              }} className="field-input" />
-                            </div>
+                            {useGstSplit ? (
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1">GST input mode</label>
+                                <select value={gstInputMode} onChange={(e) => { setGstInputMode(e.target.value); setAutoCalcCharges(true); }} className="field-input">
+                                  <option value="percentage">Enter %</option>
+                                  <option value="value">Enter ₹ values</option>
+                                </select>
+                              </div>
+                            ) : (
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1">GST total value (₹)</label>
+                                <input type="number" step="0.01" value={gstTotalValue} onChange={(e) => { setGstTotalValue(e.target.value); setAutoCalcCharges(true); }} className="field-input" />
+                              </div>
+                            )}
                           </div>
+                          {useGstSplit && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1">SGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
+                                <input type="number" step="0.01" value={gstInputMode === 'percentage' ? sgstPct : sgstValue} onChange={(e) => {
+                                  if (gstInputMode === 'percentage') setSgstPct(e.target.value);
+                                  else setSgstValue(e.target.value);
+                                  setAutoCalcCharges(true);
+                                }} className="field-input" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1">CGST {gstInputMode === 'percentage' ? '(%)' : '(₹)'}</label>
+                                <input type="number" step="0.01" value={gstInputMode === 'percentage' ? cgstPct : cgstValue} onChange={(e) => {
+                                  if (gstInputMode === 'percentage') setCgstPct(e.target.value);
+                                  else setCgstValue(e.target.value);
+                                  setAutoCalcCharges(true);
+                                }} className="field-input" />
+                              </div>
+                            </div>
+                          )}
                           <div className="mt-2 text-[11px] text-ink-mute">
                             {metalPricing
                               ? `Converted GST: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inr(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inr(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inr(metalPricing.totalGst)})`
@@ -722,7 +856,18 @@ export default function DetailClient({
                     {metalBuyType ? (
                       <div>
                         <label className="block text-xs text-ink-soft mb-1.5">GST total (SGST + CGST) (₹)</label>
-                        <input type="number" step="0.01" value={txForm.taxes} readOnly className="field-input bg-paper-tint" />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={txForm.taxes}
+                          onChange={(e) => {
+                            setTxForm((prev) => ({ ...prev, taxes: e.target.value }));
+                            setGstTotalValue(e.target.value);
+                            setUseGstSplit(false);
+                            setAutoCalcCharges(false);
+                          }}
+                          className="field-input"
+                        />
                         <button type="button" onClick={() => setAutoCalcCharges(true)} className="mt-1 text-[11px] text-sky-700 hover:underline">Use auto-calculated values</button>
                       </div>
                     ) : (
