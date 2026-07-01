@@ -263,6 +263,7 @@ export default function DetailClient({
           notesLines.push(
             `Scheme grams: accumulated ${metalPricing.accumulatedGrams.toFixed(3)}g, purchased ${metalPricing.purchasedGrams.toFixed(3)}g, difference ${metalPricing.gramsDifference >= 0 ? '+' : ''}${metalPricing.gramsDifference.toFixed(3)}g (${metalPricing.gramsBonusPct >= 0 ? '+' : ''}${metalPricing.gramsBonusPct.toFixed(2)}%)`
           );
+          notesLines.push(`Scheme grams payable amount: ${inr(metalPricing.extraGramPayableAmount || 0)}`);
         }
       }
 
@@ -406,6 +407,11 @@ export default function DetailClient({
     const purchasedGrams = Number(schemePurchasedGrams || units || 0);
     const gramsDifference = purchasedGrams - accumulatedGrams;
     const gramsBonusPct = accumulatedGrams > 0 ? (gramsDifference / accumulatedGrams) * 100 : 0;
+    const schemePerGramPayable = purchasedGrams > 0 ? (schemeTotal / purchasedGrams) : 0;
+    const extraGramPayableAmount = gramsDifference > 0 ? gramsDifference * schemePerGramPayable : 0;
+    const schemePayNowAmount = (accumulatedGrams > 0 && gramsDifference > 0)
+      ? extraGramPayableAmount
+      : (schemeStatus === 'active' ? Math.max(closureDelta, 0) : schemeTotal);
 
     return {
       baseValue,
@@ -437,6 +443,9 @@ export default function DetailClient({
       purchasedGrams,
       gramsDifference,
       gramsBonusPct,
+      schemePerGramPayable,
+      extraGramPayableAmount,
+      schemePayNowAmount,
     };
   }, [
     cgstPct,
@@ -460,6 +469,7 @@ export default function DetailClient({
     schemeMonthlyAmount,
     schemePurchasedGrams,
     schemePaidMonths,
+    schemeStatus,
     txForm.price_per_unit,
     txForm.units,
   ]);
@@ -741,13 +751,14 @@ export default function DetailClient({
                           <div className="flex justify-between pt-1 mt-1 border-t border-dashed border-edge"><span className="text-ink-soft">Scheme accumulated grams</span><span className="font-medium">{(metalPricing?.accumulatedGrams || 0).toFixed(3)} g</span></div>
                           <div className="flex justify-between"><span className="text-ink-soft">Purchased grams</span><span className="font-medium">{(metalPricing?.purchasedGrams || 0).toFixed(3)} g</span></div>
                           <div className="flex justify-between"><span className="text-ink-soft">Extra grams received</span><span className={`font-medium ${(metalPricing?.gramsDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.gramsDifference || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsDifference || 0).toFixed(3)} g ({(metalPricing?.gramsBonusPct || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsBonusPct || 0).toFixed(2)}%)</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Payable extra amount (grams diff)</span><span className="font-medium text-honey-600">{inr(metalPricing?.extraGramPayableAmount || 0)}</span></div>
 
                           <div className="flex justify-between pt-2 mt-1 border-t border-edge">
                             <span className="text-ink-soft">Amount to pay now</span>
                             <span className="font-medium text-honey-600">
                               {inr(
                                 purchaseMode === 'scheme'
-                                  ? (schemeStatus === 'active' ? Math.max(metalPricing?.closureDelta || 0, 0) : (metalPricing?.schemeTotal || 0))
+                                  ? (metalPricing?.schemePayNowAmount || 0)
                                   : (metalPricing?.generalTotal || 0)
                               )}
                             </span>
