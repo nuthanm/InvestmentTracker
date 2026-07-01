@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
@@ -100,6 +100,17 @@ export default function NewInvestmentClient({
   const [initialPrice, setInitialPrice] = useState('');
   const [initialCharges, setInitialCharges] = useState('0');
   const [initialTaxes, setInitialTaxes] = useState('0');
+  const [makingChargePct, setMakingChargePct] = useState('0');
+  const [gstPct, setGstPct] = useState(typeCode === 'GOLD' || typeCode === 'SILV' ? '3' : '0');
+  const [autoCalcCharges, setAutoCalcCharges] = useState(true);
+  const [purchaseMode, setPurchaseMode] = useState('general');
+  const [schemeActualMakingPct, setSchemeActualMakingPct] = useState('12');
+  const [schemeGivenMakingPct, setSchemeGivenMakingPct] = useState('8');
+  const [schemeBenefitAmount, setSchemeBenefitAmount] = useState('0');
+  const [schemeStatus, setSchemeStatus] = useState('closed');
+  const [schemeMonths, setSchemeMonths] = useState('11');
+  const [schemeMonthlyAmount, setSchemeMonthlyAmount] = useState('0');
+  const [schemePaidMonths, setSchemePaidMonths] = useState('0');
   const [initialNotes, setInitialNotes] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -113,6 +124,7 @@ export default function NewInvestmentClient({
     setPaymentFrequency(PERIODIC_TYPES[t] || 'lump_sum');
     if (t === 'PPF') setTenureMode(180);
     else if (tenureMode === 180 || tenureMode === 240 || tenureMode === 300) setTenureMode(12);
+    if ((t === 'GOLD' || t === 'SILV') && Number(gstPct || 0) <= 0) setGstPct('3');
   };
 
   const effectiveFrequency = PERIODIC_TYPES[typeCode] || paymentFrequency;
@@ -163,6 +175,90 @@ export default function NewInvestmentClient({
     return { units, price, charges, taxes, gross, total };
   }, [initialCharges, initialPrice, initialTaxes, initialUnits, isTransactionType]);
 
+  const metalPricing = useMemo(() => {
+    if (!isMetalType) return null;
+
+    const units = Number(initialUnits || 0);
+    const price = Number(initialPrice || 0);
+    const baseValue = units * price;
+    const gst = Number(gstPct || 0);
+    const generalMakingPct = purchaseMode === 'scheme'
+      ? Number(schemeActualMakingPct || 0)
+      : Number(makingChargePct || 0);
+
+    const generalMakingAmount = (baseValue * generalMakingPct) / 100;
+    const generalGstAmount = ((baseValue + generalMakingAmount) * gst) / 100;
+    const generalTotal = baseValue + generalMakingAmount + generalGstAmount;
+
+    const schemeActualPct = Number(schemeActualMakingPct || 0);
+    const schemeGivenPct = Number(schemeGivenMakingPct || 0);
+    const schemeBenefit = Number(schemeBenefitAmount || 0);
+    const schemeActualMakingAmount = (baseValue * schemeActualPct) / 100;
+    const schemeGivenMakingAmount = (baseValue * schemeGivenPct) / 100;
+    const schemeGstAmount = ((baseValue + schemeGivenMakingAmount) * gst) / 100;
+    const schemeBeforeBenefit = baseValue + schemeGivenMakingAmount + schemeGstAmount;
+    const schemeTotal = Math.max(schemeBeforeBenefit - schemeBenefit, 0);
+
+    const totalSchemeMonths = Number(schemeMonths || 0);
+    const monthlyScheme = Number(schemeMonthlyAmount || 0);
+    const paidMonths = Number(schemePaidMonths || 0);
+    const paidAmount = paidMonths * monthlyScheme;
+    const expectedSchemeAmount = totalSchemeMonths * monthlyScheme;
+    const remainingSchemeAmount = Math.max(expectedSchemeAmount - paidAmount, 0);
+    const closureDelta = schemeTotal - paidAmount;
+
+    return {
+      units,
+      price,
+      baseValue,
+      gst,
+      generalMakingPct,
+      generalMakingAmount,
+      generalGstAmount,
+      generalTotal,
+      schemeActualPct,
+      schemeGivenPct,
+      schemeBenefit,
+      schemeActualMakingAmount,
+      schemeGivenMakingAmount,
+      schemeGstAmount,
+      schemeTotal,
+      comparisonDifference: generalTotal - schemeTotal,
+      totalSchemeMonths,
+      monthlyScheme,
+      paidMonths,
+      paidAmount,
+      expectedSchemeAmount,
+      remainingSchemeAmount,
+      closureDelta,
+    };
+  }, [
+    gstPct,
+    initialPrice,
+    initialUnits,
+    isMetalType,
+    makingChargePct,
+    purchaseMode,
+    schemeActualMakingPct,
+    schemeBenefitAmount,
+    schemeGivenMakingPct,
+    schemeMonths,
+    schemeMonthlyAmount,
+    schemePaidMonths,
+  ]);
+
+  useEffect(() => {
+    if (!isMetalType || !autoCalcCharges || !metalPricing) return;
+
+    if (purchaseMode === 'scheme') {
+      setInitialCharges(metalPricing.schemeGivenMakingAmount.toFixed(2));
+      setInitialTaxes(metalPricing.schemeGstAmount.toFixed(2));
+    } else {
+      setInitialCharges(metalPricing.generalMakingAmount.toFixed(2));
+      setInitialTaxes(metalPricing.generalGstAmount.toFixed(2));
+    }
+  }, [autoCalcCharges, isMetalType, metalPricing, purchaseMode]);
+
   const onUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     for (const f of files) {
@@ -202,9 +298,49 @@ export default function NewInvestmentClient({
         const price = Number(initialPrice || 0);
         const charges = Number(initialCharges || 0);
         const taxes = Number(initialTaxes || 0);
+        if (isMetalType && Number(makingChargePct || 0) < 0) { setError('Making charge % cannot be negative.'); return; }
+        if (isMetalType && Number(gstPct || 0) < 0) { setError('GST % cannot be negative.'); return; }
+        if (isMetalType && purchaseMode === 'scheme') {
+          if (Number(schemeActualMakingPct || 0) < 0 || Number(schemeGivenMakingPct || 0) < 0) {
+            setError('Scheme making charge % values cannot be negative.');
+            return;
+          }
+          if (Number(schemeBenefitAmount || 0) < 0) {
+            setError('Scheme benefit amount cannot be negative.');
+            return;
+          }
+          if (schemeStatus === 'active') {
+            const months = Number(schemeMonths || 0);
+            const paid = Number(schemePaidMonths || 0);
+            const monthly = Number(schemeMonthlyAmount || 0);
+            if (months <= 0) { setError('Scheme months must be greater than zero.'); return; }
+            if (monthly <= 0) { setError('Scheme monthly amount must be greater than zero.'); return; }
+            if (paid < 0 || paid > months) { setError('Paid months must be between 0 and total scheme months.'); return; }
+          }
+        }
         if (units <= 0) { setError(isMetalType ? 'Weight (grams) must be greater than zero.' : 'Initial buy units must be greater than zero.'); return; }
         if (price <= 0) { setError(isMetalType ? 'Purchase price per gram must be greater than zero.' : 'Initial buy price must be greater than zero.'); return; }
         if (charges < 0 || taxes < 0) { setError('Charges cannot be negative.'); return; }
+
+        const notesLines = [];
+        if (initialNotes.trim()) notesLines.push(initialNotes.trim());
+        if (isMetalType) {
+          notesLines.push(`Pricing: making ${Number(makingChargePct || 0).toFixed(2)}%, GST ${Number(gstPct || 0).toFixed(2)}%`);
+          if (purchaseMode === 'scheme' && metalPricing) {
+            notesLines.push(
+              `Scheme compare: general ${inr(metalPricing.generalTotal)} vs scheme ${inr(metalPricing.schemeTotal)} (${metalPricing.comparisonDifference >= 0 ? 'saving' : 'loss'} ${inr(Math.abs(metalPricing.comparisonDifference))})`
+            );
+            notesLines.push(
+              `Scheme making: actual ${Number(schemeActualMakingPct || 0).toFixed(2)}% (${inr(metalPricing.schemeActualMakingAmount)}), given ${Number(schemeGivenMakingPct || 0).toFixed(2)}% (${inr(metalPricing.schemeGivenMakingAmount)}), benefit ${inr(Number(schemeBenefitAmount || 0))}`
+            );
+            if (schemeStatus === 'active') {
+              notesLines.push(
+                `Scheme tracking: ${Number(schemePaidMonths || 0)}/${Number(schemeMonths || 0)} months, monthly ${inr(Number(schemeMonthlyAmount || 0))}, paid ${inr(metalPricing.paidAmount)}, remaining ${inr(metalPricing.remainingSchemeAmount)}`
+              );
+            }
+          }
+        }
+
         initialTransaction = {
           transaction_type: 'buy',
           trade_date: startDateInput,
@@ -213,7 +349,7 @@ export default function NewInvestmentClient({
           total_amount: units * price,
           charges,
           taxes,
-          notes: initialNotes.trim() || null,
+          notes: notesLines.length ? notesLines.join('\n') : null,
         };
       }
     } else {
@@ -412,15 +548,160 @@ export default function NewInvestmentClient({
                     <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Price per gram (₹)' : 'Price / NAV per unit (₹)'}</label>
                     <input type="number" step="0.01" placeholder={isMetalType ? (typeCode === 'GOLD' ? '7200.00' : '95.00') : '112.35'} value={initialPrice} onChange={(e) => setInitialPrice(e.target.value)} className="field-input" />
                   </div>
-                  <div>
-                    <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Making charges + GST (₹)' : 'Charges (₹)'}</label>
-                    <input type="number" step="0.01" value={initialCharges} onChange={(e) => setInitialCharges(e.target.value)} className="field-input" />
-                  </div>
+                  {isMetalType && (
+                    <>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs text-ink-soft mb-1.5">Purchase method</label>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => setPurchaseMode('general')} className={`chip ${purchaseMode === 'general' ? 'on' : ''}`}>General purchase</button>
+                          <button type="button" onClick={() => setPurchaseMode('scheme')} className={`chip ${purchaseMode === 'scheme' ? 'on' : ''}`}>Scheme purchase</button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Making charge (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={makingChargePct}
+                          onChange={(e) => {
+                            setMakingChargePct(e.target.value);
+                            setAutoCalcCharges(true);
+                          }}
+                          className="field-input"
+                        />
+                        <p className="text-[11px] text-ink-mute mt-1">Auto-calculates making charge amount from metal value.</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">GST (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={gstPct}
+                          onChange={(e) => {
+                            setGstPct(e.target.value);
+                            setAutoCalcCharges(true);
+                          }}
+                          className="field-input"
+                        />
+                        <p className="text-[11px] text-ink-mute mt-1">GST is calculated on metal value + making charge.</p>
+                      </div>
+
+                      {purchaseMode === 'scheme' && (
+                        <>
+                          <div className="md:col-span-2 rounded-xl border border-honey-600/30 bg-honey-50 px-3 py-2.5 text-sm">
+                            <p className="font-medium text-honey-700">Scheme details</p>
+                            <p className="text-[11px] text-honey-700/80 mt-1">Compare normal making charge with scheme-offered making charge to see savings or loss.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1.5">Actual making charge (%)</label>
+                            <input type="number" step="0.01" value={schemeActualMakingPct} onChange={(e) => setSchemeActualMakingPct(e.target.value)} className="field-input" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1.5">Scheme making charge (%)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={schemeGivenMakingPct}
+                              onChange={(e) => {
+                                setSchemeGivenMakingPct(e.target.value);
+                                setMakingChargePct(e.target.value);
+                                setAutoCalcCharges(true);
+                              }}
+                              className="field-input"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1.5">Extra scheme benefit (₹)</label>
+                            <input type="number" step="0.01" value={schemeBenefitAmount} onChange={(e) => setSchemeBenefitAmount(e.target.value)} className="field-input" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-ink-soft mb-1.5">Scheme status</label>
+                            <select value={schemeStatus} onChange={(e) => setSchemeStatus(e.target.value)} className="field-input">
+                              <option value="closed">Closed / redeemed</option>
+                              <option value="active">Active (still paying)</option>
+                            </select>
+                          </div>
+
+                          {schemeStatus === 'active' && (
+                            <>
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1.5">Scheme months</label>
+                                <input type="number" min="1" step="1" value={schemeMonths} onChange={(e) => setSchemeMonths(e.target.value)} className="field-input" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1.5">Monthly payment (₹)</label>
+                                <input type="number" min="0" step="0.01" value={schemeMonthlyAmount} onChange={(e) => setSchemeMonthlyAmount(e.target.value)} className="field-input" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-ink-soft mb-1.5">Months paid</label>
+                                <input type="number" min="0" step="1" value={schemePaidMonths} onChange={(e) => setSchemePaidMonths(e.target.value)} className="field-input" />
+                              </div>
+                              <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
+                                <div className="flex justify-between"><span className="text-ink-soft">Scheme amount expected</span><span className="font-medium">{inr(metalPricing?.expectedSchemeAmount || 0)}</span></div>
+                                <div className="flex justify-between"><span className="text-ink-soft">Paid so far</span><span className="font-medium">{inr(metalPricing?.paidAmount || 0)}</span></div>
+                                <div className="flex justify-between"><span className="text-ink-soft">Remaining to pay</span><span className="font-medium">{inr(metalPricing?.remainingSchemeAmount || 0)}</span></div>
+                                <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Current purchase value</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || 0)}</span></div>
+                                <div className="flex justify-between"><span className="text-ink-soft">Settlement at closure</span><span className={`font-medium ${(metalPricing?.closureDelta || 0) <= 0 ? 'text-mint-600' : ''}`}>{(metalPricing?.closureDelta || 0) <= 0 ? `Excess ${inr(Math.abs(metalPricing?.closureDelta || 0))}` : `Pay ${inr(metalPricing?.closureDelta || 0)}`}</span></div>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
+                            <div className="flex justify-between"><span className="text-ink-soft">General purchase total</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
+                            <div className="flex justify-between"><span className="text-ink-soft">Scheme purchase total</span><span className="font-medium">{inr(metalPricing?.schemeTotal || 0)}</span></div>
+                            <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Profit / loss vs general</span><span className={`font-medium ${(metalPricing?.comparisonDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.comparisonDifference || 0) >= 0 ? `Profit ${inr(metalPricing?.comparisonDifference || 0)}` : `Loss ${inr(Math.abs(metalPricing?.comparisonDifference || 0))}`}</span></div>
+                          </div>
+                        </>
+                      )}
+
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Making charge amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={initialCharges}
+                          onChange={(e) => {
+                            setInitialCharges(e.target.value);
+                            setAutoCalcCharges(false);
+                          }}
+                          className="field-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">GST amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={initialTaxes}
+                          onChange={(e) => {
+                            setInitialTaxes(e.target.value);
+                            setAutoCalcCharges(false);
+                          }}
+                          className="field-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAutoCalcCharges(true)}
+                          className="mt-1 text-[11px] text-sky-700 hover:underline"
+                        >
+                          Use auto-calculated values
+                        </button>
+                      </div>
+                    </>
+                  )}
+
                   {!isMetalType && (
-                    <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Taxes (₹)</label>
-                      <input type="number" step="0.01" value={initialTaxes} onChange={(e) => setInitialTaxes(e.target.value)} className="field-input" />
-                    </div>
+                    <>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Charges (₹)</label>
+                        <input type="number" step="0.01" value={initialCharges} onChange={(e) => setInitialCharges(e.target.value)} className="field-input" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Taxes (₹)</label>
+                        <input type="number" step="0.01" value={initialTaxes} onChange={(e) => setInitialTaxes(e.target.value)} className="field-input" />
+                      </div>
+                    </>
                   )}
                   <div className="md:col-span-2">
                     <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[10px] text-ink-mute">optional</span></label>
@@ -428,6 +709,12 @@ export default function NewInvestmentClient({
                   </div>
                   <div className="md:col-span-2 bg-paper-tint rounded-xl border border-edge px-3 py-2.5 text-sm">
                     <div className="flex justify-between"><span className="text-ink-soft">{isMetalType ? 'Metal value' : 'Purchase value'}</span><span className="font-medium">{inr(marketPreview?.gross || 0)}</span></div>
+                    {isMetalType && (
+                      <>
+                        <div className="flex justify-between mt-1"><span className="text-ink-soft">Making charge</span><span className="font-medium">{inr(Number(initialCharges || 0))}</span></div>
+                        <div className="flex justify-between mt-1"><span className="text-ink-soft">GST</span><span className="font-medium">{inr(Number(initialTaxes || 0))}</span></div>
+                      </>
+                    )}
                     <div className="flex justify-between mt-1"><span className="text-ink-soft">Total cost incl. charges</span><span className="font-medium text-mint-600">{inr(marketPreview?.total || 0)}</span></div>
                   </div>
                 </div>

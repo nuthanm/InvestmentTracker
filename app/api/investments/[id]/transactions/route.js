@@ -5,10 +5,12 @@ import {
   computeTransactionGross,
   computeTransactionNetAmount,
   isMarketInvestment,
+  isMetalInvestment,
   summarizeMarketTransactions,
 } from '@/lib/investments';
 
-const ALLOWED_TYPES = new Set(['buy', 'redeem', 'dividend', 'bonus', 'split', 'switch_in', 'switch_out']);
+const MARKET_ALLOWED_TYPES = new Set(['buy', 'redeem', 'dividend', 'bonus', 'split', 'switch_in', 'switch_out']);
+const METAL_ALLOWED_TYPES = new Set(['buy', 'sell']);
 const SELL_TYPES = new Set(['redeem', 'switch_out']);
 const BUY_TYPES = new Set(['buy', 'switch_in']);
 const UNIT_ONLY_TYPES = new Set(['bonus', 'split']);
@@ -35,8 +37,11 @@ export async function GET(req, { params }) {
     LIMIT 1
   `;
   if (rows.length === 0) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
-  if (!isMarketInvestment(rows[0].type_code)) {
-    return NextResponse.json({ error: 'Transactions are only available for mutual funds, ETFs, and shares.' }, { status: 409 });
+  const typeCode = rows[0].type_code;
+  const marketInvestment = isMarketInvestment(typeCode);
+  const metalInvestment = isMetalInvestment(typeCode);
+  if (!marketInvestment && !metalInvestment) {
+    return NextResponse.json({ error: 'Transactions are only available for market and metal investments.' }, { status: 409 });
   }
 
   try {
@@ -70,14 +75,18 @@ export async function POST(req, { params }) {
     LIMIT 1
   `;
   if (rows.length === 0) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
-  if (!isMarketInvestment(rows[0].type_code)) {
-    return NextResponse.json({ error: 'Transactions are only available for mutual funds, ETFs, and shares.' }, { status: 409 });
+  const typeCode = rows[0].type_code;
+  const marketInvestment = isMarketInvestment(typeCode);
+  const metalInvestment = isMetalInvestment(typeCode);
+  if (!marketInvestment && !metalInvestment) {
+    return NextResponse.json({ error: 'Transactions are only available for market and metal investments.' }, { status: 409 });
   }
 
   try {
     const body = await req.json();
     const transactionType = String(body.transaction_type || '').toLowerCase();
-    if (!ALLOWED_TYPES.has(transactionType)) {
+    const allowedTypes = marketInvestment ? MARKET_ALLOWED_TYPES : METAL_ALLOWED_TYPES;
+    if (!allowedTypes.has(transactionType)) {
       return NextResponse.json({ error: 'Pick a valid transaction type.' }, { status: 400 });
     }
 
@@ -96,15 +105,18 @@ export async function POST(req, { params }) {
     if (charges < 0 || taxes < 0) {
       return NextResponse.json({ error: 'Charges and taxes cannot be negative.' }, { status: 400 });
     }
-    if (BUY_TYPES.has(transactionType) || SELL_TYPES.has(transactionType)) {
+    const isBuyType = marketInvestment ? BUY_TYPES.has(transactionType) : transactionType === 'buy';
+    const isSellType = marketInvestment ? SELL_TYPES.has(transactionType) : transactionType === 'sell';
+
+    if (isBuyType || isSellType) {
       if (units <= 0) return NextResponse.json({ error: 'Units must be greater than zero.' }, { status: 400 });
       if (pricePerUnit <= 0) return NextResponse.json({ error: 'Price per unit must be greater than zero.' }, { status: 400 });
       if (totalAmount <= 0) return NextResponse.json({ error: 'Transaction amount must be greater than zero.' }, { status: 400 });
     }
-    if (transactionType === 'dividend' && totalAmount <= 0) {
+    if (marketInvestment && transactionType === 'dividend' && totalAmount <= 0) {
       return NextResponse.json({ error: 'Dividend amount must be greater than zero.' }, { status: 400 });
     }
-    if (UNIT_ONLY_TYPES.has(transactionType) && units <= 0) {
+    if (marketInvestment && UNIT_ONLY_TYPES.has(transactionType) && units <= 0) {
       return NextResponse.json({ error: 'Units must be greater than zero.' }, { status: 400 });
     }
 
@@ -116,7 +128,7 @@ export async function POST(req, { params }) {
     `;
     const summary = summarizeMarketTransactions(existingTransactions);
     const availableUnits = Number(summary.total_units || 0);
-    if (SELL_TYPES.has(transactionType) && units - availableUnits > 0.000001) {
+    if (isSellType && units - availableUnits > 0.000001) {
       return NextResponse.json({ error: 'Redeemed units cannot exceed your current holding.' }, { status: 400 });
     }
 
