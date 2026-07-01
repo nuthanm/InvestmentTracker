@@ -409,9 +409,12 @@ export default function DetailClient({
     const gramsBonusPct = accumulatedGrams > 0 ? (gramsDifference / accumulatedGrams) * 100 : 0;
     const schemePerGramPayable = purchasedGrams > 0 ? (schemeTotal / purchasedGrams) : 0;
     const extraGramPayableAmount = gramsDifference > 0 ? gramsDifference * schemePerGramPayable : 0;
+    const schemeAccumulatedValue = accumulatedGrams > 0 ? accumulatedGrams * price : 0;
+    const payableAfterSchemeCredit = Math.max(schemeTotal - schemeAccumulatedValue, 0);
     const schemePayNowAmount = (accumulatedGrams > 0 && gramsDifference > 0)
-      ? extraGramPayableAmount
+      ? payableAfterSchemeCredit
       : (schemeStatus === 'active' ? Math.max(closureDelta, 0) : schemeTotal);
+    const customerPayNowAmount = purchaseMode === 'scheme' ? schemePayNowAmount : generalTotal;
 
     return {
       baseValue,
@@ -445,7 +448,10 @@ export default function DetailClient({
       gramsBonusPct,
       schemePerGramPayable,
       extraGramPayableAmount,
+      schemeAccumulatedValue,
+      payableAfterSchemeCredit,
       schemePayNowAmount,
+      customerPayNowAmount,
     };
   }, [
     cgstPct,
@@ -728,49 +734,7 @@ export default function DetailClient({
                           </>
                         )}
 
-                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
-                          <div className="flex justify-between"><span className="text-ink-soft">Actual making charge</span><span className="font-medium">{metalPricing ? `${metalPricing.actualMakingPct.toFixed(2)}% · ${inr(metalPricing.actualMakingAmount)}` : '—'}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Scheme/Payable making</span><span className="font-medium">{metalPricing ? `${metalPricing.schemeMakingPct.toFixed(2)}% · ${inr(metalPricing.payableMakingAmount)}` : '—'}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Making discount given</span><span className="font-medium text-mint-600">{metalPricing ? `${metalPricing.makingDiscountPct.toFixed(2)}% · ${inr(metalPricing.makingDiscountAmount)}` : '—'}</span></div>
-                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Payable making charge</span><span className="font-medium text-honey-600">{inr(Number(txForm.charges || 0))}</span></div>
-                        </div>
 
-                        <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-2.5 text-sm space-y-2">
-                          <p className="text-[11px] tracking-wider text-ink-mute uppercase">With Scheme</p>
-                          <div className="flex justify-between"><span className="text-ink-soft">Grams × cost per day</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Scheme discount</span><span className="font-medium text-mint-600">- {inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">GST value</span><span className="font-medium">{inr(metalPricing?.totalGst || 0)}</span></div>
-                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Total value (with scheme)</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || 0)}</span></div>
-
-                          <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without Scheme</p>
-                          <div className="flex justify-between"><span className="text-ink-soft">Grams × cost per day</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Making charges</span><span className="font-medium">{inr(metalPricing?.generalMakingAmount || 0)}</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">GST</span><span className="font-medium">{inr(metalPricing?.generalGstAmount || 0)}</span></div>
-                          <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Total value (without scheme)</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
-
-                          <div className="flex justify-between pt-1 mt-1 border-t border-dashed border-edge"><span className="text-ink-soft">Scheme accumulated grams</span><span className="font-medium">{(metalPricing?.accumulatedGrams || 0).toFixed(3)} g</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Purchased grams</span><span className="font-medium">{(metalPricing?.purchasedGrams || 0).toFixed(3)} g</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Extra grams received</span><span className={`font-medium ${(metalPricing?.gramsDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.gramsDifference || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsDifference || 0).toFixed(3)} g ({(metalPricing?.gramsBonusPct || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsBonusPct || 0).toFixed(2)}%)</span></div>
-                          <div className="flex justify-between"><span className="text-ink-soft">Payable extra amount (grams diff)</span><span className="font-medium text-honey-600">{inr(metalPricing?.extraGramPayableAmount || 0)}</span></div>
-
-                          <div className="flex justify-between pt-2 mt-1 border-t border-edge">
-                            <span className="text-ink-soft">Amount to pay now</span>
-                            <span className="font-medium text-honey-600">
-                              {inr(
-                                purchaseMode === 'scheme'
-                                  ? (metalPricing?.schemePayNowAmount || 0)
-                                  : (metalPricing?.generalTotal || 0)
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex justify-end">
-                            <span className={`text-[11px] px-2 py-1 rounded-full border ${(metalPricing?.comparisonDifference || 0) >= 0 ? 'text-mint-700 bg-mint-50 border-mint-200' : 'text-danger bg-danger-soft border-danger/30'}`}>
-                              {(metalPricing?.comparisonDifference || 0) >= 0
-                                ? `Savings from scheme: ${inr(metalPricing?.comparisonDifference || 0)}`
-                                : `Extra cost vs general: ${inr(Math.abs(metalPricing?.comparisonDifference || 0))}`}
-                            </span>
-                          </div>
-                        </div>
 
                         <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -871,22 +835,11 @@ export default function DetailClient({
                                   <label className="block text-xs text-ink-soft mb-1.5">Months paid</label>
                                   <input type="number" min="0" step="1" value={schemePaidMonths} onChange={(e) => setSchemePaidMonths(e.target.value)} className="field-input" />
                                 </div>
-                                <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
-                                  <div className="flex justify-between"><span className="text-ink-soft">Scheme amount expected</span><span className="font-medium">{inr(metalPricing?.expectedSchemeAmount || 0)}</span></div>
-                                  <div className="flex justify-between"><span className="text-ink-soft">Paid so far</span><span className="font-medium">{inr(metalPricing?.paidAmount || 0)}</span></div>
-                                  <div className="flex justify-between"><span className="text-ink-soft">Remaining to pay</span><span className="font-medium">{inr(metalPricing?.remainingSchemeAmount || 0)}</span></div>
-                                  <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Current purchase value</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || 0)}</span></div>
-                                  <div className="flex justify-between"><span className="text-ink-soft">Settlement at closure</span><span className={`font-medium ${(metalPricing?.closureDelta || 0) <= 0 ? 'text-mint-600' : ''}`}>{(metalPricing?.closureDelta || 0) <= 0 ? `Excess ${inr(Math.abs(metalPricing?.closureDelta || 0))}` : `Pay ${inr(metalPricing?.closureDelta || 0)}`}</span></div>
-                                </div>
+
                               </>
                             )}
 
-                            <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5 text-sm space-y-1">
-                              <div className="flex justify-between"><span className="text-ink-soft">General purchase total</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
-                              <div className="flex justify-between"><span className="text-ink-soft">Scheme purchase total</span><span className="font-medium">{inr(metalPricing?.schemeTotal || 0)}</span></div>
-                              <div className="flex justify-between"><span className="text-ink-soft">Final discount (making + benefit)</span><span className="font-medium text-mint-600">{inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
-                              <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">Profit / loss vs general</span><span className={`font-medium ${(metalPricing?.comparisonDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.comparisonDifference || 0) >= 0 ? `Profit ${inr(metalPricing?.comparisonDifference || 0)}` : `Loss ${inr(Math.abs(metalPricing?.comparisonDifference || 0))}`}</span></div>
-                            </div>
+
                           </>
                         )}
                       </>
@@ -926,13 +879,33 @@ export default function DetailClient({
                   <textarea rows="3" value={txForm.notes} onChange={(e) => setTxForm((prev) => ({ ...prev, notes: e.target.value }))} className="field-input" />
                 </div>
                 {metalBuyType && (
-                  <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-2.5 text-sm">
-                    <div className="flex justify-between"><span className="text-ink-soft">Metal value</span><span className="font-medium">{inr((Number(txForm.units || 0) * Number(txForm.price_per_unit || 0)))}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Actual making charge</span><span className="font-medium">{inr(metalPricing?.actualMakingAmount || 0)}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Final discount</span><span className="font-medium text-mint-600">- {inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">Payable making charge</span><span className="font-medium">{inr(Number(txForm.charges || 0))}</span></div>
-                    <div className="flex justify-between mt-1"><span className="text-ink-soft">GST (SGST + CGST)</span><span className="font-medium">{inr(Number(txForm.taxes || 0))}</span></div>
-                    <div className="flex justify-between mt-1 pt-1.5 border-t border-edge"><span className="text-ink-soft">Final payable amount</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || ((Number(txForm.units || 0) * Number(txForm.price_per_unit || 0)) + Number(txForm.charges || 0) + Number(txForm.taxes || 0)))}</span></div>
+                  <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-3 text-sm space-y-2">
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase">Invoice Calculation Details</p>
+
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-1">With Scheme</p>
+                    <div className="flex justify-between"><span className="text-ink-soft">Metal value (grams × rate)</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Scheme discount</span><span className="font-medium text-mint-600">- {inr(metalPricing?.totalDiscountAmount || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">GST amount</span><span className="font-medium">{inr(metalPricing?.totalGst || 0)}</span></div>
+                    <div className="flex justify-between pt-1 border-t border-edge"><span className="text-ink-soft">Total invoice value (with scheme)</span><span className="font-medium text-mint-600">{inr(metalPricing?.schemeTotal || 0)}</span></div>
+
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without Scheme</p>
+                    <div className="flex justify-between"><span className="text-ink-soft">Metal value (grams × rate)</span><span className="font-medium">{inr(metalPricing?.baseValue || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Making charges</span><span className="font-medium">{inr(metalPricing?.generalMakingAmount || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">GST amount</span><span className="font-medium">{inr(metalPricing?.generalGstAmount || 0)}</span></div>
+                    <div className="flex justify-between pt-1 border-t border-edge"><span className="text-ink-soft">Total invoice value (without scheme)</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
+
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Scheme Grams Split</p>
+                    <div className="flex justify-between"><span className="text-ink-soft">Scheme accumulated grams</span><span className="font-medium">{(metalPricing?.accumulatedGrams || 0).toFixed(3)} g</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Purchased grams</span><span className="font-medium">{(metalPricing?.purchasedGrams || 0).toFixed(3)} g</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Extra grams</span><span className={`font-medium ${(metalPricing?.gramsDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.gramsDifference || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsDifference || 0).toFixed(3)} g</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Scheme accumulated value</span><span className="font-medium">{inr(metalPricing?.schemeAccumulatedValue || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Payable for extra grams</span><span className="font-medium text-honey-600">{inr(metalPricing?.extraGramPayableAmount || 0)}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-soft">Balance after scheme credit</span><span className="font-medium text-honey-600">{inr(metalPricing?.payableAfterSchemeCredit || 0)}</span></div>
+
+                    <div className="flex justify-between pt-2 border-t border-edge">
+                      <span className="text-ink-soft">Amount payable now</span>
+                      <span className="font-medium text-honey-600">{inr(metalPricing?.customerPayNowAmount || 0)}</span>
+                    </div>
                   </div>
                 )}
                 <div className="md:col-span-2 flex justify-end">
