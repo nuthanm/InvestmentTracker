@@ -115,6 +115,8 @@ export default function DetailClient({
   const [schemeMonths, setSchemeMonths] = useState('11');
   const [schemeMonthlyAmount, setSchemeMonthlyAmount] = useState('0');
   const [schemePaidMonths, setSchemePaidMonths] = useState('0');
+  const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
+  const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
 
   const freq = i.payment_frequency || 'lump_sum';
   const isRecurring = !isTransactionType && (freq === 'monthly' || freq === 'yearly');
@@ -218,6 +220,9 @@ export default function DetailClient({
           if (Number(schemeBenefitAmount || 0) < 0) {
             throw new Error('Scheme benefit amount cannot be negative.');
           }
+          if (Number(schemeAccumulatedGrams || 0) < 0 || Number(schemePurchasedGrams || 0) < 0) {
+            throw new Error('Scheme accumulated/purchased grams cannot be negative.');
+          }
           if (schemeStatus === 'active') {
             const months = Number(schemeMonths || 0);
             const paid = Number(schemePaidMonths || 0);
@@ -255,6 +260,9 @@ export default function DetailClient({
               `Scheme tracking: ${Number(schemePaidMonths || 0)}/${Number(schemeMonths || 0)} months, monthly ${inr(Number(schemeMonthlyAmount || 0))}, paid ${inr(metalPricing.paidAmount)}, remaining ${inr(metalPricing.remainingSchemeAmount)}`
             );
           }
+          notesLines.push(
+            `Scheme grams: accumulated ${metalPricing.accumulatedGrams.toFixed(3)}g, purchased ${metalPricing.purchasedGrams.toFixed(3)}g, difference ${metalPricing.gramsDifference >= 0 ? '+' : ''}${metalPricing.gramsDifference.toFixed(3)}g (${metalPricing.gramsBonusPct >= 0 ? '+' : ''}${metalPricing.gramsBonusPct.toFixed(2)}%)`
+          );
         }
       }
 
@@ -292,6 +300,8 @@ export default function DetailClient({
         setSgstValue('0');
         setCgstValue('0');
         setGstTotalValue('0');
+        setSchemeAccumulatedGrams('');
+        setSchemePurchasedGrams('');
       }
     } catch (err) {
       setTransactionError(err.message || 'Could not save transaction.');
@@ -392,6 +402,10 @@ export default function DetailClient({
     const expectedSchemeAmount = totalSchemeMonths * monthlyScheme;
     const remainingSchemeAmount = Math.max(expectedSchemeAmount - paidAmount, 0);
     const closureDelta = schemeTotal - paidAmount;
+    const accumulatedGrams = Number(schemeAccumulatedGrams || 0);
+    const purchasedGrams = Number(schemePurchasedGrams || units || 0);
+    const gramsDifference = purchasedGrams - accumulatedGrams;
+    const gramsBonusPct = accumulatedGrams > 0 ? (gramsDifference / accumulatedGrams) * 100 : 0;
 
     return {
       baseValue,
@@ -419,6 +433,10 @@ export default function DetailClient({
       paidAmount,
       remainingSchemeAmount,
       closureDelta,
+      accumulatedGrams,
+      purchasedGrams,
+      gramsDifference,
+      gramsBonusPct,
     };
   }, [
     cgstPct,
@@ -435,10 +453,12 @@ export default function DetailClient({
     actualMakingValue,
     payableMakingValue,
     schemeActualMakingPct,
+    schemeAccumulatedGrams,
     schemeBenefitAmount,
     schemeGivenMakingPct,
     schemeMonths,
     schemeMonthlyAmount,
+    schemePurchasedGrams,
     schemePaidMonths,
     txForm.price_per_unit,
     txForm.units,
@@ -718,6 +738,10 @@ export default function DetailClient({
                           <div className="flex justify-between"><span className="text-ink-soft">GST</span><span className="font-medium">{inr(metalPricing?.generalGstAmount || 0)}</span></div>
                           <div className="flex justify-between pt-1 mt-1 border-t border-edge"><span className="text-ink-soft">Total value (without scheme)</span><span className="font-medium">{inr(metalPricing?.generalTotal || 0)}</span></div>
 
+                          <div className="flex justify-between pt-1 mt-1 border-t border-dashed border-edge"><span className="text-ink-soft">Scheme accumulated grams</span><span className="font-medium">{(metalPricing?.accumulatedGrams || 0).toFixed(3)} g</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Purchased grams</span><span className="font-medium">{(metalPricing?.purchasedGrams || 0).toFixed(3)} g</span></div>
+                          <div className="flex justify-between"><span className="text-ink-soft">Extra grams received</span><span className={`font-medium ${(metalPricing?.gramsDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.gramsDifference || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsDifference || 0).toFixed(3)} g ({(metalPricing?.gramsBonusPct || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsBonusPct || 0).toFixed(2)}%)</span></div>
+
                           <div className="flex justify-between pt-2 mt-1 border-t border-edge">
                             <span className="text-ink-soft">Amount to pay now</span>
                             <span className="font-medium text-honey-600">
@@ -805,6 +829,14 @@ export default function DetailClient({
                             <div>
                               <label className="block text-xs text-ink-soft mb-1.5">Extra scheme benefit (₹)</label>
                               <input type="number" step="0.01" value={schemeBenefitAmount} onChange={(e) => setSchemeBenefitAmount(e.target.value)} className="field-input" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Scheme accumulated grams</label>
+                              <input type="number" step="0.001" value={schemeAccumulatedGrams} onChange={(e) => setSchemeAccumulatedGrams(e.target.value)} className="field-input" placeholder="2.499" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-ink-soft mb-1.5">Purchased grams</label>
+                              <input type="number" step="0.001" value={schemePurchasedGrams} onChange={(e) => setSchemePurchasedGrams(e.target.value)} className="field-input" placeholder="2.582" />
                             </div>
                             <div>
                               <label className="block text-xs text-ink-soft mb-1.5">Scheme status</label>
