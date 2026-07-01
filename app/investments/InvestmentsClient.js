@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
+import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -97,6 +97,7 @@ export default function InvestmentsClient({ user }) {
             {filtered.map((investment, idx) => {
               const tone = toneFor(investment.type_code);
               const marketType = isMarketInvestment(investment.type_code);
+              const metalType = isMetalInvestment(investment.type_code);
               const suffix = frequencySuffix(investment.payment_frequency);
               const days = daysUntilMaturity(investment.maturity_date);
               const isMatured = !marketType && days !== null && days <= 0;
@@ -114,6 +115,11 @@ export default function InvestmentsClient({ user }) {
                           {' '}· {formatUnits(investment.total_units)} units
                           {investment.is_closed && <> · closed</>}
                         </>
+                      ) : metalType ? (
+                        <>
+                          {' '}· {formatUnits(investment.total_units)} g held
+                          {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
+                        </>
                       ) : (
                         <>
                           {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
@@ -121,7 +127,7 @@ export default function InvestmentsClient({ user }) {
                           {investment.auto_renew && <> · auto-renew</>}
                         </>
                       )}
-                      {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
+                      {!metalType && investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0 min-w-[5rem]">
@@ -129,6 +135,11 @@ export default function InvestmentsClient({ user }) {
                       <>
                         <p className="text-sm font-medium">{inr(investment.remaining_cost_basis || 0)}</p>
                         <p className="text-[11px] text-sky-600 mt-0.5">{inr(investment.invested_amount || 0)} invested</p>
+                      </>
+                    ) : metalType ? (
+                      <>
+                        <p className="text-sm font-medium">{formatUnits(investment.total_units)} g</p>
+                        <p className="text-[11px] text-honey-600 mt-0.5">{inr(investment.remaining_cost_basis || 0)} cost</p>
                       </>
                     ) : (
                       <>

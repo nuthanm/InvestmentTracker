@@ -7,6 +7,8 @@ import {
   computeTransactionGross,
   computeTransactionNetAmount,
   isMarketInvestment,
+  isMetalInvestment,
+  isTransactionBased,
 } from '@/lib/investments';
 
 function missingTransactionsTable(err) {
@@ -73,14 +75,14 @@ export async function GET() {
     ORDER BY i.created_at DESC
   `;
 
-  const marketIds = investments.filter((investment) => isMarketInvestment(investment.type_code)).map((investment) => investment.id);
-  if (marketIds.length === 0) return NextResponse.json({ investments });
+  const transactionIds = investments.filter((investment) => isTransactionBased(investment.type_code)).map((investment) => investment.id);
+  if (transactionIds.length === 0) return NextResponse.json({ investments });
 
   try {
     const transactions = await sql`
       SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
       FROM investment_transactions
-      WHERE user_id = ${me.id} AND investment_id = ANY(${marketIds})
+      WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
       ORDER BY trade_date ASC, created_at ASC
     `;
     return NextResponse.json({ investments: attachInvestmentSummaries(investments, transactions) });
@@ -101,7 +103,9 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const marketInvestment = isMarketInvestment(body.type_code);
-    const required = marketInvestment
+    const metalInvestment = isMetalInvestment(body.type_code);
+    const transactionBasedInvestment = marketInvestment || metalInvestment;
+    const required = transactionBasedInvestment
       ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
       : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
@@ -124,7 +128,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
     }
 
-    if (marketInvestment) {
+    if (transactionBasedInvestment) {
       const initialTransaction = validateInitialTransaction(body.initial_transaction);
       if (initialTransaction?.error) {
         return NextResponse.json({ error: initialTransaction.error }, { status: 400 });

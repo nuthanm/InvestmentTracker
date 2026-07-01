@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
-import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
+import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
 import PortfolioChart from './PortfolioChart';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
@@ -145,84 +145,35 @@ function InfoTip({ text }) {
   );
 }
 
-/** Overall Wealth Goal card – shows current progress and lets user set/edit goal. */
-function WealthGoalCard({ currentValue, investedValue, onGoalChange }) {
-  const [goal, setGoal] = useState(null);   // { amount, date } | null
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ amount: '', date: '' });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/portfolio-goal').then((r) => r.json()).then((d) => {
-      setGoal(d.goal);
-      setLoaded(true);
-      if (d.goal) onGoalChange(d.goal);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const openEdit = () => {
-    setForm({ amount: goal?.amount ? String(goal.amount) : '', date: goal?.date ? String(goal.date).slice(0, 10) : '' });
-    setError('');
-    setEditing(true);
-  };
-
-  const save = async () => {
-    if (!form.amount || Number(form.amount) <= 0) { setError('Enter a valid goal amount.'); return; }
-    setSaving(true);
-    try {
-      const res = await fetch('/api/portfolio-goal', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: Number(form.amount), date: form.date || null }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not save.');
-      const newGoal = { amount: Number(form.amount), date: form.date || null };
-      setGoal(newGoal);
-      onGoalChange(newGoal);
-      setEditing(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removeGoal = async () => {
-    await fetch('/api/portfolio-goal', { method: 'DELETE' });
-    setGoal(null);
-    onGoalChange(null);
-    setEditing(false);
-  };
-
-  if (!loaded) return null;
+/** Single goal card (gold, silver, or money). */
+function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
+  const barColor = { honey: 'bg-honey-600', sky: 'bg-sky-600', mint: 'bg-mint-600' }[tone] || 'bg-mint-600';
+  const accentColor = { honey: 'text-honey-600', sky: 'text-sky-600', mint: 'text-mint-600' }[tone] || 'text-mint-600';
+  const borderActive = { honey: 'border-honey-600', sky: 'border-sky-500', mint: 'border-mint-600' }[tone] || 'border-mint-600';
 
   if (editing) {
     return (
-      <div className="bg-paper-card border border-mint-600 rounded-2xl p-4 md:p-5 mb-5">
-        <p className="text-xs font-medium text-ink-soft uppercase tracking-wider mb-3">Set Overall Wealth Goal</p>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs text-ink-soft mb-1">Target amount (₹)<span className="text-danger ml-0.5">*</span></label>
-            <input type="number" inputMode="numeric" autoFocus value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="e.g. 5000000" className="field-input" />
-          </div>
+      <div className={`bg-paper-card border ${borderActive} rounded-2xl p-4 flex flex-col`}>
+        <p className="text-[11px] font-medium text-ink-soft uppercase tracking-wider mb-3">{icon} {label} Goal</p>
+        <div className="space-y-2 mb-3">
+          {form.fields.map((f) => (
+            <div key={f.key}>
+              <label className="block text-xs text-ink-soft mb-1">{f.label}<span className="text-danger ml-0.5">*</span></label>
+              <input type="number" step={f.step || '1'} inputMode="numeric" autoFocus={f.auto} value={form.values[f.key]}
+                onChange={(e) => onFormChange(f.key, e.target.value)}
+                placeholder={f.placeholder} className="field-input" />
+            </div>
+          ))}
           <div>
             <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-[10px] text-ink-mute">optional</span></label>
-            <input type="date" value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              className="field-input" />
+            <input type="date" value={form.values.date || ''} onChange={(e) => onFormChange('date', e.target.value)} className="field-input" />
           </div>
         </div>
         {error && <p className="text-xs text-danger mb-2">{error}</p>}
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setEditing(false)} className="btn-ghost py-1.5 px-4 rounded-lg text-xs">Cancel</button>
-          {goal && <button type="button" onClick={removeGoal} className="btn-ghost py-1.5 px-4 rounded-lg text-xs text-danger hover:border-danger">Remove</button>}
-          <button type="button" disabled={saving} onClick={save} className="btn-primary flex-1 py-1.5 rounded-lg text-xs font-medium">
+        <div className="flex gap-2 mt-auto">
+          <button type="button" onClick={() => onEdit(false)} className="btn-ghost py-1.5 px-3 rounded-lg text-xs">Cancel</button>
+          {hasGoal && <button type="button" onClick={onRemove} className="btn-ghost py-1.5 px-3 rounded-lg text-xs text-danger hover:border-danger">Remove</button>}
+          <button type="button" disabled={saving} onClick={onSave} className="btn-primary flex-1 py-1.5 rounded-lg text-xs font-medium">
             {saving ? 'Saving…' : 'Save goal'}
           </button>
         </div>
@@ -230,44 +181,198 @@ function WealthGoalCard({ currentValue, investedValue, onGoalChange }) {
     );
   }
 
-  if (!goal) {
+  if (!hasGoal) {
     return (
-      <div className="border border-dashed border-edge rounded-2xl p-4 mb-5 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">Set an overall wealth goal</p>
-          <p className="text-[11px] text-ink-mute mt-0.5">Track how your portfolio is progressing towards your target</p>
-        </div>
-        <button onClick={openEdit} className="btn-primary py-1.5 px-4 rounded-full text-xs font-medium flex-shrink-0 ml-3">+ Set goal</button>
+      <div className="border border-dashed border-edge rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[140px]">
+        <p className="text-2xl mb-1">{icon}</p>
+        <p className="text-sm font-medium">{label} goal</p>
+        <p className="text-[11px] text-ink-mute mt-0.5 mb-3">Set a target to track progress</p>
+        <button onClick={() => onEdit(true)} className="btn-primary py-1.5 px-3 rounded-full text-xs font-medium">+ Set goal</button>
       </div>
     );
   }
 
-  const pct = Math.min(100, goal.amount > 0 ? Math.round((investedValue / goal.amount) * 100) : 0);
-  const remaining = Math.max(0, goal.amount - investedValue);
-
   return (
-    <div className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
-      <div className="flex justify-between items-start mb-3">
+    <div className="bg-paper-card border border-edge rounded-2xl p-4 flex flex-col">
+      <div className="flex justify-between items-start mb-2">
         <div>
-          <p className="text-[11px] text-ink-mute uppercase tracking-wider">Overall Wealth Goal</p>
-          <p className="text-xl font-medium mt-0.5">{inrShort(goal.amount)}</p>
-          {goal.date && <p className="text-[11px] text-ink-mute mt-0.5">Target: {fmtDate(goal.date)}</p>}
+          <p className="text-[11px] text-ink-mute uppercase tracking-wider">{icon} {label} Goal</p>
+          <p className="text-lg font-medium mt-0.5">{targetLabel}</p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-medium text-mint-600">{pct}%</p>
-          <p className="text-[11px] text-ink-mute">{inrShort(remaining)} to go</p>
+          <p className={`text-xl font-medium ${accentColor}`}>{pct}%</p>
+          <p className="text-[10px] text-ink-mute">{remainingLabel}</p>
         </div>
       </div>
-      <div className="h-2.5 bg-paper-tint rounded-full overflow-hidden mb-3">
-        <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
+      <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
+        <div className={`fill-bar h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
       </div>
-      <div className="flex justify-between items-center text-[11px] text-ink-mute">
-        <span>
-          <span>{inrShort(currentValue)} projected value</span>
-          <span className="mx-1.5 opacity-40">·</span>
-          <span>{inrShort(investedValue)} invested so far</span>
-        </span>
-        <button onClick={openEdit} className="text-sky-600 hover:underline">edit goal</button>
+      <p className="text-[11px] text-ink-mute flex-1">{currentLabel}</p>
+      <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
+    </div>
+  );
+}
+
+/** 3-column overall goals row: Gold · Silver · Money */
+function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoalChange }) {
+  // ── Money goal state ──
+  const [moneyGoal, setMoneyGoal] = useState(null);
+  const [editingMoney, setEditingMoney] = useState(false);
+  const [moneyForm, setMoneyForm] = useState({ amount: '', date: '' });
+  const [savingMoney, setSavingMoney] = useState(false);
+  const [moneyError, setMoneyError] = useState('');
+
+  // ── Metal goal state ──
+  const [goldTargetG, setGoldTargetG] = useState(null);
+  const [silvTargetG, setSilvTargetG] = useState(null);
+  const [editingGold, setEditingGold] = useState(false);
+  const [editingSilv, setEditingSilv] = useState(false);
+  const [goldForm, setGoldForm] = useState({ target: '', date: '' });
+  const [silvForm, setSilvForm] = useState({ target: '', date: '' });
+  const [savingMetal, setSavingMetal] = useState(false);
+  const [metalError, setMetalError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/portfolio-goal').then((r) => r.json()),
+      fetch('/api/metal-goals').then((r) => r.json()),
+    ]).then(([pg, mg]) => {
+      const g = pg.goal;
+      setMoneyGoal(g);
+      if (g) onMoneyGoalChange(g);
+      setGoldTargetG(mg.gold_target_g ?? null);
+      setSilvTargetG(mg.silver_target_g ?? null);
+      setLoaded(true);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Compute grams from investments
+  const totalGoldG = investments
+    .filter((inv) => inv.type_code === 'GOLD')
+    .reduce((sum, inv) => sum + Number(inv.total_units || 0), 0);
+  const totalSilvG = investments
+    .filter((inv) => inv.type_code === 'SILV')
+    .reduce((sum, inv) => sum + Number(inv.total_units || 0), 0);
+
+  // ── Money goal handlers ──
+  const saveMoney = async () => {
+    if (!moneyForm.amount || Number(moneyForm.amount) <= 0) { setMoneyError('Enter a valid goal amount.'); return; }
+    setSavingMoney(true);
+    try {
+      const res = await fetch('/api/portfolio-goal', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: Number(moneyForm.amount), date: moneyForm.date || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save.');
+      const newGoal = { amount: Number(moneyForm.amount), date: moneyForm.date || null };
+      setMoneyGoal(newGoal);
+      onMoneyGoalChange(newGoal);
+      setEditingMoney(false);
+    } catch (err) { setMoneyError(err.message); }
+    finally { setSavingMoney(false); }
+  };
+  const removeMoney = async () => {
+    await fetch('/api/portfolio-goal', { method: 'DELETE' });
+    setMoneyGoal(null); onMoneyGoalChange(null); setEditingMoney(false);
+  };
+
+  // ── Metal goal handlers ──
+  const saveMetal = async (metal) => {
+    const isGold = metal === 'GOLD';
+    const form = isGold ? goldForm : silvForm;
+    const tg = Number(form.target || 0);
+    if (!tg || tg <= 0) { setMetalError('Enter a valid target weight.'); return; }
+    setSavingMetal(true);
+    try {
+      const payload = isGold
+        ? { gold_target_g: tg }
+        : { silver_target_g: tg };
+      const res = await fetch('/api/metal-goals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save.');
+      if (isGold) { setGoldTargetG(tg); setEditingGold(false); }
+      else { setSilvTargetG(tg); setEditingSilv(false); }
+      setMetalError('');
+    } catch (err) { setMetalError(err.message); }
+    finally { setSavingMetal(false); }
+  };
+  const removeMetal = async (metal) => {
+    const isGold = metal === 'GOLD';
+    await fetch('/api/metal-goals', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isGold ? { gold_target_g: null } : { silver_target_g: null }),
+    });
+    if (isGold) { setGoldTargetG(null); setEditingGold(false); }
+    else { setSilvTargetG(null); setEditingSilv(false); }
+  };
+
+  if (!loaded) return null;
+
+  // ── Progress calculations ──
+  const goldPct = goldTargetG > 0 ? Math.min(100, Math.round((totalGoldG / goldTargetG) * 100)) : 0;
+  const silvPct = silvTargetG > 0 ? Math.min(100, Math.round((totalSilvG / silvTargetG) * 100)) : 0;
+  const moneyPct = moneyGoal?.amount > 0 ? Math.min(100, Math.round((investedValue / moneyGoal.amount) * 100)) : 0;
+
+  const fmtG = (g) => { const n = Number(g || 0); return n.toFixed(n % 1 === 0 ? 0 : 3) + ' g'; };
+
+  return (
+    <div className="mb-5">
+      <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-3">Overall Goals</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Gold */}
+        <GoalCard
+          icon="🥇" label="Gold" tone="honey"
+          currentLabel={`${fmtG(totalGoldG)} accumulated`}
+          targetLabel={goldTargetG ? fmtG(goldTargetG) : '—'}
+          pct={goldPct}
+          remainingLabel={goldTargetG ? `${fmtG(Math.max(0, goldTargetG - totalGoldG))} to go` : ''}
+          hasGoal={goldTargetG != null}
+          editing={editingGold}
+          onEdit={(v) => { setEditingGold(v); if (v) { setGoldForm({ target: goldTargetG ? String(goldTargetG) : '', date: '' }); setMetalError(''); } }}
+          form={{ fields: [{ key: 'target', label: 'Target weight (grams)', placeholder: '100', step: '0.001', auto: true }], values: goldForm }}
+          onFormChange={(k, v) => setGoldForm((f) => ({ ...f, [k]: v }))}
+          saving={savingMetal} error={metalError}
+          onSave={() => saveMetal('GOLD')} onRemove={() => removeMetal('GOLD')}
+        />
+        {/* Silver */}
+        <GoalCard
+          icon="🥈" label="Silver" tone="sky"
+          currentLabel={`${fmtG(totalSilvG)} accumulated`}
+          targetLabel={silvTargetG ? fmtG(silvTargetG) : '—'}
+          pct={silvPct}
+          remainingLabel={silvTargetG ? `${fmtG(Math.max(0, silvTargetG - totalSilvG))} to go` : ''}
+          hasGoal={silvTargetG != null}
+          editing={editingSilv}
+          onEdit={(v) => { setEditingSilv(v); if (v) { setSilvForm({ target: silvTargetG ? String(silvTargetG) : '', date: '' }); setMetalError(''); } }}
+          form={{ fields: [{ key: 'target', label: 'Target weight (grams)', placeholder: '500', step: '0.001', auto: true }], values: silvForm }}
+          onFormChange={(k, v) => setSilvForm((f) => ({ ...f, [k]: v }))}
+          saving={savingMetal} error={metalError}
+          onSave={() => saveMetal('SILV')} onRemove={() => removeMetal('SILV')}
+        />
+        {/* Money */}
+        <GoalCard
+          icon="💰" label="Overall Wealth" tone="mint"
+          currentLabel={`${inrShort(currentValue)} projected · ${inrShort(investedValue)} invested`}
+          targetLabel={moneyGoal ? inrShort(moneyGoal.amount) : '—'}
+          pct={moneyPct}
+          remainingLabel={moneyGoal ? `${inrShort(Math.max(0, moneyGoal.amount - investedValue))} to go` : ''}
+          hasGoal={moneyGoal != null}
+          editing={editingMoney}
+          onEdit={(v) => { setEditingMoney(v); if (v) { setMoneyForm({ amount: moneyGoal?.amount ? String(moneyGoal.amount) : '', date: moneyGoal?.date ? String(moneyGoal.date).slice(0, 10) : '' }); setMoneyError(''); } }}
+          form={{ fields: [{ key: 'amount', label: 'Target amount (₹)', placeholder: '5000000', auto: true }], values: moneyForm }}
+          onFormChange={(k, v) => setMoneyForm((f) => ({ ...f, [k]: v }))}
+          saving={savingMoney} error={moneyError}
+          onSave={saveMoney} onRemove={removeMoney}
+        />
       </div>
     </div>
   );
@@ -369,8 +474,8 @@ export default function HomeClient({ user }) {
                 </Link>
               </div>
 
-              {/* ── Overall Wealth Goal ── */}
-              <WealthGoalCard currentValue={totalValue} investedValue={totalInvested} onGoalChange={setPortfolioGoal} />
+              {/* ── Overall Goals (Gold · Silver · Money) ── */}
+              <GoalTrioSection investments={investments} currentValue={totalValue} investedValue={totalInvested} onMoneyGoalChange={setPortfolioGoal} />
 
               {/* ── Portfolio projection chart ── */}
               <div className="mb-5">
@@ -390,18 +495,19 @@ export default function HomeClient({ user }) {
                 {investments.slice(0, 4).map((investment) => {
                   const tone = toneFor(investment.type_code);
                   const marketType = isMarketInvestment(investment.type_code);
+                  const metalType = isMetalInvestment(investment.type_code);
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <div className="flex gap-2.5 items-center min-w-0 flex-1">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
-                          <p className="text-[11px] text-ink-mute mt-0.5">{labelFor(investment)} · {marketType ? `${formatUnits(investment.total_units)} units held` : `matures ${fmtDate(investment.maturity_date)}`}</p>
+                          <p className="text-[11px] text-ink-mute mt-0.5">{labelFor(investment)} · {metalType ? `${formatUnits(investment.total_units)} g accumulated` : marketType ? `${formatUnits(investment.total_units)} units held` : `matures ${fmtDate(investment.maturity_date)}`}</p>
                         </div>
                       </div>
                       <div className="text-right ml-2 flex-shrink-0">
-                        <p className="text-xs font-medium">{inrShort(marketType ? investment.remaining_cost_basis : investment.amount)}</p>
-                        <p className={`text-[10px] mt-0.5 ${marketType ? 'text-sky-600' : 'text-mint-600'}`}>{marketType ? `${inrShort(investment.invested_amount)} invested` : `${investment.rate_pct}% p.a.`}</p>
+                        <p className="text-xs font-medium">{metalType ? `${formatUnits(investment.total_units)} g` : inrShort(marketType ? investment.remaining_cost_basis : investment.amount)}</p>
+                        <p className={`text-[10px] mt-0.5 ${metalType ? 'text-honey-600' : marketType ? 'text-sky-600' : 'text-mint-600'}`}>{metalType ? `${inrShort(investment.remaining_cost_basis || 0)} cost` : marketType ? `${inrShort(investment.invested_amount)} invested` : `${investment.rate_pct}% p.a.`}</p>
                       </div>
                     </Link>
                   );

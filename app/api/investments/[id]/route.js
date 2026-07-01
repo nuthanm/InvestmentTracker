@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
-import { isMarketInvestment } from '@/lib/investments';
+import { isMarketInvestment, isMetalInvestment, isTransactionBased } from '@/lib/investments';
 
 function parseDateInput(value, fallback) {
   const dt = value ? new Date(value) : fallback ? new Date(fallback) : new Date();
@@ -47,7 +47,9 @@ export async function PATCH(req, { params }) {
     const current = currentRows[0];
     const body = await req.json();
     const marketInvestment = isMarketInvestment(body.type_code);
-    const required = marketInvestment
+    const metalInvestment = isMetalInvestment(body.type_code);
+    const transactionBasedInvestment = marketInvestment || metalInvestment;
+    const required = transactionBasedInvestment
       ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
       : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
@@ -75,7 +77,7 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
     }
 
-    if (marketInvestment) {
+    if (transactionBasedInvestment) {
       const rows = await sql`
         UPDATE investments
         SET

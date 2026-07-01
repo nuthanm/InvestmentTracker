@@ -7,9 +7,11 @@ import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
 import {
   MARKET_TRANSACTION_TYPES,
+  METAL_TRANSACTION_TYPES,
   computeTransactionNetAmount,
   getTransactionTypeLabel,
   isMarketInvestment,
+  isMetalInvestment,
 } from '@/lib/investments';
 
 function buildSchedule(investment) {
@@ -77,6 +79,8 @@ export default function DetailClient({
   const [manualPaidDate, setManualPaidDate] = useState({});
 
   const marketType = isMarketInvestment(i.type_code);
+  const metalType = isMetalInvestment(i.type_code);
+  const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
   const [summary, setSummary] = useState(marketSummary);
   const [transactionError, setTransactionError] = useState(marketWarning);
@@ -93,7 +97,7 @@ export default function DetailClient({
   });
 
   const freq = i.payment_frequency || 'lump_sum';
-  const isRecurring = !marketType && (freq === 'monthly' || freq === 'yearly');
+  const isRecurring = !isTransactionType && (freq === 'monthly' || freq === 'yearly');
 
   const onDelete = async () => {
     setDeleteError('');
@@ -261,6 +265,12 @@ export default function DetailClient({
               <p className="text-sm text-ink-soft mt-1">{formatUnits(currentSummary.total_units)} units held{currentSummary.is_closed && ' · position closed'}</p>
               <p className="text-sm text-ink-soft mt-1">Invested <span className="font-medium text-ink">{inr(currentSummary.invested_amount || 0)}</span> · Redeemed <span className="font-medium text-ink">{inr(currentSummary.redeemed_amount || 0)}</span></p>
             </>
+          ) : metalType ? (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{formatUnits(currentSummary.total_units)} g</p>
+              <p className="text-sm text-ink-soft mt-1">Total cost basis <span className="font-medium text-ink">{inr(currentSummary.remaining_cost_basis || 0)}</span></p>
+              <p className="text-sm text-ink-soft mt-1">Avg purchase price <span className="font-medium text-honey-600">{inr(currentSummary.average_buy_price || 0)} / g</span></p>
+            </>
           ) : isRecurring ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span></p>
@@ -292,10 +302,10 @@ export default function DetailClient({
         </div>
 
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">
-          <Row label="Bank / platform" value={i.bank} />
-          <Row label="Plan" value={i.plan_name} />
-          {!marketType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
-          {!marketType && isRecurring && (
+          <Row label={metalType ? 'Store / source' : 'Bank / platform'} value={i.bank} />
+          <Row label={metalType ? 'Item description' : 'Plan'} value={i.plan_name} />
+          {!isTransactionType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
+          {!isTransactionType && isRecurring && (
             <Row
               label="Total invested"
               value={paymentsLoaded
@@ -304,65 +314,80 @@ export default function DetailClient({
               }
             />
           )}
-          {!marketType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
-          {!marketType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
-          {!marketType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
-          {!marketType && <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />}
+          {!isTransactionType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
+          {!isTransactionType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
+          {!isTransactionType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
+          {!isTransactionType && <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />}
           {marketType && <Row label="Units held" value={formatUnits(currentSummary.total_units)} />}
           {marketType && <Row label="Average buy price" value={inr(currentSummary.average_buy_price || 0)} />}
           {marketType && <Row label="Invested amount" value={inr(currentSummary.invested_amount || 0)} />}
           {marketType && <Row label="Redeemed amount" value={inr(currentSummary.redeemed_amount || 0)} />}
           {marketType && <Row label="Realized gain / loss" value={<span className={Number(currentSummary.realized_gain_loss || 0) >= 0 ? 'text-mint-600' : 'text-danger'}>{inr(currentSummary.realized_gain_loss || 0)}</span>} />}
           {marketType && <Row label="Remaining cost basis" value={inr(currentSummary.remaining_cost_basis || 0)} />}
+          {metalType && <Row label="Weight held" value={`${formatUnits(currentSummary.total_units)} g`} />}
+          {metalType && <Row label="Avg purchase price" value={`${inr(currentSummary.average_buy_price || 0)} / g`} />}
+          {metalType && <Row label="Total cost (incl. charges)" value={inr(currentSummary.remaining_cost_basis || 0)} />}
           <Row label="Started" value={fmtDate(i.start_date)} />
           <Row label="Goal" value={i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : '—'} />
           <Row label="Nominee" value={i.nominee} />
           <Row label="Account holder" value={i.account_holder || 'Self'} />
-          {!marketType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
-          {marketType && <Row label="Position" value={currentSummary.is_closed ? 'Closed' : 'Active'} />}
+          {!isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
+          {isTransactionType && !metalType && <Row label="Position" value={currentSummary.is_closed ? 'Closed' : 'Active'} />}
         </div>
 
-        {marketType && (
+        {isTransactionType && (
           <section className="mb-5 space-y-4">
-            <div>
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Transaction summary</p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                <SummaryCard label="Units held" value={formatUnits(currentSummary.total_units)} />
-                <SummaryCard label="Avg cost" value={inr(currentSummary.average_buy_price || 0)} />
-                <SummaryCard label="Realized P/L" value={inr(currentSummary.realized_gain_loss || 0)} tone={Number(currentSummary.realized_gain_loss || 0) >= 0 ? 'text-mint-600' : 'text-danger'} />
-                <SummaryCard label="Invested" value={inr(currentSummary.invested_amount || 0)} />
-                <SummaryCard label="Redeemed" value={inr(currentSummary.redeemed_amount || 0)} />
-                <SummaryCard label="Dividends" value={inr(currentSummary.dividend_amount || 0)} />
+            {marketType && (
+              <div>
+                <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Transaction summary</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <SummaryCard label="Units held" value={formatUnits(currentSummary.total_units)} />
+                  <SummaryCard label="Avg cost" value={inr(currentSummary.average_buy_price || 0)} />
+                  <SummaryCard label="Realized P/L" value={inr(currentSummary.realized_gain_loss || 0)} tone={Number(currentSummary.realized_gain_loss || 0) >= 0 ? 'text-mint-600' : 'text-danger'} />
+                  <SummaryCard label="Invested" value={inr(currentSummary.invested_amount || 0)} />
+                  <SummaryCard label="Redeemed" value={inr(currentSummary.redeemed_amount || 0)} />
+                  <SummaryCard label="Dividends" value={inr(currentSummary.dividend_amount || 0)} />
+                </div>
               </div>
-            </div>
+            )}
+            {metalType && (
+              <div>
+                <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Metal summary</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                  <SummaryCard label="Weight held" value={`${formatUnits(currentSummary.total_units)} g`} />
+                  <SummaryCard label="Avg price / g" value={inr(currentSummary.average_buy_price || 0)} />
+                  <SummaryCard label="Total cost" value={inr(currentSummary.remaining_cost_basis || 0)} />
+                </div>
+              </div>
+            )}
 
             <div className="bg-paper-card border border-edge rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium">Add transaction</p>
-                <span className="text-[11px] text-ink-soft">Buy, redeem, switch, dividend</span>
+                <p className="text-sm font-medium">{metalType ? 'Add purchase / sale' : 'Add transaction'}</p>
+                <span className="text-[11px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>
               </div>
               {transactionError && <p className="text-[11px] text-danger mb-3">{transactionError}</p>}
               <form onSubmit={submitTransaction} className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-ink-soft mb-1.5">Transaction type</label>
                   <select value={txForm.transaction_type} onChange={(e) => setTxForm((prev) => ({ ...prev, transaction_type: e.target.value }))} className="field-input">
-                    {MARKET_TRANSACTION_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    {(metalType ? METAL_TRANSACTION_TYPES : MARKET_TRANSACTION_TYPES).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-ink-soft mb-1.5">Trade date</label>
+                  <label className="block text-xs text-ink-soft mb-1.5">{metalType ? 'Date of purchase' : 'Trade date'}</label>
                   <input type="date" value={txForm.trade_date} onChange={(e) => setTxForm((prev) => ({ ...prev, trade_date: e.target.value }))} className="field-input" />
                 </div>
                 {(showUnitsAndPrice || showUnitOnly) && (
                   <div>
-                    <label className="block text-xs text-ink-soft mb-1.5">Units</label>
-                    <input type="number" step="0.000001" value={txForm.units} onChange={(e) => setTxForm((prev) => ({ ...prev, units: e.target.value }))} className="field-input" />
+                    <label className="block text-xs text-ink-soft mb-1.5">{metalType ? 'Weight (grams)' : 'Units'}</label>
+                    <input type="number" step={metalType ? '0.001' : '0.000001'} value={txForm.units} onChange={(e) => setTxForm((prev) => ({ ...prev, units: e.target.value }))} className="field-input" />
                   </div>
                 )}
                 {showUnitsAndPrice && (
                   <div>
-                    <label className="block text-xs text-ink-soft mb-1.5">Price / NAV per unit (₹)</label>
-                    <input type="number" step="0.0001" value={txForm.price_per_unit} onChange={(e) => setTxForm((prev) => ({ ...prev, price_per_unit: e.target.value }))} className="field-input" />
+                    <label className="block text-xs text-ink-soft mb-1.5">{metalType ? 'Price per gram (₹)' : 'Price / NAV per unit (₹)'}</label>
+                    <input type="number" step="0.01" value={txForm.price_per_unit} onChange={(e) => setTxForm((prev) => ({ ...prev, price_per_unit: e.target.value }))} className="field-input" />
                   </div>
                 )}
                 {showCashAmount && (
@@ -374,13 +399,15 @@ export default function DetailClient({
                 {!showUnitOnly && (
                   <>
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Charges (₹)</label>
+                      <label className="block text-xs text-ink-soft mb-1.5">{metalType ? 'Making charges + GST (₹)' : 'Charges (₹)'}</label>
                       <input type="number" step="0.01" value={txForm.charges} onChange={(e) => setTxForm((prev) => ({ ...prev, charges: e.target.value }))} className="field-input" />
                     </div>
-                    <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Taxes (₹)</label>
-                      <input type="number" step="0.01" value={txForm.taxes} onChange={(e) => setTxForm((prev) => ({ ...prev, taxes: e.target.value }))} className="field-input" />
-                    </div>
+                    {!metalType && (
+                      <div>
+                        <label className="block text-xs text-ink-soft mb-1.5">Taxes (₹)</label>
+                        <input type="number" step="0.01" value={txForm.taxes} onChange={(e) => setTxForm((prev) => ({ ...prev, taxes: e.target.value }))} className="field-input" />
+                      </div>
+                    )}
                   </>
                 )}
                 <div className="md:col-span-2">
@@ -400,13 +427,13 @@ export default function DetailClient({
               </div>
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                 {transactions.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-ink-soft text-center">No transactions yet. Add your first buy or SIP above.</div>
+                  <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? 'No purchases yet. Record your first purchase above.' : 'No transactions yet. Add your first buy or SIP above.'}</div>
                 ) : transactions.map((tx, idx) => (
                   <div key={tx.id} className={`px-4 py-3 ${idx > 0 ? 'border-t border-edge' : ''}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium">{getTransactionTypeLabel(tx.transaction_type)}</p>
-                        <p className="text-[11px] text-ink-mute mt-0.5">{fmtDate(tx.trade_date)}{Number(tx.units || 0) > 0 && <> · {formatUnits(tx.units)} units</>}{Number(tx.price_per_unit || 0) > 0 && <> · {inr(tx.price_per_unit)} / unit</>}</p>
+                        <p className="text-[11px] text-ink-mute mt-0.5">{fmtDate(tx.trade_date)}{Number(tx.units || 0) > 0 && <> · {formatUnits(tx.units)} {metalType ? 'g' : 'units'}</>}{Number(tx.price_per_unit || 0) > 0 && <> · {inr(tx.price_per_unit)} {metalType ? '/ g' : '/ unit'}</>}</p>
                         {tx.notes && <p className="text-[11px] text-ink-soft mt-1">{tx.notes}</p>}
                       </div>
                       <div className="text-right">

@@ -2,7 +2,7 @@ import { redirect, notFound } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import DetailClient from './DetailClient';
-import { isMarketInvestment, summarizeMarketTransactions } from '@/lib/investments';
+import { isMarketInvestment, isMetalInvestment, summarizeMarketTransactions } from '@/lib/investments';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -31,7 +31,7 @@ export default async function InvestmentDetailPage({ params }) {
   let marketSummary = null;
   let marketWarning = '';
 
-  if (isMarketInvestment(rows[0].type_code)) {
+  if (isMarketInvestment(rows[0].type_code) || isMetalInvestment(rows[0].type_code)) {
     try {
       marketTransactions = await sql`
         SELECT id, investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at
