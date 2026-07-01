@@ -41,8 +41,19 @@ export async function PUT(req) {
 
   try {
     const body = await req.json();
-    const goldG = body.gold_target_g != null ? Number(body.gold_target_g) : null;
-    const silvG = body.silver_target_g != null ? Number(body.silver_target_g) : null;
+    const hasGold = Object.prototype.hasOwnProperty.call(body, 'gold_target_g');
+    const hasSilver = Object.prototype.hasOwnProperty.call(body, 'silver_target_g');
+
+    if (!hasGold && !hasSilver) {
+      return NextResponse.json({ error: 'Send at least one goal field to update.' }, { status: 400 });
+    }
+
+    const goldG = hasGold
+      ? (body.gold_target_g != null ? Number(body.gold_target_g) : null)
+      : null;
+    const silvG = hasSilver
+      ? (body.silver_target_g != null ? Number(body.silver_target_g) : null)
+      : null;
 
     if (goldG !== null && goldG < 0) {
       return NextResponse.json({ error: 'Gold target must be positive.' }, { status: 400 });
@@ -55,8 +66,8 @@ export async function PUT(req) {
       INSERT INTO user_settings (user_id, gold_target_g, silver_target_g, updated_at)
       VALUES (${me.id}, ${goldG}, ${silvG}, now())
       ON CONFLICT (user_id) DO UPDATE
-        SET gold_target_g   = EXCLUDED.gold_target_g,
-            silver_target_g = EXCLUDED.silver_target_g,
+      SET gold_target_g   = CASE WHEN ${hasGold} THEN EXCLUDED.gold_target_g ELSE user_settings.gold_target_g END,
+          silver_target_g = CASE WHEN ${hasSilver} THEN EXCLUDED.silver_target_g ELSE user_settings.silver_target_g END,
             updated_at      = now()
     `;
     return NextResponse.json({ ok: true });
