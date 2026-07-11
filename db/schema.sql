@@ -109,6 +109,13 @@ CREATE TABLE IF NOT EXISTS investments (
   nominee TEXT NOT NULL,
   auto_renew BOOLEAN DEFAULT FALSE,
   account_holder TEXT DEFAULT 'Self',    -- who owns this investment (e.g. Self, Wife, Father)
+  lifecycle_status TEXT NOT NULL DEFAULT 'active', -- active | matured | closed | premature_withdrawal
+  closure_date DATE,
+  closure_amount NUMERIC(14,2),
+  applied_rate_pct NUMERIC(6,3),
+  penalty_pct NUMERIC(6,3),
+  penalty_amount NUMERIC(14,2),
+  closure_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

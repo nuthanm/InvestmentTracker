@@ -20,6 +20,14 @@ import {
   schemeNeedsTracking,
   validateSchemeTracking,
 } from '@/lib/metal-pricing';
+import {
+  LIFECYCLE_STATUS_OPTIONS,
+  LIFECYCLE_STATUSES,
+  computePrematureClosurePreview,
+  getLifecycleLabel,
+  isClosedLifecycleStatus,
+  isPrematureWithdrawalStatus,
+} from '@/lib/investment-lifecycle';
 
 function buildSchedule(investment) {
   const freq = investment.payment_frequency;
@@ -125,6 +133,14 @@ export default function DetailClient({
   const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
   const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
   const [prematurePenaltyPct, setPrematurePenaltyPct] = useState('0');
+  const [lifecycleStatus, setLifecycleStatus] = useState(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE);
+  const [closureDate, setClosureDate] = useState(i.closure_date?.slice?.(0, 10) || new Date().toISOString().slice(0, 10));
+  const [closureAmount, setClosureAmount] = useState(i.closure_amount != null ? String(i.closure_amount) : '');
+  const [appliedRatePct, setAppliedRatePct] = useState(i.applied_rate_pct != null ? String(i.applied_rate_pct) : String(i.rate_pct || ''));
+  const [lifecyclePenaltyPct, setLifecyclePenaltyPct] = useState(i.penalty_pct != null ? String(i.penalty_pct) : '0');
+  const [closureNotes, setClosureNotes] = useState(i.closure_notes || '');
+  const [closureError, setClosureError] = useState('');
+  const [savingClosure, setSavingClosure] = useState(false);
 
   const freq = i.payment_frequency || 'lump_sum';
   const isRecurring = !isTransactionType && (freq === 'monthly' || freq === 'yearly');
@@ -355,6 +371,75 @@ export default function DetailClient({
     return schedule.filter((s) => new Date(s.due_date) <= today).length;
   })();
 
+  const currentSummary = summary || {
+    total_units: 0,
+    invested_amount: 0,
+    redeemed_amount: 0,
+    dividend_amount: 0,
+    realized_gain_loss: 0,
+    remaining_cost_basis: 0,
+    average_buy_price: 0,
+    current_value: 0,
+    is_closed: false,
+  };
+
+  const investedOverride = isRecurring && paymentsLoaded ? totalPaid : undefined;
+
+  const closurePreview = useMemo(() => {
+    if (lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE) return null;
+    return computePrematureClosurePreview(i, {
+      closureDate,
+      appliedRatePct: isTransactionType ? undefined : Number(appliedRatePct || i.rate_pct || 0),
+      penaltyPct: Number(lifecyclePenaltyPct || 0),
+      investedOverride,
+    }, currentSummary);
+  }, [
+    appliedRatePct,
+    closureDate,
+    currentSummary,
+    i,
+    investedOverride,
+    isTransactionType,
+    lifecyclePenaltyPct,
+    lifecycleStatus,
+  ]);
+
+  useEffect(() => {
+    if (lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE) return;
+    if (closureAmount.trim() !== '') return;
+    if (closurePreview?.closureValue != null) {
+      setClosureAmount(String(closurePreview.closureValue));
+    }
+  }, [closureAmount, closurePreview, lifecycleStatus]);
+
+  const saveClosure = async (e) => {
+    e.preventDefault();
+    setClosureError('');
+    setSavingClosure(true);
+    try {
+      const res = await fetch(`/api/investments/${i.id}/closure`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lifecycle_status: lifecycleStatus,
+          closure_date: lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : closureDate,
+          closure_amount: lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : Number(closureAmount || closurePreview?.closureValue || 0),
+          applied_rate_pct: isTransactionType ? null : Number(appliedRatePct || i.rate_pct || 0),
+          penalty_pct: Number(lifecyclePenaltyPct || 0),
+          closure_notes: closureNotes,
+          invested_override: investedOverride,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save closure details.');
+      router.refresh();
+    } catch (err) {
+      setClosureError(err.message || 'Could not save closure details.');
+    } finally {
+      setSavingClosure(false);
+    }
+  };
+
   const selectedType = txForm.transaction_type;
   const showUnitsAndPrice = !['dividend', 'bonus', 'split'].includes(selectedType);
   const showCashAmount = selectedType === 'dividend';
@@ -431,24 +516,14 @@ export default function DetailClient({
     setGstTotalValue(metalPricing.totalGst.toFixed(2));
   }, [autoCalcCharges, metalBuyType, metalPricing, purchaseMode]);
 
-  const currentSummary = summary || {
-    total_units: 0,
-    invested_amount: 0,
-    redeemed_amount: 0,
-    dividend_amount: 0,
-    realized_gain_loss: 0,
-    remaining_cost_basis: 0,
-    average_buy_price: 0,
-    current_value: 0,
-    is_closed: false,
-  };
+  const lifecycleClosed = isClosedLifecycleStatus(i.lifecycle_status);
 
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full">
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Back</button>
 
-        {!marketType && (maturityMatured || maturityUrgent || maturityWarning) && (
+        {!lifecycleClosed && !marketType && (maturityMatured || maturityUrgent || maturityWarning) && (
           <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityMatured ? 'bg-mint-50 border border-mint-600/30' : maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
             <span className="text-xl leading-none">{maturityMatured ? '✅' : maturityUrgent ? '🔔' : '📅'}</span>
             <div>
@@ -457,6 +532,22 @@ export default function DetailClient({
               </p>
               <p className="text-[11px] text-ink-soft mt-0.5">
                 {maturityMatured ? 'This investment reached maturity. You can mark closure or plan reinvestment.' : maturityUrgent ? 'This investment is about to mature. Plan your next steps — renew, withdraw, or reinvest.' : 'This investment is maturing soon. Consider your renewal or withdrawal options.'}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {lifecycleClosed && (
+          <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${isPrematureWithdrawalStatus(i.lifecycle_status) ? 'bg-danger-soft border border-danger/30' : 'bg-mint-50 border border-mint-600/30'}`}>
+            <span className="text-xl leading-none">{isPrematureWithdrawalStatus(i.lifecycle_status) ? '⚠️' : '✅'}</span>
+            <div>
+              <p className={`text-sm font-medium ${isPrematureWithdrawalStatus(i.lifecycle_status) ? 'text-danger' : 'text-mint-700'}`}>
+                {getLifecycleLabel(i.lifecycle_status)}{i.closure_date ? ` · ${fmtDate(i.closure_date)}` : ''}
+              </p>
+              <p className="text-[11px] text-ink-soft mt-0.5">
+                {i.closure_amount != null
+                  ? <>Received <span className="font-medium text-ink">{inr(i.closure_amount)}</span>{i.penalty_amount ? <> · penalty {inr(i.penalty_amount)}</> : null}</>
+                  : 'Closure recorded. Add the received amount below if needed.'}
               </p>
             </div>
           </div>
@@ -538,7 +629,85 @@ export default function DetailClient({
           <Row label="Account holder" value={i.account_holder || 'Self'} />
           {!isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
           {isTransactionType && !metalType && <Row label="Position" value={currentSummary.is_closed ? 'Closed' : 'Active'} />}
+          <Row label="Lifecycle" value={getLifecycleLabel(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE)} />
         </div>
+
+        <section className="mb-5 bg-paper-card border border-edge rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-medium">Closure & premature withdrawal</p>
+              <p className="text-[11px] text-ink-soft mt-0.5">Applies to FD, RD, PPF, mutual funds, gold schemes, and other plans.</p>
+            </div>
+          </div>
+          {closureError && <p className="text-[11px] text-danger mb-3">{closureError}</p>}
+          <form onSubmit={saveClosure} className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-ink-soft mb-1.5">Status</label>
+              <select value={lifecycleStatus} onChange={(e) => setLifecycleStatus(e.target.value)} className="field-input">
+                {LIFECYCLE_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            {lifecycleStatus !== LIFECYCLE_STATUSES.ACTIVE && (
+              <>
+                <div>
+                  <label className="block text-xs text-ink-soft mb-1.5">Closure date</label>
+                  <input type="date" value={closureDate} onChange={(e) => setClosureDate(e.target.value)} className="field-input" />
+                </div>
+                {!isTransactionType && (
+                  <>
+                    <div>
+                      <label className="block text-xs text-ink-soft mb-1.5">Applied rate on exit (% p.a.)</label>
+                      <input type="number" step="0.01" value={appliedRatePct} onChange={(e) => setAppliedRatePct(e.target.value)} className="field-input" />
+                      <p className="text-[10px] text-ink-mute mt-1">Banks often pay a lower card rate on premature FD/RD closure.</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-soft mb-1.5">Penalty on interest (%)</label>
+                      <input type="number" min="0" step="0.01" value={lifecyclePenaltyPct} onChange={(e) => setLifecyclePenaltyPct(e.target.value)} className="field-input" />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="block text-xs text-ink-soft mb-1.5">Amount received (₹)</label>
+                  <input type="number" min="0" step="0.01" value={closureAmount} onChange={(e) => setClosureAmount(e.target.value)} className="field-input" placeholder={closurePreview?.closureValue != null ? String(closurePreview.closureValue) : '0'} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[10px] text-ink-mute">optional</span></label>
+                  <textarea rows="2" value={closureNotes} onChange={(e) => setClosureNotes(e.target.value)} className="field-input" placeholder="Penalty terms, reference number, reinvestment plan…" />
+                </div>
+                {closurePreview && (
+                  <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-3 text-sm space-y-1.5">
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase">Estimated settlement</p>
+                    {closurePreview.kind === 'rate_based' ? (
+                      <>
+                        <div className="flex justify-between"><span className="text-ink-soft">Principal invested until closure</span><span className="font-medium">{inr(closurePreview.investedPrincipal)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Interest at {closurePreview.appliedRatePct}% p.a.</span><span className="font-medium text-mint-600">{inr(closurePreview.interestEarned)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Penalty</span><span className="font-medium text-danger">- {inr(closurePreview.penaltyAmount)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Estimated payout</span><span className="font-medium">{inr(closurePreview.closureValue)}</span></div>
+                        <div className="flex justify-between pt-1 border-t border-edge"><span className="text-ink-soft">Benefit forfeited vs maturity</span><span className="font-medium text-danger">{inr(closurePreview.benefitForfeited)}</span></div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between"><span className="text-ink-soft">Total invested</span><span className="font-medium">{inr(closurePreview.investedPrincipal)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Redeemed / received</span><span className="font-medium">{inr(closurePreview.closureValue)}</span></div>
+                        {closurePreview.realizedGainLoss != null && (
+                          <div className="flex justify-between"><span className="text-ink-soft">Realized gain / loss</span><span className={`font-medium ${Number(closurePreview.realizedGainLoss) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{inr(closurePreview.realizedGainLoss)}</span></div>
+                        )}
+                        {isTransactionType && !closurePreview.isFullyRedeemed && isPrematureWithdrawalStatus(lifecycleStatus) && (
+                          <p className="text-[11px] text-honey-700 pt-1">Redeem or sell all units before saving premature withdrawal for market holdings.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+            <div className="md:col-span-2 flex justify-end">
+              <button type="submit" disabled={savingClosure} className="btn-primary py-2 px-4 rounded-lg text-sm font-medium">{savingClosure ? 'Saving…' : 'Save closure details'}</button>
+            </div>
+          </form>
+        </section>
 
         {isTransactionType && (
           <section className="mb-5 space-y-4">

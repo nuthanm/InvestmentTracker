@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { isClosedLifecycleStatus, isPrematureWithdrawalStatus } from '@/lib/investment-lifecycle';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -39,16 +40,20 @@ export default function InvestmentsClient({ user }) {
   const types = Array.from(new Set(investments.map((investment) => investment.type_code)));
 
   const nearMaturityCount = investments.filter((investment) => {
+    if (isClosedLifecycleStatus(investment.lifecycle_status)) return false;
     if (isMarketInvestment(investment.type_code)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d >= 0 && d <= 90;
   }).length;
 
   const maturedCount = investments.filter((investment) => {
+    if (isClosedLifecycleStatus(investment.lifecycle_status)) return false;
     if (isMarketInvestment(investment.type_code)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d <= 0;
   }).length;
+
+  const prematureCount = investments.filter((investment) => isPrematureWithdrawalStatus(investment.lifecycle_status)).length;
 
   return (
     <Shell user={user}>
@@ -60,6 +65,13 @@ export default function InvestmentsClient({ user }) {
           </div>
           <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>
         </div>
+
+        {!loading && prematureCount > 0 && (
+          <div className="flex items-start gap-3 bg-danger-soft border border-danger/30 rounded-xl p-3.5 mb-4">
+            <span className="text-xl leading-none">⚠️</span>
+            <p className="text-sm text-danger"><span className="font-medium">{prematureCount} investment{prematureCount > 1 ? 's were' : ' was'} prematurely withdrawn.</span> Review closure amounts and update records if needed.</p>
+          </div>
+        )}
 
         {!loading && nearMaturityCount > 0 && (
           <div className="flex items-start gap-3 bg-honey-50 border border-honey-600/30 rounded-xl p-3.5 mb-4">
@@ -100,11 +112,12 @@ export default function InvestmentsClient({ user }) {
               const metalType = isMetalInvestment(investment.type_code);
               const suffix = frequencySuffix(investment.payment_frequency);
               const days = daysUntilMaturity(investment.maturity_date);
-              const isMatured = !marketType && days !== null && days <= 0;
-              const isUrgent = !marketType && days !== null && days >= 0 && days <= 30;
-              const isWarning = !marketType && days !== null && days >= 0 && days <= 90 && !isUrgent;
+              const isMatured = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
+              const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
+              const isWarning = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
+              const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
               return (
-                <Link key={investment.id} href={`/investments/${investment.id}`} className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
+                <Link key={investment.id} href={`/investments/${investment.id}`} className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isPremature ? 'bg-danger-soft/30' : isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{investment.bank} · {investment.plan_name}</p>
@@ -114,16 +127,24 @@ export default function InvestmentsClient({ user }) {
                         <>
                           {' '}· {formatUnits(investment.total_units)} units
                           {investment.is_closed && <> · closed</>}
+                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+                          {investment.lifecycle_status === 'closed' && <> · closed</>}
+                          {investment.lifecycle_status === 'matured' && <> · matured</>}
                         </>
                       ) : metalType ? (
                         <>
                           {' '}· {formatUnits(investment.total_units)} g held
+                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+                          {investment.lifecycle_status === 'closed' && <> · closed</>}
                           {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
                         </>
                       ) : (
                         <>
                           {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
                           {investment.maturity_date && <> · matures {fmtDate(investment.maturity_date)}</>}
+                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+                          {investment.lifecycle_status === 'closed' && <> · closed</>}
+                          {investment.lifecycle_status === 'matured' && <> · matured</>}
                           {investment.auto_renew && <> · auto-renew</>}
                         </>
                       )}

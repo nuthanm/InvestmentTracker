@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { isClosedLifecycleStatus } from '@/lib/investment-lifecycle';
 import PortfolioChart from './PortfolioChart';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
@@ -82,7 +83,7 @@ function buildUpcomingEvents(investments) {
   const events = [];
 
   for (const inv of investments) {
-    if (isMarketInvestment(inv.type_code)) continue;
+    if (isMarketInvestment(inv.type_code) || isClosedLifecycleStatus(inv.lifecycle_status)) continue;
 
     const typeLabel = labelFor(inv);
     const shortType = TYPE_META[inv.type_code]?.short || 'OT';
@@ -405,6 +406,7 @@ export default function HomeClient({ user }) {
   const totalInvested = investments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
 
   const maturingSoon = investments.filter((inv) => {
+    if (isClosedLifecycleStatus(inv.lifecycle_status)) return false;
     if (isMarketInvestment(inv.type_code) || !inv.maturity_date) return false;
     const days = (new Date(inv.maturity_date) - new Date()) / (1000 * 60 * 60 * 24);
     return days > 0 && days <= 30;
