@@ -5,7 +5,14 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
-import { isClosedLifecycleStatus, isPrematureWithdrawalStatus } from '@/lib/investment-lifecycle';
+import {
+  getLifecycleLabel,
+  isActiveInvestment,
+  isClosedInvestment,
+  isClosedLifecycleStatus,
+  isPrematureWithdrawalStatus,
+  resolveLifecycleStatus,
+} from '@/lib/investment-lifecycle';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -27,6 +34,15 @@ export default function InvestmentsClient({ user }) {
   const [investments, setInvestments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
+  const [lifecycleFilter, setLifecycleFilter] = useState('active');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get('view');
+    if (view === 'closed' || view === 'all' || view === 'active') {
+      setLifecycleFilter(view);
+    }
+  }, []);
 
   useEffect(() => {
     fetch('/api/investments').then((r) => r.json()).then((d) => {
@@ -35,25 +51,37 @@ export default function InvestmentsClient({ user }) {
     });
   }, []);
 
-  const filtered = filter === 'ALL' ? investments : investments.filter((investment) => investment.type_code === filter);
-  const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
-  const types = Array.from(new Set(investments.map((investment) => investment.type_code)));
+  const activeInvestments = investments.filter(isActiveInvestment);
+  const closedInvestments = investments.filter(isClosedInvestment);
 
-  const nearMaturityCount = investments.filter((investment) => {
-    if (isClosedLifecycleStatus(investment.lifecycle_status)) return false;
+  const lifecycleScoped = lifecycleFilter === 'active'
+    ? activeInvestments
+    : lifecycleFilter === 'closed'
+      ? closedInvestments
+      : investments;
+
+  const filtered = filter === 'ALL'
+    ? lifecycleScoped
+    : lifecycleScoped.filter((investment) => investment.type_code === filter);
+  const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
+  const types = Array.from(new Set(lifecycleScoped.map((investment) => investment.type_code)));
+
+  const nearMaturityCount = activeInvestments.filter((investment) => {
     if (isMarketInvestment(investment.type_code)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d >= 0 && d <= 90;
   }).length;
 
-  const maturedCount = investments.filter((investment) => {
-    if (isClosedLifecycleStatus(investment.lifecycle_status)) return false;
+  const maturedCount = activeInvestments.filter((investment) => {
     if (isMarketInvestment(investment.type_code)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d <= 0;
   }).length;
 
-  const prematureCount = investments.filter((investment) => isPrematureWithdrawalStatus(investment.lifecycle_status)).length;
+  const prematureCount = closedInvestments.filter((investment) => isPrematureWithdrawalStatus(investment.lifecycle_status)).length;
+  const closedCount = closedInvestments.length;
+
+  const lifecycleLabel = lifecycleFilter === 'active' ? 'Active' : lifecycleFilter === 'closed' ? 'Closed' : 'All';
 
   return (
     <Shell user={user}>
@@ -61,26 +89,48 @@ export default function InvestmentsClient({ user }) {
         <div className="flex items-start justify-between mb-4 gap-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
-            <p className="text-sm text-ink-soft mt-1">{filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · {inr(total)} total invested</p>
+            <p className="text-sm text-ink-soft mt-1">{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · {inr(total)} invested</p>
           </div>
           <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>
         </div>
 
-        {!loading && prematureCount > 0 && (
+        {!loading && investments.length > 0 && (
+          <div className="flex gap-2 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+            <button onClick={() => setLifecycleFilter('active')} className={`chip whitespace-nowrap ${lifecycleFilter === 'active' ? 'on' : ''}`}>Active ({activeInvestments.length})</button>
+            <button onClick={() => setLifecycleFilter('closed')} className={`chip whitespace-nowrap ${lifecycleFilter === 'closed' ? 'on' : ''}`}>Closed ({closedCount})</button>
+            <button onClick={() => setLifecycleFilter('all')} className={`chip whitespace-nowrap ${lifecycleFilter === 'all' ? 'on' : ''}`}>All ({investments.length})</button>
+          </div>
+        )}
+
+        {!loading && lifecycleFilter === 'active' && closedCount > 0 && (
+          <div className="flex items-start gap-3 bg-paper-tint border border-edge rounded-xl p-3.5 mb-4">
+            <span className="text-xl leading-none">📁</span>
+            <p className="text-sm text-ink-soft"><span className="font-medium text-ink">{closedCount} closed plan{closedCount > 1 ? 's' : ''}</span> — premature, matured, or redeemed. <button type="button" onClick={() => setLifecycleFilter('closed')} className="text-sky-600 hover:underline">View closed</button></p>
+          </div>
+        )}
+
+        {!loading && lifecycleFilter === 'closed' && closedCount === 0 && (
+          <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-2xl">
+            <p className="text-sm font-medium">No closed investments yet</p>
+            <p className="text-sm text-ink-soft mt-1">Premature, matured, or redeemed plans will appear here.</p>
+          </div>
+        )}
+
+        {!loading && prematureCount > 0 && lifecycleFilter !== 'active' && (
           <div className="flex items-start gap-3 bg-danger-soft border border-danger/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">⚠️</span>
             <p className="text-sm text-danger"><span className="font-medium">{prematureCount} investment{prematureCount > 1 ? 's were' : ' was'} prematurely withdrawn.</span> Review closure amounts and update records if needed.</p>
           </div>
         )}
 
-        {!loading && nearMaturityCount > 0 && (
+        {!loading && nearMaturityCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-honey-50 border border-honey-600/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">📅</span>
             <p className="text-sm text-honey-600"><span className="font-medium">{nearMaturityCount} investment{nearMaturityCount > 1 ? 's' : ''} maturing within 90 days.</span> Tap to review and decide: renew, withdraw, or reinvest.</p>
           </div>
         )}
 
-        {!loading && maturedCount > 0 && (
+        {!loading && maturedCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-mint-50 border border-mint-600/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">✅</span>
             <p className="text-sm text-mint-700"><span className="font-medium">{maturedCount} investment{maturedCount > 1 ? 's are' : ' is'} matured.</span> Review closure, withdrawal, or reinvestment action.</p>
@@ -116,12 +166,15 @@ export default function InvestmentsClient({ user }) {
               const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
               const isWarning = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
               const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
+              const isClosedPlan = isClosedInvestment(investment);
+              const lifecycleLabelText = getLifecycleLabel(resolveLifecycleStatus(investment));
               return (
-                <Link key={investment.id} href={`/investments/${investment.id}`} className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isPremature ? 'bg-danger-soft/30' : isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
+                <Link key={investment.id} href={`/investments/${investment.id}`} className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isClosedPlan ? 'bg-paper-tint/80 opacity-90' : isPremature ? 'bg-danger-soft/30' : isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{investment.bank} · {investment.plan_name}</p>
                     <p className="text-[11px] text-ink-mute mt-0.5 truncate">
+                      {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
                       {labelFor(investment)}
                       {marketType ? (
                         <>
@@ -164,11 +217,20 @@ export default function InvestmentsClient({ user }) {
                       </>
                     ) : (
                       <>
-                        <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
-                        <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
-                        {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
-                        {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
-                        {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
+                        {isClosedPlan ? (
+                          <>
+                            <p className="text-sm font-medium">{inr(Number(investment.closure_amount) > 0 ? investment.closure_amount : (investment.maturity_value || investment.amount))}</p>
+                            <p className="text-[11px] text-ink-soft mt-0.5">{Number(investment.closure_amount) > 0 ? 'received' : 'maturity value'}{investment.closure_date ? ` · ${fmtDate(investment.closure_date)}` : ''}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
+                            <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
+                            {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
+                            {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
+                            {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
+                          </>
+                        )}
                       </>
                     )}
                   </div>
