@@ -13,6 +13,13 @@ import {
   isMarketInvestment,
   isMetalInvestment,
 } from '@/lib/investments';
+import {
+  SCHEME_STATUS_OPTIONS,
+  computeMetalPurchasePricing,
+  isPrematureWithdrawal,
+  schemeNeedsTracking,
+  validateSchemeTracking,
+} from '@/lib/metal-pricing';
 
 function buildSchedule(investment) {
   const freq = investment.payment_frequency;
@@ -117,6 +124,7 @@ export default function DetailClient({
   const [schemePaidMonths, setSchemePaidMonths] = useState('0');
   const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
   const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
+  const [prematurePenaltyPct, setPrematurePenaltyPct] = useState('0');
 
   const freq = i.payment_frequency || 'lump_sum';
   const isRecurring = !isTransactionType && (freq === 'monthly' || freq === 'yearly');
@@ -223,13 +231,15 @@ export default function DetailClient({
           if (Number(schemeAccumulatedGrams || 0) < 0 || Number(schemePurchasedGrams || 0) < 0) {
             throw new Error('Scheme accumulated/purchased grams cannot be negative.');
           }
-          if (schemeStatus === 'active') {
-            const months = Number(schemeMonths || 0);
-            const paid = Number(schemePaidMonths || 0);
-            const monthly = Number(schemeMonthlyAmount || 0);
-            if (months <= 0) throw new Error('Scheme months must be greater than zero.');
-            if (monthly <= 0) throw new Error('Scheme monthly amount must be greater than zero.');
-            if (paid < 0 || paid > months) throw new Error('Paid months must be between 0 and total scheme months.');
+          const schemeTrackingError = validateSchemeTracking({
+            schemeStatus,
+            schemeMonths,
+            schemeMonthlyAmount,
+            schemePaidMonths,
+          });
+          if (schemeTrackingError) throw new Error(schemeTrackingError);
+          if (isPrematureWithdrawal(schemeStatus) && Number(prematurePenaltyPct || 0) < 0) {
+            throw new Error('Premature withdrawal penalty % cannot be negative.');
           }
         }
       }
@@ -255,10 +265,20 @@ export default function DetailClient({
           notesLines.push(
             `Scheme making input: actual ${Number(schemeActualMakingPct || 0).toFixed(2)}%, offered ${Number(schemeGivenMakingPct || 0).toFixed(2)}%`
           );
-          if (schemeStatus === 'active') {
+          if (schemeNeedsTracking(schemeStatus)) {
             notesLines.push(
               `Scheme tracking: ${Number(schemePaidMonths || 0)}/${Number(schemeMonths || 0)} months, monthly ${inr(Number(schemeMonthlyAmount || 0))}, paid ${inr(metalPricing.paidAmount)}, remaining ${inr(metalPricing.remainingSchemeAmount)}`
             );
+          }
+          if (metalPricing.isPrematureWithdrawal) {
+            notesLines.push(
+              `Premature withdrawal: penalty ${Number(prematurePenaltyPct || 0).toFixed(2)}% (${inr(metalPricing.prematurePenaltyAmount)}), cash refund ${inr(metalPricing.prematureCashRefund)}, benefit forfeited ${inr(metalPricing.prematureBenefitForfeited)}`
+            );
+            if (metalPricing.hasPurchaseQuote) {
+              notesLines.push(
+                `Premature gold settlement at general rates: ${inr(metalPricing.prematureGeneralSettlement)} payable after ${inr(metalPricing.paidAmount)} scheme credit`
+              );
+            }
           }
           notesLines.push(
             `Scheme grams: accumulated ${metalPricing.accumulatedGrams.toFixed(3)}g, purchased ${metalPricing.purchasedGrams.toFixed(3)}g, difference ${metalPricing.gramsDifference >= 0 ? '+' : ''}${metalPricing.gramsDifference.toFixed(3)}g (${metalPricing.gramsBonusPct >= 0 ? '+' : ''}${metalPricing.gramsBonusPct.toFixed(2)}%)`
@@ -344,115 +364,32 @@ export default function DetailClient({
   const metalPricing = useMemo(() => {
     if (!metalBuyType) return null;
 
-    const units = Number(txForm.units || 0);
-    const price = Number(txForm.price_per_unit || 0);
-    const baseValue = units * price;
-    const manualBenefit = purchaseMode === 'scheme' ? Number(schemeBenefitAmount || 0) : 0;
-
-    const actualMakingPctInput = purchaseMode === 'scheme'
-      ? Number(schemeActualMakingPct || 0)
-      : Number(makingChargePct || 0);
-    const schemeMakingPctInput = purchaseMode === 'scheme'
-      ? Number(schemeGivenMakingPct || 0)
-      : Number(makingChargePct || 0);
-
-    const actualMakingAmount = useMakingPercent
-      ? (baseValue * actualMakingPctInput) / 100
-      : Number(actualMakingValue || 0);
-    const payableMakingAmount = useMakingPercent
-      ? (baseValue * schemeMakingPctInput) / 100
-      : Number(payableMakingValue || 0);
-    const actualMakingPct = baseValue > 0 ? (actualMakingAmount / baseValue) * 100 : 0;
-    const schemeMakingPct = baseValue > 0 ? (payableMakingAmount / baseValue) * 100 : 0;
-    const makingDiscountPct = Math.max(actualMakingPct - schemeMakingPct, 0);
-    const makingDiscountAmount = Math.max(actualMakingAmount - payableMakingAmount, 0);
-
-    const taxableValue = baseValue + payableMakingAmount;
-    const sgstPctNum = Number(sgstPct || 0);
-    const cgstPctNum = Number(cgstPct || 0);
-
-    const sgstFromPct = (taxableValue * sgstPctNum) / 100;
-    const cgstFromPct = (taxableValue * cgstPctNum) / 100;
-    const sgstFromValue = Number(sgstValue || 0);
-    const cgstFromValue = Number(cgstValue || 0);
-
-    const sgstAmount = useGstSplit
-      ? (gstInputMode === 'value' ? sgstFromValue : sgstFromPct)
-      : 0;
-    const cgstAmount = useGstSplit
-      ? (gstInputMode === 'value' ? cgstFromValue : cgstFromPct)
-      : 0;
-    const totalGst = useGstSplit ? (sgstAmount + cgstAmount) : Number(gstTotalValue || 0);
-    const derivedSgstPct = taxableValue > 0 ? (sgstAmount / taxableValue) * 100 : 0;
-    const derivedCgstPct = taxableValue > 0 ? (cgstAmount / taxableValue) * 100 : 0;
-    const totalGstPct = useGstSplit
-      ? (derivedSgstPct + derivedCgstPct)
-      : (taxableValue > 0 ? (totalGst / taxableValue) * 100 : 0);
-
-    const schemeTotal = Math.max(baseValue + payableMakingAmount + totalGst - manualBenefit, 0);
-
-    const generalMakingAmount = actualMakingAmount;
-    const generalTaxableValue = baseValue + generalMakingAmount;
-    const generalGstAmount = (generalTaxableValue * totalGstPct) / 100;
-    const generalTotal = generalTaxableValue + generalGstAmount;
-
-    const totalSchemeMonths = Number(schemeMonths || 0);
-    const monthlyScheme = Number(schemeMonthlyAmount || 0);
-    const paidMonths = Number(schemePaidMonths || 0);
-    const paidAmount = paidMonths * monthlyScheme;
-    const expectedSchemeAmount = totalSchemeMonths * monthlyScheme;
-    const remainingSchemeAmount = Math.max(expectedSchemeAmount - paidAmount, 0);
-    const closureDelta = schemeTotal - paidAmount;
-    const accumulatedGrams = Number(schemeAccumulatedGrams || 0);
-    const purchasedGrams = Number(schemePurchasedGrams || units || 0);
-    const gramsDifference = purchasedGrams - accumulatedGrams;
-    const gramsBonusPct = accumulatedGrams > 0 ? (gramsDifference / accumulatedGrams) * 100 : 0;
-    const schemePerGramPayable = purchasedGrams > 0 ? (schemeTotal / purchasedGrams) : 0;
-    const extraGramPayableAmount = gramsDifference > 0 ? gramsDifference * schemePerGramPayable : 0;
-    const schemeAccumulatedValue = accumulatedGrams > 0 ? accumulatedGrams * price : 0;
-    const payableAfterSchemeCredit = Math.max(schemeTotal - schemeAccumulatedValue, 0);
-    const schemePayNowAmount = (accumulatedGrams > 0 && gramsDifference > 0)
-      ? payableAfterSchemeCredit
-      : (schemeStatus === 'active' ? Math.max(closureDelta, 0) : schemeTotal);
-    const customerPayNowAmount = purchaseMode === 'scheme' ? schemePayNowAmount : generalTotal;
-
-    return {
-      baseValue,
-      actualMakingPct,
-      schemeMakingPct,
-      actualMakingAmount,
-      payableMakingAmount,
-      makingDiscountPct,
-      makingDiscountAmount,
-      manualBenefit,
-      totalDiscountAmount: makingDiscountAmount + manualBenefit,
-      taxableValue,
-      sgstAmount,
-      cgstAmount,
-      derivedSgstPct,
-      derivedCgstPct,
-      totalGst,
-      totalGstPct,
-      generalMakingAmount,
-      generalGstAmount,
-      generalTotal,
-      schemeTotal,
-      comparisonDifference: generalTotal - schemeTotal,
-      expectedSchemeAmount,
-      paidAmount,
-      remainingSchemeAmount,
-      closureDelta,
-      accumulatedGrams,
-      purchasedGrams,
-      gramsDifference,
-      gramsBonusPct,
-      schemePerGramPayable,
-      extraGramPayableAmount,
-      schemeAccumulatedValue,
-      payableAfterSchemeCredit,
-      schemePayNowAmount,
-      customerPayNowAmount,
-    };
+    return computeMetalPurchasePricing({
+      units: Number(txForm.units || 0),
+      price: Number(txForm.price_per_unit || 0),
+      purchaseMode,
+      schemeStatus,
+      schemeActualMakingPct,
+      schemeGivenMakingPct,
+      schemeBenefitAmount,
+      schemeMonths,
+      schemeMonthlyAmount,
+      schemePaidMonths,
+      schemeAccumulatedGrams,
+      schemePurchasedGrams,
+      makingChargePct,
+      useMakingPercent,
+      actualMakingValue,
+      payableMakingValue,
+      useGstSplit,
+      gstInputMode,
+      sgstPct,
+      cgstPct,
+      sgstValue,
+      cgstValue,
+      gstTotalValue,
+      prematurePenaltyPct,
+    });
   }, [
     cgstPct,
     cgstValue,
@@ -467,6 +404,7 @@ export default function DetailClient({
     useMakingPercent,
     actualMakingValue,
     payableMakingValue,
+    prematurePenaltyPct,
     schemeActualMakingPct,
     schemeAccumulatedGrams,
     schemeBenefitAmount,
@@ -816,12 +754,13 @@ export default function DetailClient({
                             <div>
                               <label className="block text-xs text-ink-soft mb-1.5">Scheme status</label>
                               <select value={schemeStatus} onChange={(e) => setSchemeStatus(e.target.value)} className="field-input">
-                                <option value="closed">Closed / redeemed</option>
-                                <option value="active">Active (still paying)</option>
+                                {SCHEME_STATUS_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
                               </select>
                             </div>
 
-                            {schemeStatus === 'active' && (
+                            {schemeNeedsTracking(schemeStatus) && (
                               <>
                                 <div>
                                   <label className="block text-xs text-ink-soft mb-1.5">Scheme months</label>
@@ -835,7 +774,12 @@ export default function DetailClient({
                                   <label className="block text-xs text-ink-soft mb-1.5">Months paid</label>
                                   <input type="number" min="0" step="1" value={schemePaidMonths} onChange={(e) => setSchemePaidMonths(e.target.value)} className="field-input" />
                                 </div>
-
+                                {isPrematureWithdrawal(schemeStatus) && (
+                                  <div>
+                                    <label className="block text-xs text-ink-soft mb-1.5">Withdrawal penalty (%)</label>
+                                    <input type="number" min="0" step="0.01" value={prematurePenaltyPct} onChange={(e) => setPrematurePenaltyPct(e.target.value)} className="field-input" placeholder="0" />
+                                  </div>
+                                )}
                               </>
                             )}
 
@@ -900,12 +844,25 @@ export default function DetailClient({
                     <div className="flex justify-between"><span className="text-ink-soft">Extra grams</span><span className={`font-medium ${(metalPricing?.gramsDifference || 0) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{(metalPricing?.gramsDifference || 0) >= 0 ? '+' : ''}{(metalPricing?.gramsDifference || 0).toFixed(3)} g</span></div>
                     <div className="flex justify-between"><span className="text-ink-soft">Scheme accumulated value</span><span className="font-medium">{inr(metalPricing?.schemeAccumulatedValue || 0)}</span></div>
                     <div className="flex justify-between"><span className="text-ink-soft">Payable for extra grams</span><span className="font-medium text-honey-600">{inr(metalPricing?.extraGramPayableAmount || 0)}</span></div>
-                    <div className="flex justify-between"><span className="text-ink-soft">Balance after scheme credit</span><span className="font-medium text-honey-600">{inr(metalPricing?.payableAfterSchemeCredit || 0)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Balance after scheme credit</span><span className="font-medium text-honey-600">{inr(metalPricing?.payableAfterSchemeCredit || 0)}</span></div>
 
-                    <div className="flex justify-between pt-2 border-t border-edge">
-                      <span className="text-ink-soft">Amount payable now</span>
-                      <span className="font-medium text-honey-600">{inr(metalPricing?.customerPayNowAmount || 0)}</span>
-                    </div>
+                        {metalPricing?.isPrematureWithdrawal && (
+                          <>
+                            <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Premature Withdrawal</p>
+                            <div className="flex justify-between"><span className="text-ink-soft">Amount paid into scheme</span><span className="font-medium">{inr(metalPricing.paidAmount)}</span></div>
+                            <div className="flex justify-between"><span className="text-ink-soft">Withdrawal penalty ({metalPricing.prematurePenaltyPct.toFixed(2)}%)</span><span className="font-medium text-danger">- {inr(metalPricing.prematurePenaltyAmount)}</span></div>
+                            <div className="flex justify-between"><span className="text-ink-soft">Estimated cash refund</span><span className="font-medium text-mint-600">{inr(metalPricing.prematureCashRefund)}</span></div>
+                            <div className="flex justify-between"><span className="text-ink-soft">Scheme benefit forfeited</span><span className="font-medium text-danger">{inr(metalPricing.prematureBenefitForfeited)}</span></div>
+                            {metalPricing.hasPurchaseQuote && (
+                              <div className="flex justify-between"><span className="text-ink-soft">Gold settlement at general rates</span><span className="font-medium text-honey-600">{inr(metalPricing.prematureGeneralSettlement)}</span></div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="flex justify-between pt-2 border-t border-edge">
+                          <span className="text-ink-soft">Amount payable now</span>
+                          <span className="font-medium text-honey-600">{inr(metalPricing?.customerPayNowAmount || 0)}</span>
+                        </div>
                   </div>
                 )}
                 <div className="md:col-span-2 flex justify-end">
