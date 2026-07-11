@@ -5,7 +5,12 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
-import { isClosedLifecycleStatus } from '@/lib/investment-lifecycle';
+import {
+  getLifecycleLabel,
+  isActiveInvestment,
+  isClosedInvestment,
+  resolveLifecycleStatus,
+} from '@/lib/investment-lifecycle';
 import PortfolioChart from './PortfolioChart';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
@@ -83,7 +88,7 @@ function buildUpcomingEvents(investments) {
   const events = [];
 
   for (const inv of investments) {
-    if (isMarketInvestment(inv.type_code) || isClosedLifecycleStatus(inv.lifecycle_status)) continue;
+    if (isMarketInvestment(inv.type_code) || !isActiveInvestment(inv)) continue;
 
     const typeLabel = labelFor(inv);
     const shortType = TYPE_META[inv.type_code]?.short || 'OT';
@@ -396,23 +401,28 @@ export default function HomeClient({ user }) {
     });
   }, []);
 
-  // totalValue = sum of maturity values (future projected value)
-  const totalValue = investments.reduce((sum, inv) => sum + effectiveCurrentValue(inv), 0);
-  const totalCurrentPortfolioValue = investments.reduce(
+  const activeInvestments = investments.filter(isActiveInvestment);
+  const closedInvestments = investments.filter(isClosedInvestment);
+
+  // totalValue = sum of maturity values for active plans (future projected value)
+  const totalValue = activeInvestments.reduce((sum, inv) => sum + effectiveCurrentValue(inv), 0);
+  const totalCurrentPortfolioValue = activeInvestments.reduce(
     (sum, inv) => sum + (isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)),
     0
   );
-  // totalInvested = amount invested so far (respects start_date for periodic investments)
-  const totalInvested = investments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
+  const totalInvested = activeInvestments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
+  const closedReceivedTotal = closedInvestments.reduce((sum, inv) => {
+    if (Number(inv.closure_amount) > 0) return sum + Number(inv.closure_amount);
+    return sum + effectiveCurrentValue(inv);
+  }, 0);
 
-  const maturingSoon = investments.filter((inv) => {
-    if (isClosedLifecycleStatus(inv.lifecycle_status)) return false;
+  const maturingSoon = activeInvestments.filter((inv) => {
     if (isMarketInvestment(inv.type_code) || !inv.maturity_date) return false;
     const days = (new Date(inv.maturity_date) - new Date()) / (1000 * 60 * 60 * 24);
     return days > 0 && days <= 30;
   }).length;
 
-  const upcomingEvents = buildUpcomingEvents(investments);
+  const upcomingEvents = buildUpcomingEvents(activeInvestments);
 
   const empty = !loading && goals.length === 0 && investments.length === 0;
 
@@ -454,12 +464,19 @@ export default function HomeClient({ user }) {
               </div>
 
               {/* ── Stat cards ── */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
-                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-6">
+                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
                   <p className="text-[11px] text-ink-mute">Active plans</p>
-                  <p className="text-lg font-medium mt-1">{investments.length} <span className="text-ink-mute text-sm">→</span></p>
+                  <p className="text-lg font-medium mt-1">{activeInvestments.length} <span className="text-ink-mute text-sm">→</span></p>
                 </Link>
-                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                <Link href="/investments?view=closed" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                  <p className="text-[11px] text-ink-mute">Closed plans</p>
+                  <p className="text-lg font-medium mt-1">{closedInvestments.length} <span className="text-ink-mute text-sm">→</span></p>
+                  {closedInvestments.length > 0 && (
+                    <p className="text-[10px] text-ink-soft mt-0.5">{inrShort(closedReceivedTotal)} received</p>
+                  )}
+                </Link>
+                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
                   <p className="text-[11px] text-ink-mute">Maturing in 30 days</p>
                   <p className="text-lg font-medium mt-1 text-honey-600">{maturingSoon} <span className="text-ink-mute text-sm">→</span></p>
                 </Link>
@@ -467,22 +484,22 @@ export default function HomeClient({ user }) {
                   <p className="text-[11px] text-ink-mute">Goals</p>
                   <p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p>
                 </Link>
-                <Link href="/investments" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
+                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
                   <p className="text-[11px] text-ink-mute">
                     Maturity value
-                    <InfoTip text="The total amount you will receive when all your investments mature at their respective rates. This is a future projected value, not what you'd get if you withdrew today." />
+                    <InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />
                   </p>
                   <p className="text-lg font-medium mt-1 text-mint-600">{inrShort(totalValue)}</p>
                 </Link>
               </div>
 
               {/* ── Overall Goals (Gold · Silver · Money) ── */}
-              <GoalTrioSection investments={investments} currentValue={totalValue} investedValue={totalInvested} onMoneyGoalChange={setPortfolioGoal} />
+              <GoalTrioSection investments={activeInvestments} currentValue={totalValue} investedValue={totalInvested} onMoneyGoalChange={setPortfolioGoal} />
 
               {/* ── Portfolio projection chart ── */}
               <div className="mb-5">
                 <PortfolioChart
-                  investments={investments}
+                  investments={activeInvestments}
                   goalAmount={portfolioGoal?.amount ?? null}
                   goalDate={portfolioGoal?.date ?? null}
                 />
@@ -498,13 +515,18 @@ export default function HomeClient({ user }) {
                   const tone = toneFor(investment.type_code);
                   const marketType = isMarketInvestment(investment.type_code);
                   const metalType = isMetalInvestment(investment.type_code);
+                  const closedPlan = isClosedInvestment(investment);
+                  const lifecycleLabel = getLifecycleLabel(resolveLifecycleStatus(investment));
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <div className="flex gap-2.5 items-center min-w-0 flex-1">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
-                          <p className="text-[11px] text-ink-mute mt-0.5">{labelFor(investment)} · {metalType ? `${formatUnits(investment.total_units)} g accumulated` : marketType ? `${formatUnits(investment.total_units)} units held` : `matures ${fmtDate(investment.maturity_date)}`}</p>
+                          <p className="text-[11px] text-ink-mute mt-0.5">
+                            {closedPlan && <span className="text-ink-soft font-medium">{lifecycleLabel} · </span>}
+                            {labelFor(investment)} · {metalType ? `${formatUnits(investment.total_units)} g accumulated` : marketType ? `${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? `closed ${fmtDate(investment.closure_date)}` : `matures ${fmtDate(investment.maturity_date)}`}
+                          </p>
                         </div>
                       </div>
                       <div className="text-right ml-2 flex-shrink-0">
@@ -575,10 +597,14 @@ export default function HomeClient({ user }) {
                 </div>
                 {investments.slice(0, 3).map((investment) => {
                   const marketType = isMarketInvestment(investment.type_code);
+                  const closedPlan = isClosedInvestment(investment);
+                  const lifecycleLabel = getLifecycleLabel(resolveLifecycleStatus(investment));
                   return (
                     <Link key={`side-${investment.id}`} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2 border-b border-edge last:border-b-0 text-sm hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <span className="truncate pr-2">{investment.plan_name}</span>
-                      <span className="text-ink-soft text-xs whitespace-nowrap">{marketType ? 'Market holding' : `Matures ${fmtDate(investment.maturity_date)}`}</span>
+                      <span className="text-ink-soft text-xs whitespace-nowrap">
+                        {closedPlan ? lifecycleLabel : marketType ? 'Market holding' : `Matures ${fmtDate(investment.maturity_date)}`}
+                      </span>
                     </Link>
                   );
                 })}
