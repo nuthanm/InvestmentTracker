@@ -77,6 +77,7 @@ export async function PATCH(req, { params }) {
       preview = computePrematureClosurePreview(investment, {
         closureDate,
         appliedRatePct,
+        penaltyAmount: penaltyAmount ?? 0,
         penaltyPct: penaltyPct ?? 0,
         investedOverride: body.invested_override,
       }, summary);
@@ -90,6 +91,10 @@ export async function PATCH(req, { params }) {
       ? null
       : (closureAmount ?? preview?.closureValue ?? null);
 
+    const resolvedInterestLoss = lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE
+      ? null
+      : (preview?.interestLoss ?? null);
+
     const updated = await sql`
       UPDATE investments
       SET
@@ -99,6 +104,7 @@ export async function PATCH(req, { params }) {
         applied_rate_pct = ${lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : appliedRatePct},
         penalty_pct = ${lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : penaltyPct},
         penalty_amount = ${lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : penaltyAmount},
+        interest_loss = ${lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : resolvedInterestLoss},
         closure_notes = ${lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : (body.closure_notes?.trim() || null)}
       WHERE id = ${params.id} AND user_id = ${me.id}
       RETURNING *
