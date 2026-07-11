@@ -137,6 +137,7 @@ export default function DetailClient({
   const [closureDate, setClosureDate] = useState(i.closure_date?.slice?.(0, 10) || new Date().toISOString().slice(0, 10));
   const [closureAmount, setClosureAmount] = useState(i.closure_amount != null ? String(i.closure_amount) : '');
   const [appliedRatePct, setAppliedRatePct] = useState(i.applied_rate_pct != null ? String(i.applied_rate_pct) : String(i.rate_pct || ''));
+  const [lifecyclePenaltyAmount, setLifecyclePenaltyAmount] = useState(i.penalty_amount != null ? String(i.penalty_amount) : '0');
   const [lifecyclePenaltyPct, setLifecyclePenaltyPct] = useState(i.penalty_pct != null ? String(i.penalty_pct) : '0');
   const [closureNotes, setClosureNotes] = useState(i.closure_notes || '');
   const [closureError, setClosureError] = useState('');
@@ -390,6 +391,7 @@ export default function DetailClient({
     return computePrematureClosurePreview(i, {
       closureDate,
       appliedRatePct: isTransactionType ? undefined : Number(appliedRatePct || i.rate_pct || 0),
+      penaltyAmount: Number(lifecyclePenaltyAmount || 0),
       penaltyPct: Number(lifecyclePenaltyPct || 0),
       investedOverride,
     }, currentSummary);
@@ -400,6 +402,7 @@ export default function DetailClient({
     i,
     investedOverride,
     isTransactionType,
+    lifecyclePenaltyAmount,
     lifecyclePenaltyPct,
     lifecycleStatus,
   ]);
@@ -425,7 +428,8 @@ export default function DetailClient({
           closure_date: lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : closureDate,
           closure_amount: lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE ? null : Number(closureAmount || closurePreview?.closureValue || 0),
           applied_rate_pct: isTransactionType ? null : Number(appliedRatePct || i.rate_pct || 0),
-          penalty_pct: Number(lifecyclePenaltyPct || 0),
+          penalty_amount: isTransactionType ? null : Number(lifecyclePenaltyAmount || 0),
+          penalty_pct: isTransactionType ? null : Number(lifecyclePenaltyPct || 0),
           closure_notes: closureNotes,
           invested_override: investedOverride,
         }),
@@ -546,7 +550,7 @@ export default function DetailClient({
               </p>
               <p className="text-[11px] text-ink-soft mt-0.5">
                 {i.closure_amount != null
-                  ? <>Received <span className="font-medium text-ink">{inr(i.closure_amount)}</span>{i.penalty_amount ? <> · penalty {inr(i.penalty_amount)}</> : null}</>
+                  ? <>Received <span className="font-medium text-ink">{inr(i.closure_amount)}</span>{i.penalty_amount ? <> · penalty {inr(i.penalty_amount)}</> : null}{i.interest_loss ? <> · interest loss {inr(i.interest_loss)}</> : null}</>
                   : 'Closure recorded. Add the received amount below if needed.'}
               </p>
             </div>
@@ -658,18 +662,27 @@ export default function DetailClient({
                 {!isTransactionType && (
                   <>
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Applied rate on exit (% p.a.)</label>
-                      <input type="number" step="0.01" value={appliedRatePct} onChange={(e) => setAppliedRatePct(e.target.value)} className="field-input" />
-                      <p className="text-[10px] text-ink-mute mt-1">Banks often pay a lower card rate on premature FD/RD closure.</p>
+                      <label className="block text-xs text-ink-soft mb-1.5">Contracted ROI (% p.a.)</label>
+                      <input type="number" step="0.01" value={Number(i.rate_pct || 0)} readOnly className="field-input bg-paper-tint text-ink-soft" />
                     </div>
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Penalty on interest (%)</label>
+                      <label className="block text-xs text-ink-soft mb-1.5">Effective ROI on exit (% p.a.)</label>
+                      <input type="number" step="0.01" value={appliedRatePct} onChange={(e) => setAppliedRatePct(e.target.value)} className="field-input" />
+                      <p className="text-[10px] text-ink-mute mt-1">Bank card rate applied on premature closure (e.g. SBI effective ROI).</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-soft mb-1.5">Penalty (₹)</label>
+                      <input type="number" min="0" step="0.01" value={lifecyclePenaltyAmount} onChange={(e) => setLifecyclePenaltyAmount(e.target.value)} className="field-input" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-soft mb-1.5">Penalty on interest (%) <span className="text-[10px] text-ink-mute">optional fallback</span></label>
                       <input type="number" min="0" step="0.01" value={lifecyclePenaltyPct} onChange={(e) => setLifecyclePenaltyPct(e.target.value)} className="field-input" />
+                      <p className="text-[10px] text-ink-mute mt-1">Used only when penalty ₹ is zero.</p>
                     </div>
                   </>
                 )}
                 <div>
-                  <label className="block text-xs text-ink-soft mb-1.5">Amount received (₹)</label>
+                  <label className="block text-xs text-ink-soft mb-1.5">Closure amount (₹)</label>
                   <input type="number" min="0" step="0.01" value={closureAmount} onChange={(e) => setClosureAmount(e.target.value)} className="field-input" placeholder={closurePreview?.closureValue != null ? String(closurePreview.closureValue) : '0'} />
                 </div>
                 <div className="md:col-span-2">
@@ -678,14 +691,25 @@ export default function DetailClient({
                 </div>
                 {closurePreview && (
                   <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-3 text-sm space-y-1.5">
-                    <p className="text-[11px] tracking-wider text-ink-mute uppercase">Estimated settlement</p>
+                    <p className="text-[11px] tracking-wider text-ink-mute uppercase">Review closure details</p>
                     {closurePreview.kind === 'rate_based' ? (
                       <>
-                        <div className="flex justify-between"><span className="text-ink-soft">Principal invested until closure</span><span className="font-medium">{inr(closurePreview.investedPrincipal)}</span></div>
-                        <div className="flex justify-between"><span className="text-ink-soft">Interest at {closurePreview.appliedRatePct}% p.a.</span><span className="font-medium text-mint-600">{inr(closurePreview.interestEarned)}</span></div>
-                        <div className="flex justify-between"><span className="text-ink-soft">Penalty</span><span className="font-medium text-danger">- {inr(closurePreview.penaltyAmount)}</span></div>
-                        <div className="flex justify-between"><span className="text-ink-soft">Estimated payout</span><span className="font-medium">{inr(closurePreview.closureValue)}</span></div>
-                        <div className="flex justify-between pt-1 border-t border-edge"><span className="text-ink-soft">Benefit forfeited vs maturity</span><span className="font-medium text-danger">{inr(closurePreview.benefitForfeited)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Principal amount</span><span className="font-medium">{inr(closurePreview.investedPrincipal)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Closure amount</span><span className="font-medium text-mint-600">{inr(closurePreview.closureValue)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Contracted ROI</span><span className="font-medium">{closurePreview.contractedRatePct.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Effective ROI</span><span className="font-medium">{closurePreview.effectiveRatePct.toFixed(2)}%</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Interest at contracted rate</span><span className="font-medium">{inr(closurePreview.interestAtContractedRate)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Interest at effective rate</span><span className="font-medium text-mint-600">{inr(closurePreview.interestAtEffectiveRate)}</span></div>
+                        {isPrematureWithdrawalStatus(lifecycleStatus) && (
+                          <div className="rounded-xl border border-honey-600/30 bg-honey-50 px-3 py-2.5 mt-2 text-[12px] text-honey-700">
+                            You will lose <span className="font-medium">{inr(closurePreview.interestLoss)}</span> by closing prematurely now.
+                            {closurePreview.penaltyAmount > 0 && (
+                              <> Additionally a penalty of <span className="font-medium">{inr(closurePreview.penaltyAmount)}</span> is applicable.</>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-1 border-t border-edge"><span className="text-ink-soft">Total premature cost (loss + penalty)</span><span className="font-medium text-danger">{inr(closurePreview.totalPrematureCost)}</span></div>
+                        <div className="flex justify-between"><span className="text-ink-soft">Benefit forfeited vs full maturity</span><span className="font-medium text-danger">{inr(closurePreview.benefitForfeited)}</span></div>
                       </>
                     ) : (
                       <>

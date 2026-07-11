@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS investments (
   applied_rate_pct NUMERIC(6,3),
   penalty_pct NUMERIC(6,3),
   penalty_amount NUMERIC(14,2),
+  interest_loss NUMERIC(14,2),
   closure_notes TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
