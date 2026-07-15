@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
 import {
   attachInvestmentSummaries,
+  attachRecurringPaymentSummaries,
   computeTransactionGross,
   computeTransactionNetAmount,
   isMarketInvestment,
@@ -14,6 +15,11 @@ import {
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
   return msg.includes('investment_transactions') && msg.includes('does not exist');
+}
+
+function missingPaymentRecordsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('payment_records') && msg.includes('does not exist');
 }
 
 function parseDateInput(value) {
@@ -76,25 +82,41 @@ export async function GET() {
   `;
 
   const transactionIds = investments.filter((investment) => isTransactionBased(investment.type_code)).map((investment) => investment.id);
-  if (transactionIds.length === 0) return NextResponse.json({ investments });
+  const recurringIds = investments
+    .filter((investment) => investment.payment_frequency === 'monthly' || investment.payment_frequency === 'yearly')
+    .map((investment) => investment.id);
 
-  try {
-    const transactions = await sql`
-      SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
-      FROM investment_transactions
-      WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
-      ORDER BY trade_date ASC, created_at ASC
-    `;
-    return NextResponse.json({ investments: attachInvestmentSummaries(investments, transactions) });
-  } catch (err) {
-    if (missingTransactionsTable(err)) {
-      return NextResponse.json({
-        investments,
-        warning: 'Market transactions are not available yet. Run db/migrations/2026-06-22-add-market-investment-transactions.sql in Neon SQL Editor.',
-      });
+  let withSummaries = investments;
+
+  if (transactionIds.length > 0) {
+    try {
+      const transactions = await sql`
+        SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
+        FROM investment_transactions
+        WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
+        ORDER BY trade_date ASC, created_at ASC
+      `;
+      withSummaries = attachInvestmentSummaries(withSummaries, transactions);
+    } catch (err) {
+      if (!missingTransactionsTable(err)) throw err;
     }
-    throw err;
   }
+
+  if (recurringIds.length > 0) {
+    try {
+      const paymentRecords = await sql`
+        SELECT investment_id, period_label, due_date, amount, paid, paid_at, notes
+        FROM payment_records
+        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        ORDER BY due_date ASC
+      `;
+      withSummaries = attachRecurringPaymentSummaries(withSummaries, paymentRecords);
+    } catch (err) {
+      if (!missingPaymentRecordsTable(err)) throw err;
+    }
+  }
+
+  return NextResponse.json({ investments: withSummaries });
 }
 
 export async function POST(req) {

@@ -32,9 +32,10 @@ function daysUntil(date, baseDate) {
 
 function eventWhenLabel(date, today) {
   const diff = daysUntil(date, today);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Tomorrow';
-  if (diff > 1 && diff <= 30) return `In ${diff} days`;
+  if (diff === 0) return 'Due today';
+  if (diff === 1) return 'Due tomorrow';
+  if (diff > 1 && diff <= 30) return `Due in ${diff} days`;
+  if (diff < 0) return `Overdue by ${Math.abs(diff)} days`;
   return fmtDate(date);
 }
 
@@ -92,14 +93,15 @@ function buildUpcomingEvents(investments) {
 
     const typeLabel = labelFor(inv);
     const shortType = TYPE_META[inv.type_code]?.short || 'OT';
-    const dueDate = nextRecurringDueDate(inv, today);
+    const dueDate = inv.next_due_date ? startOfDay(inv.next_due_date) : nextRecurringDueDate(inv, today);
 
-    if (dueDate && dueDate >= startOfDay(today)) {
+    if (dueDate) {
+      const overdue = Boolean(inv.next_due_is_overdue) || daysUntil(dueDate, today) < 0;
       events.push({
         key: `${inv.id}-due-${dateKey(dueDate)}`,
         date: dueDate,
         tag: `${shortType} ${inv.payment_frequency === 'yearly' ? 'yearly' : 'monthly'}`,
-        title: `${typeLabel} contribution due`,
+        title: overdue ? `${typeLabel} contribution overdue` : `${typeLabel} contribution due`,
         detail: `${inv.bank} · ${inv.plan_name}`,
         amountLine: `${inrShort(inv.amount)} contribution`,
         when: eventWhenLabel(dueDate, today),

@@ -13,6 +13,7 @@ import {
   isMarketInvestment,
   isMetalInvestment,
 } from '@/lib/investments';
+import { buildRecurringPaymentSchedule } from '@/lib/investments';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -30,32 +31,18 @@ import {
 } from '@/lib/investment-lifecycle';
 
 function buildSchedule(investment) {
-  const freq = investment.payment_frequency;
-  if (freq !== 'monthly' && freq !== 'yearly') return [];
+  return buildRecurringPaymentSchedule(investment);
+}
 
-  const start = new Date(investment.start_date);
-  const tenureMonths = Number(investment.tenure_months);
-  const amount = Number(investment.amount);
-  const schedule = [];
-
-  if (freq === 'monthly') {
-    for (let m = 0; m < tenureMonths; m++) {
-      const due = new Date(start);
-      due.setMonth(due.getMonth() + m);
-      const label = due.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      schedule.push({ period_label: label, due_date: due.toISOString().slice(0, 10), amount });
-    }
-  } else {
-    const years = Math.floor(tenureMonths / 12);
-    for (let y = 0; y < years; y++) {
-      const due = new Date(start);
-      due.setFullYear(due.getFullYear() + y);
-      const startYr = due.getFullYear();
-      const label = `${startYr}-${String(startYr + 1).slice(2)}`;
-      schedule.push({ period_label: label, due_date: due.toISOString().slice(0, 10), amount });
-    }
-  }
-  return schedule;
+function dueStatusLabel(date, today) {
+  const due = new Date(date);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.round((due - today) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Due today';
+  if (diff === 1) return 'Due tomorrow';
+  if (diff > 1 && diff <= 30) return `Due in ${diff} days`;
+  if (diff < 0) return `Overdue by ${Math.abs(diff)} days`;
+  return fmtDate(date);
 }
 
 function daysUntilMaturity(maturityDate) {
@@ -1121,7 +1108,7 @@ export default function DetailClient({
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{slot.period_label}</p>
-                        <p className="text-[11px] text-ink-mute">{fmtDate(slot.due_date)}</p>
+                        <p className="text-[11px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
                         {!paid && (
                           <div className="mt-1.5 flex items-center gap-2">
                             <label className="text-[10px] text-ink-mute">Paid on</label>
