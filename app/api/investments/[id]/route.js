@@ -2,12 +2,65 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
-import { isMarketInvestment, isMetalInvestment, isTransactionBased } from '@/lib/investments';
+import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { isChitInvestment } from '@/lib/chit';
+import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 
 function parseDateInput(value, fallback) {
   const dt = value ? new Date(value) : fallback ? new Date(fallback) : new Date();
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
+}
+
+async function syncDocuments(sql, investmentId, documents) {
+  if (!Array.isArray(documents)) return;
+
+  const existingDocs = await sql`
+    SELECT id
+    FROM documents
+    WHERE investment_id = ${investmentId}
+  `;
+  const nextDocIds = new Set();
+  for (const doc of documents) {
+    if (doc.id) nextDocIds.add(String(doc.id));
+  }
+  const docIdsToDelete = existingDocs.filter((doc) => !nextDocIds.has(String(doc.id))).map((doc) => doc.id);
+
+  if (docIdsToDelete.length) {
+    await sql`
+      DELETE FROM documents
+      WHERE investment_id = ${investmentId} AND id = ANY(${docIdsToDelete})
+    `;
+  }
+
+  const newDocuments = [];
+  for (const doc of documents) {
+    if (doc.id || !doc.filename || !doc.data_url) continue;
+    newDocuments.push({
+      filename: doc.filename,
+      size_bytes: doc.size_bytes || 0,
+      page_count: doc.page_count || 1,
+      data_url: doc.data_url,
+    });
+  }
+
+  if (newDocuments.length) {
+    await sql`
+      INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+      SELECT
+        ${investmentId},
+        doc.filename,
+        doc.size_bytes,
+        doc.page_count,
+        doc.data_url
+      FROM json_to_recordset(${JSON.stringify(newDocuments)}::json) AS doc(
+        filename text,
+        size_bytes int,
+        page_count int,
+        data_url text
+      )
+    `;
+  }
 }
 
 export async function GET(req, { params }) {
@@ -48,10 +101,13 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
     const marketInvestment = isMarketInvestment(body.type_code);
     const metalInvestment = isMetalInvestment(body.type_code);
+    const chitInvestment = isChitInvestment(body.type_code);
     const transactionBasedInvestment = marketInvestment || metalInvestment;
     const required = transactionBasedInvestment
       ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
-      : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+      : chitInvestment
+        ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
+        : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
@@ -101,56 +157,64 @@ export async function PATCH(req, { params }) {
       `;
       if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
 
-      if (Array.isArray(body.documents)) {
-        const existingDocs = await sql`
-          SELECT id
-          FROM documents
-          WHERE investment_id = ${params.id}
+      await syncDocuments(sql, params.id, body.documents);
+      return NextResponse.json({ investment: rows[0] });
+    }
+
+    if (chitInvestment) {
+      const chitWrite = resolveChitWrite(body);
+      if (chitWrite?.error) {
+        return NextResponse.json({ error: chitWrite.error }, { status: 400 });
+      }
+      const maturityDate = addMonths(startDate, chitWrite.tenure_months);
+
+      let investment;
+      try {
+        const rows = await sql`
+          UPDATE investments
+          SET
+            goal_id = ${body.goal_id},
+            type_code = 'CHIT',
+            custom_type = NULL,
+            bank = ${body.bank.trim()},
+            plan_name = ${body.plan_name.trim()},
+            amount = ${chitWrite.amount},
+            rate_pct = ${chitWrite.rate_pct},
+            tenure_months = ${chitWrite.tenure_months},
+            tenure_days = 0,
+            compounding = ${chitWrite.compounding},
+            payment_frequency = ${chitWrite.payment_frequency},
+            start_date = ${startDate.toISOString().slice(0, 10)},
+            maturity_date = ${maturityDate.toISOString().slice(0, 10)},
+            maturity_value = ${chitWrite.maturity_value},
+            nominee = ${body.nominee.trim()},
+            auto_renew = FALSE,
+            account_holder = ${body.account_holder || 'Self'},
+            chit_details = ${JSON.stringify(chitWrite.chit_details)}::jsonb
+          WHERE id = ${params.id} AND user_id = ${me.id}
+          RETURNING *
         `;
-        const nextDocIds = new Set();
-        for (const doc of body.documents) {
-          if (doc.id) nextDocIds.add(String(doc.id));
+        if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
+        investment = rows[0];
+      } catch (err) {
+        if (missingChitDetailsColumn(err)) {
+          return NextResponse.json(
+            { error: 'Database schema is out of date. Run db/migrations/2026-07-24-add-chit-details.sql in Neon SQL Editor, then try again.' },
+            { status: 409 }
+          );
         }
-        const docIdsToDelete = existingDocs.filter((doc) => !nextDocIds.has(String(doc.id))).map((doc) => doc.id);
-
-        if (docIdsToDelete.length) {
-          await sql`
-            DELETE FROM documents
-            WHERE investment_id = ${params.id} AND id = ANY(${docIdsToDelete})
-          `;
-        }
-
-        const newDocuments = [];
-        for (const doc of body.documents) {
-          if (doc.id || !doc.filename || !doc.data_url) continue;
-          newDocuments.push({
-            filename: doc.filename,
-            size_bytes: doc.size_bytes || 0,
-            page_count: doc.page_count || 1,
-            data_url: doc.data_url,
-          });
-        }
-
-        if (newDocuments.length) {
-          await sql`
-            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
-            SELECT
-              ${params.id},
-              doc.filename,
-              doc.size_bytes,
-              doc.page_count,
-              doc.data_url
-            FROM json_to_recordset(${JSON.stringify(newDocuments)}::json) AS doc(
-              filename text,
-              size_bytes int,
-              page_count int,
-              data_url text
-            )
-          `;
-        }
+        throw err;
       }
 
-      return NextResponse.json({ investment: rows[0] });
+      try {
+        await seedPaymentRecords(sql, { investment, userId: me.id });
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (!(msg.includes('payment_records') && msg.includes('does not exist'))) throw err;
+      }
+
+      await syncDocuments(sql, params.id, body.documents);
+      return NextResponse.json({ investment });
     }
 
     if (Number(body.amount) <= 0) {
@@ -209,54 +273,7 @@ export async function PATCH(req, { params }) {
     `;
     if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
 
-    if (Array.isArray(body.documents)) {
-      const existingDocs = await sql`
-        SELECT id
-        FROM documents
-        WHERE investment_id = ${params.id}
-      `;
-      const nextDocIds = new Set();
-      for (const doc of body.documents) {
-        if (doc.id) nextDocIds.add(String(doc.id));
-      }
-      const docIdsToDelete = existingDocs.filter((doc) => !nextDocIds.has(String(doc.id))).map((doc) => doc.id);
-
-      if (docIdsToDelete.length) {
-        await sql`
-          DELETE FROM documents
-          WHERE investment_id = ${params.id} AND id = ANY(${docIdsToDelete})
-        `;
-      }
-
-      const newDocuments = [];
-      for (const doc of body.documents) {
-        if (doc.id || !doc.filename || !doc.data_url) continue;
-        newDocuments.push({
-          filename: doc.filename,
-          size_bytes: doc.size_bytes || 0,
-          page_count: doc.page_count || 1,
-          data_url: doc.data_url,
-        });
-      }
-
-      if (newDocuments.length) {
-        await sql`
-          INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
-          SELECT
-            ${params.id},
-            doc.filename,
-            doc.size_bytes,
-            doc.page_count,
-            doc.data_url
-          FROM json_to_recordset(${JSON.stringify(newDocuments)}::json) AS doc(
-            filename text,
-            size_bytes int,
-            page_count int,
-            data_url text
-          )
-        `;
-      }
-    }
+    await syncDocuments(sql, params.id, body.documents);
 
     return NextResponse.json({ investment: rows[0] });
   } catch (err) {
@@ -267,11 +284,11 @@ export async function PATCH(req, { params }) {
     if (err?.code === '23503') {
       return NextResponse.json({ error: 'Selected goal does not exist.' }, { status: 400 });
     }
-    if (err?.code === '42703') {
+    if (err?.code === '42703' || missingChitDetailsColumn(err)) {
       return NextResponse.json(
         {
           error:
-            'Database schema is out of date. Run the SQL files in db/migrations (including 2026-06-22-add-market-investment-transactions.sql) in Neon SQL Editor, then try again.',
+            'Database schema is out of date. Run the SQL files in db/migrations (including 2026-07-24-add-chit-details.sql) in Neon SQL Editor, then try again.',
         },
         { status: 500 }
       );

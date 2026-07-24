@@ -11,6 +11,8 @@ import {
   isMetalInvestment,
   isTransactionBased,
 } from '@/lib/investments';
+import { isChitInvestment } from '@/lib/chit';
+import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -126,10 +128,13 @@ export async function POST(req) {
     const body = await req.json();
     const marketInvestment = isMarketInvestment(body.type_code);
     const metalInvestment = isMetalInvestment(body.type_code);
+    const chitInvestment = isChitInvestment(body.type_code);
     const transactionBasedInvestment = marketInvestment || metalInvestment;
     const required = transactionBasedInvestment
       ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
-      : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+      : chitInvestment
+        ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
+        : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
@@ -201,6 +206,68 @@ export async function POST(req) {
           }
           throw err;
         }
+      }
+
+      if (Array.isArray(body.documents)) {
+        for (const doc of body.documents) {
+          if (!doc.filename || !doc.data_url) continue;
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            VALUES (${investment.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          `;
+        }
+      }
+
+      return NextResponse.json({ investment });
+    }
+
+    if (chitInvestment) {
+      const chitWrite = resolveChitWrite(body);
+      if (chitWrite?.error) {
+        return NextResponse.json({ error: chitWrite.error }, { status: 400 });
+      }
+
+      const startDate = parseDateInput(body.start_date);
+      if (!startDate) {
+        return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+      }
+      const maturityDate = addMonths(startDate, chitWrite.tenure_months);
+
+      let investment;
+      try {
+        const rows = await sql`
+          INSERT INTO investments (
+            user_id, goal_id, type_code, custom_type, bank, plan_name,
+            amount, rate_pct, tenure_months, tenure_days, compounding,
+            payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+            chit_details
+          )
+          VALUES (
+            ${me.id}, ${body.goal_id}, 'CHIT', NULL,
+            ${body.bank.trim()}, ${body.plan_name.trim()},
+            ${chitWrite.amount}, ${chitWrite.rate_pct}, ${chitWrite.tenure_months}, 0, ${chitWrite.compounding},
+            ${chitWrite.payment_frequency},
+            ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${chitWrite.maturity_value},
+            ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+            ${JSON.stringify(chitWrite.chit_details)}::jsonb
+          )
+          RETURNING *
+        `;
+        investment = rows[0];
+      } catch (err) {
+        if (missingChitDetailsColumn(err)) {
+          return NextResponse.json(
+            { error: 'Database schema is out of date. Run db/migrations/2026-07-24-add-chit-details.sql in Neon SQL Editor, then try again.' },
+            { status: 409 }
+          );
+        }
+        throw err;
+      }
+
+      try {
+        await seedPaymentRecords(sql, { investment, userId: me.id });
+      } catch (err) {
+        if (!missingPaymentRecordsTable(err)) throw err;
       }
 
       if (Array.isArray(body.documents)) {

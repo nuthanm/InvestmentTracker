@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { emptyCustomMonths, isChitInvestment, normalizeChitDetails, prepareChitForSave } from '@/lib/chit';
+import ChitFundFields from './ChitFundFields';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -14,10 +16,10 @@ import {
   validateSchemeTracking,
 } from '@/lib/metal-pricing';
 
-const TYPES = ['FD', 'RD', 'MF', 'ETF', 'ST', 'GD', 'GOLD', 'SILV', 'PPF', 'OT'];
-const PRESET_TYPES = ['Chit Fund', 'Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
+const TYPES = ['FD', 'RD', 'MF', 'ETF', 'ST', 'GD', 'GOLD', 'SILV', 'PPF', 'CHIT', 'OT'];
+const PRESET_TYPES = ['Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
 
-const TYPE_CHIP_LABEL = { FD: 'FD', RD: 'RD', MF: 'MF', ETF: 'ETF', ST: 'Shares', GD: 'GD', GOLD: 'Gold', SILV: 'Silver', PPF: 'PPF', OT: 'Other' };
+const TYPE_CHIP_LABEL = { FD: 'FD', RD: 'RD', MF: 'MF', ETF: 'ETF', ST: 'Shares', GD: 'GD', GOLD: 'Gold', SILV: 'Silver', PPF: 'PPF', CHIT: 'Chit', OT: 'Other' };
 const TYPE_TOOLTIP = {
   FD: 'Fixed Deposit — guaranteed returns at a fixed interest rate (banks / NBFCs)',
   RD: 'Recurring Deposit — fixed monthly deposits that earn compound interest over a chosen tenure',
@@ -28,10 +30,11 @@ const TYPE_TOOLTIP = {
   GOLD: 'Physical Gold — track gold purchases by weight (grams). Record who it was bought for, purchase price per gram, making charges, and set a target weight.',
   SILV: 'Physical Silver — track silver purchases by weight (grams). Record who it was bought for, purchase price per gram, and set a target weight.',
   PPF: 'Public Provident Fund — 15-year government-backed tax-free savings (yearly contributions)',
-  OT: 'Other — chit fund, crypto, real estate, NSC, or any custom investment type',
+  CHIT: 'Chit Fund — monthly instalments with a pick month. Compare payout, total paid, profit/loss, and effective interest rate.',
+  OT: 'Other — crypto, real estate, NSC, or any custom investment type',
 };
 
-const PERIODIC_TYPES = { RD: 'monthly', PPF: 'yearly' };
+const PERIODIC_TYPES = { RD: 'monthly', PPF: 'yearly', CHIT: 'monthly' };
 
 const TENURE_PRESETS = [
   { label: '3 mo', months: 3 },
@@ -73,6 +76,35 @@ function getInitialCustomTenure(initialInvestment) {
   };
 }
 
+function getInitialChitState(initialInvestment) {
+  const tenure = Math.max(1, Math.floor(Number(initialInvestment?.tenure_months) || 12));
+  const raw = initialInvestment?.chit_details;
+  if (!raw) {
+    return {
+      mode: 'dual_rate',
+      chitValue: '',
+      prePickAmount: '',
+      postPickAmount: '',
+      payouts: Array.from({ length: tenure }, () => ''),
+      customMonths: emptyCustomMonths(tenure).map(() => ({ payment: '', payout: '' })),
+      pickMonth: 1,
+    };
+  }
+  const details = normalizeChitDetails(raw, tenure);
+  return {
+    mode: details.mode,
+    chitValue: details.chit_value ? String(details.chit_value) : '',
+    prePickAmount: details.pre_pick_amount ? String(details.pre_pick_amount) : '',
+    postPickAmount: details.post_pick_amount ? String(details.post_pick_amount) : '',
+    payouts: Array.from({ length: tenure }, (_, i) => (details.payouts?.[i] ? String(details.payouts[i]) : '')),
+    customMonths: Array.from({ length: tenure }, (_, i) => ({
+      payment: details.months?.[i]?.payment ? String(details.months[i].payment) : '',
+      payout: details.months?.[i]?.payout ? String(details.months[i].payout) : '',
+    })),
+    pickMonth: details.pick_month || 1,
+  };
+}
+
 export default function NewInvestmentClient({
   user,
   goals,
@@ -83,6 +115,7 @@ export default function NewInvestmentClient({
   const router = useRouter();
   const isEditing = mode === 'edit';
   const initialCustomTenure = getInitialCustomTenure(initialInvestment);
+  const initialChit = getInitialChitState(initialInvestment);
   const [startDateInput, setStartDateInput] = useState(initialInvestment?.start_date || new Date().toISOString().slice(0, 10));
   const startDate = useMemo(() => new Date(startDateInput), [startDateInput]);
 
@@ -103,6 +136,13 @@ export default function NewInvestmentClient({
   const [accountHolder, setAccountHolder] = useState(initialInvestment?.account_holder || 'Self');
   const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
   const [docs, setDocs] = useState(initialDocuments.map((doc) => ({ ...doc, size_bytes: Number(doc.size_bytes || 0), page_count: Number(doc.page_count || 1) })));
+  const [chitMode, setChitMode] = useState(initialChit.mode);
+  const [chitValue, setChitValue] = useState(initialChit.chitValue);
+  const [prePickAmount, setPrePickAmount] = useState(initialChit.prePickAmount);
+  const [postPickAmount, setPostPickAmount] = useState(initialChit.postPickAmount);
+  const [chitPayouts, setChitPayouts] = useState(initialChit.payouts);
+  const [chitCustomMonths, setChitCustomMonths] = useState(initialChit.customMonths);
+  const [chitPickMonth, setChitPickMonth] = useState(initialChit.pickMonth);
   const [initialUnits, setInitialUnits] = useState('');
   const [initialPrice, setInitialPrice] = useState('');
   const [initialCharges, setInitialCharges] = useState('0');
@@ -137,6 +177,7 @@ export default function NewInvestmentClient({
 
   const isMarketType = isMarketInvestment(typeCode);
   const isMetalType = isMetalInvestment(typeCode);
+  const isChitType = isChitInvestment(typeCode);
   const isTransactionType = isMarketType || isMetalType;
   const schemeReadyForPurchase = Number(schemeMonths || 0) > 0 && Number(schemePaidMonths || 0) >= Number(schemeMonths || 0);
   const schemeAllowsPurchaseEntry = acquisitionFlow === 'purchase_now' || schemeReadyForPurchase || isPrematureWithdrawal(schemeStatus);
@@ -151,6 +192,7 @@ export default function NewInvestmentClient({
     setTypeCode(t);
     setPaymentFrequency(PERIODIC_TYPES[t] || 'lump_sum');
     if (t === 'PPF') setTenureMode(180);
+    else if (t === 'CHIT') setTenureMode(12);
     else if (tenureMode === 180 || tenureMode === 240 || tenureMode === 300) setTenureMode(12);
   };
 
@@ -162,8 +204,17 @@ export default function NewInvestmentClient({
     return Number(tenureMode);
   }, [tenureMode, customY, customM, customD]);
 
+  const chitTenureMonths = Math.max(1, Math.floor(totalMonths) || 12);
+
+  useEffect(() => {
+    if (!isChitType) return;
+    setChitPayouts((prev) => Array.from({ length: chitTenureMonths }, (_, i) => prev[i] ?? ''));
+    setChitCustomMonths((prev) => Array.from({ length: chitTenureMonths }, (_, i) => prev[i] || { payment: '', payout: '' }));
+    setChitPickMonth((prev) => Math.min(chitTenureMonths, Math.max(1, Number(prev) || 1)));
+  }, [isChitType, chitTenureMonths]);
+
   const calc = useMemo(() => {
-    if (isMarketType) return null;
+    if (isMarketType || isChitType) return null;
     const a = Number(amount) || 0;
     const r = Number(ratePct) || 0;
     if (!a || !r || !totalMonths) return null;
@@ -189,7 +240,7 @@ export default function NewInvestmentClient({
       monthlyPct: r / 12,
       matDate: addMonths(startDate, totalMonths),
     };
-  }, [amount, ratePct, totalMonths, compounding, effectiveFrequency, startDate, isMarketType]);
+  }, [amount, ratePct, totalMonths, compounding, effectiveFrequency, startDate, isMarketType, isChitType]);
 
   const marketPreview = useMemo(() => {
     if (!isTransactionType) return null;
@@ -428,6 +479,21 @@ export default function NewInvestmentClient({
           notes: notesLines.length ? notesLines.join('\n') : null,
         };
       }
+    } else if (isChitType) {
+      if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
+      const prepared = prepareChitForSave({
+        mode: chitMode,
+        chit_value: Number(chitValue) || 0,
+        pre_pick_amount: Number(prePickAmount) || 0,
+        post_pick_amount: Number(postPickAmount) || 0,
+        payouts: chitPayouts.map((v) => Number(v) || 0),
+        months: chitCustomMonths.map((row) => ({
+          payment: Number(row.payment) || 0,
+          payout: Number(row.payout) || 0,
+        })),
+        pick_month: Number(chitPickMonth) || 1,
+      }, Math.floor(totalMonths));
+      if (prepared.error) { setError(prepared.error); return; }
     } else {
       if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
       if (!amount || Number(amount) <= 0) { setError('Amount must be greater than zero.'); return; }
@@ -436,20 +502,54 @@ export default function NewInvestmentClient({
 
     setSaving(true);
     try {
-      const body = isTransactionType
-        ? {
-            type_code: typeCode,
-            custom_type: typeCode === 'OT' ? customType.trim() : null,
-            bank: bank.trim(),
-            plan_name: planName.trim(),
-            goal_id: goalId,
-            nominee: nominee.trim(),
-            account_holder: accountHolder.trim() || 'Self',
-            start_date: startDateInput,
-            documents: docs,
-            initial_transaction: !isEditing ? initialTransaction : null,
-          }
-        : {
+      let body;
+      if (isTransactionType) {
+        body = {
+          type_code: typeCode,
+          custom_type: typeCode === 'OT' ? customType.trim() : null,
+          bank: bank.trim(),
+          plan_name: planName.trim(),
+          goal_id: goalId,
+          nominee: nominee.trim(),
+          account_holder: accountHolder.trim() || 'Self',
+          start_date: startDateInput,
+          documents: docs,
+          initial_transaction: !isEditing ? initialTransaction : null,
+        };
+      } else if (isChitType) {
+        const prepared = prepareChitForSave({
+          mode: chitMode,
+          chit_value: Number(chitValue) || 0,
+          pre_pick_amount: Number(prePickAmount) || 0,
+          post_pick_amount: Number(postPickAmount) || 0,
+          payouts: chitPayouts.map((v) => Number(v) || 0),
+          months: chitCustomMonths.map((row) => ({
+            payment: Number(row.payment) || 0,
+            payout: Number(row.payout) || 0,
+          })),
+          pick_month: Number(chitPickMonth) || 1,
+        }, Math.floor(totalMonths));
+        body = {
+          type_code: 'CHIT',
+          custom_type: null,
+          bank: bank.trim(),
+          plan_name: planName.trim(),
+          amount: prepared.amount,
+          rate_pct: prepared.rate_pct,
+          tenure_months: Math.floor(totalMonths),
+          tenure_days: 0,
+          compounding: 'simple',
+          payment_frequency: 'monthly',
+          chit_details: prepared.details,
+          goal_id: goalId,
+          nominee: nominee.trim(),
+          account_holder: accountHolder.trim() || 'Self',
+          auto_renew: false,
+          start_date: startDateInput,
+          documents: docs,
+        };
+      } else {
+        body = {
             type_code: typeCode,
             custom_type: typeCode === 'OT' ? customType.trim() : null,
             bank: bank.trim(),
@@ -467,6 +567,7 @@ export default function NewInvestmentClient({
             start_date: startDateInput,
             documents: docs,
           };
+      }
 
       const res = await fetch(isEditing ? `/api/investments/${initialInvestment.id}` : '/api/investments', {
         method: isEditing ? 'PATCH' : 'POST',
@@ -512,7 +613,7 @@ export default function NewInvestmentClient({
             {typeCode === 'OT' && (
               <div className="mt-3 p-3 bg-paper-tint rounded-xl">
                 <label className="block text-xs text-ink-soft mb-1.5">Type name<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder="e.g. Chit fund, Crypto..." value={customType} onChange={(e) => setCustomType(e.target.value)} className="field-input" />
+                <input type="text" placeholder="e.g. Crypto, NSC..." value={customType} onChange={(e) => setCustomType(e.target.value)} className="field-input" />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {PRESET_TYPES.map((p) => (
                     <button key={p} type="button" onClick={() => setCustomType(p)} className="text-[11px] px-2.5 py-1 rounded-full bg-paper-card border border-edge hover:border-mint-600">{p}</button>
@@ -557,16 +658,25 @@ export default function NewInvestmentClient({
             </div>
           )}
 
+          {isChitType && (
+            <div className="rounded-xl border border-plum-600/20 bg-plum-50 p-3.5 text-sm">
+              <p className="font-medium text-plum-600">Chit fund</p>
+              <p className="text-[11px] text-ink-soft mt-1">
+                Track dual-rate or custom monthly instalments, choose your pick month, and see profit/loss plus effective interest before you save.
+              </p>
+            </div>
+          )}
+
           <section>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Plan details</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Store / jeweller / source' : 'Bank / platform'}<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder={isMetalType ? 'e.g. Tanishq, Malabar, Family' : 'HDFC Bank, Groww, Zerodha…'} value={bank} onChange={(e) => setBank(e.target.value)} className="field-input" />
+                <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Store / jeweller / source' : (isChitType ? 'Organizer / company' : 'Bank / platform')}<span className="text-danger ml-0.5">*</span></label>
+                <input type="text" placeholder={isMetalType ? 'e.g. Tanishq, Malabar, Family' : (isChitType ? 'e.g. Local chit, ABC Finance…' : 'HDFC Bank, Groww, Zerodha…')} value={bank} onChange={(e) => setBank(e.target.value)} className="field-input" />
               </div>
               <div>
                 <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Item description' : 'Plan name'}<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder={isMetalType ? (typeCode === 'GOLD' ? '22K Gold Bangle, Gold Coin 10g…' : 'Silver Bar 100g, Silver Anklets…') : (isMarketType ? 'Nifty ETF / SIP folio / Company name' : typeCode === 'RD' ? 'Monthly RD - 2Y' : typeCode === 'PPF' ? 'PPF Account 2024' : 'Senior FD - 5Y')} value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input" />
+                <input type="text" placeholder={isMetalType ? (typeCode === 'GOLD' ? '22K Gold Bangle, Gold Coin 10g…' : 'Silver Bar 100g, Silver Anklets…') : (isMarketType ? 'Nifty ETF / SIP folio / Company name' : typeCode === 'RD' ? 'Monthly RD - 2Y' : typeCode === 'PPF' ? 'PPF Account 2024' : typeCode === 'CHIT' ? '2.5L Chit - 12 months' : 'Senior FD - 5Y')} value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input" />
               </div>
             </div>
           </section>
@@ -970,6 +1080,24 @@ export default function NewInvestmentClient({
                 </div>
               )}
             </section>
+          ) : isChitType ? (
+            <ChitFundFields
+              tenureMonths={chitTenureMonths}
+              chitMode={chitMode}
+              setChitMode={setChitMode}
+              chitValue={chitValue}
+              setChitValue={setChitValue}
+              prePickAmount={prePickAmount}
+              setPrePickAmount={setPrePickAmount}
+              postPickAmount={postPickAmount}
+              setPostPickAmount={setPostPickAmount}
+              payouts={chitPayouts}
+              setPayouts={setChitPayouts}
+              customMonths={chitCustomMonths}
+              setCustomMonths={setChitCustomMonths}
+              pickMonth={chitPickMonth}
+              setPickMonth={setChitPickMonth}
+            />
           ) : (
             <>
               <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1037,7 +1165,7 @@ export default function NewInvestmentClient({
             </div>
           </section>
 
-          {!isTransactionType && (
+          {!isTransactionType && !isChitType && (
             <section>
               <div className="flex items-center justify-between p-3 bg-paper-tint rounded-xl">
                 <div>
