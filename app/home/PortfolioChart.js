@@ -2,7 +2,8 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { computeMaturity, computeRecurringMaturity, inrShort } from '@/lib/format';
-import { isMarketInvestment } from '@/lib/investments';
+import { isMarketInvestment, isChitInvestment } from '@/lib/investments';
+import { chitPaymentsThroughMonth } from '@/lib/chit';
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
 
@@ -15,6 +16,19 @@ function valueAtDate(inv, D) {
 
   const maturity = inv.maturity_date ? new Date(inv.maturity_date) : null;
   if (maturity && D >= maturity) return Number(inv.maturity_value || 0);
+
+  if (isChitInvestment(inv.type_code) && inv.chit_details) {
+    const tenureMonths = Number(inv.tenure_months || 0);
+    const monthsDiff = (D.getFullYear() - start.getFullYear()) * 12 + (D.getMonth() - start.getMonth());
+    const due = new Date(start);
+    due.setMonth(due.getMonth() + monthsDiff);
+    const elapsed = Math.max(0, Math.min(monthsDiff + (due <= D ? 1 : 0), tenureMonths));
+    const pickMonth = Number(inv.chit_details.pick_month || 0);
+    if (pickMonth > 0 && elapsed >= pickMonth) {
+      return Number(inv.maturity_value || inv.chit_details?.summary?.prize || 0);
+    }
+    return chitPaymentsThroughMonth(inv.chit_details, tenureMonths, elapsed, pickMonth);
+  }
 
   const amount = Number(inv.amount || 0);
   const ratePct = Number(inv.rate_pct || 0);
@@ -33,6 +47,15 @@ function valueAtDate(inv, D) {
 function investedAtDate(inv, D) {
   const start = inv.start_date ? new Date(inv.start_date) : null;
   if (!start || D < start) return 0;
+
+  if (isChitInvestment(inv.type_code) && inv.chit_details) {
+    const tenureMonths = Number(inv.tenure_months || 0);
+    const monthsDiff = (D.getFullYear() - start.getFullYear()) * 12 + (D.getMonth() - start.getMonth());
+    const due = new Date(start);
+    due.setMonth(due.getMonth() + monthsDiff);
+    const elapsed = Math.max(0, Math.min(monthsDiff + (due <= D ? 1 : 0), tenureMonths));
+    return chitPaymentsThroughMonth(inv.chit_details, tenureMonths, elapsed, inv.chit_details.pick_month);
+  }
 
   const amount = Number(inv.amount || 0);
   const frequency = inv.payment_frequency || 'lump_sum';

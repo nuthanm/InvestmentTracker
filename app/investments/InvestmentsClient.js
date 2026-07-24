@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment, isChitInvestment } from '@/lib/investments';
 import {
   getLifecycleLabel,
   isActiveInvestment,
@@ -149,7 +149,7 @@ export default function InvestmentsClient({ user }) {
         {!loading && investments.length === 0 && (
           <div className="text-center py-16">
             <p className="text-base font-medium mb-1">No investments yet</p>
-            <p className="text-sm text-ink-soft mb-5">Add your first FD, RD, mutual fund, ETF, share, or other investment.</p>
+            <p className="text-sm text-ink-soft mb-5">Add your first FD, RD, chit fund, mutual fund, or other investment.</p>
             <Link href="/investments/new" className="btn-primary py-2.5 px-5 rounded-lg text-sm font-medium inline-block">Add an investment</Link>
           </div>
         )}
@@ -160,7 +160,10 @@ export default function InvestmentsClient({ user }) {
               const tone = toneFor(investment.type_code);
               const marketType = isMarketInvestment(investment.type_code);
               const metalType = isMetalInvestment(investment.type_code);
-              const suffix = frequencySuffix(investment.payment_frequency);
+              const chitType = isChitInvestment(investment.type_code);
+              const suffix = chitType ? '' : frequencySuffix(investment.payment_frequency);
+              const chitPl = Number(investment.chit_details?.summary?.profit_loss);
+              const chitMonthly = investment.chit_details?.summary?.monthly_rate_pct ?? investment.rate_pct;
               const days = daysUntilMaturity(investment.maturity_date);
               const isMatured = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
               const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
@@ -225,7 +228,14 @@ export default function InvestmentsClient({ user }) {
                         ) : (
                           <>
                             <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
-                            <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
+                            {chitType ? (
+                              <p className={`text-[11px] mt-0.5 ${Number.isFinite(chitPl) && chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
+                                {Number.isFinite(chitPl) ? `${chitPl >= 0 ? '+' : ''}${inr(chitPl)}` : `${Number(chitMonthly || 0).toFixed(2)}%/mo`}
+                                {investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
+                            )}
                             {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
                             {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
                             {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}

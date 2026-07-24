@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS goals (
 CREATE INDEX IF NOT EXISTS idx_goals_user ON goals(user_id);
 
 -- ---------- Investments ----------
--- type_code values: FD, MF, ST, GD, PPF, RD, OT
--- payment_frequency values: lump_sum (one-time), monthly (e.g. RD), yearly (e.g. PPF)
+-- type_code values: FD, MF, ST, GD, PPF, RD, GOLD, SILV, CHIT, OT
+-- payment_frequency values: lump_sum (one-time), monthly (e.g. RD / CHIT), yearly (e.g. PPF)
 CREATE TABLE IF NOT EXISTS investments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS investments (
   custom_type TEXT,
   bank TEXT NOT NULL,
   plan_name TEXT NOT NULL,
-  amount NUMERIC(14,2) NOT NULL,          -- per-period contribution for monthly/yearly types
-  rate_pct NUMERIC(6,3) NOT NULL,
+  amount NUMERIC(14,2) NOT NULL,          -- per-period contribution for monthly/yearly types; chit face value for CHIT
+  rate_pct NUMERIC(6,3) NOT NULL,         -- annual % for FD/RD/PPF; monthly IRR % for CHIT
   tenure_months INT NOT NULL,
   tenure_days INT DEFAULT 0,
   compounding TEXT DEFAULT 'quarterly',
@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS investments (
   penalty_amount NUMERIC(14,2),
   interest_loss NUMERIC(14,2),
   closure_notes TEXT,
+  chit_details JSONB,                    -- CHIT schedule, pick month, dual-rate / custom months
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

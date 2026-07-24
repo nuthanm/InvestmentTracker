@@ -12,7 +12,10 @@ import {
   getTransactionTypeLabel,
   isMarketInvestment,
   isMetalInvestment,
+  isChitInvestment,
 } from '@/lib/investments';
+import { buildRecurringPaymentSchedule } from '@/lib/investments';
+import { summarizeChitPick } from '@/lib/chit';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -30,32 +33,18 @@ import {
 } from '@/lib/investment-lifecycle';
 
 function buildSchedule(investment) {
-  const freq = investment.payment_frequency;
-  if (freq !== 'monthly' && freq !== 'yearly') return [];
+  return buildRecurringPaymentSchedule(investment);
+}
 
-  const start = new Date(investment.start_date);
-  const tenureMonths = Number(investment.tenure_months);
-  const amount = Number(investment.amount);
-  const schedule = [];
-
-  if (freq === 'monthly') {
-    for (let m = 0; m < tenureMonths; m++) {
-      const due = new Date(start);
-      due.setMonth(due.getMonth() + m);
-      const label = due.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      schedule.push({ period_label: label, due_date: due.toISOString().slice(0, 10), amount });
-    }
-  } else {
-    const years = Math.floor(tenureMonths / 12);
-    for (let y = 0; y < years; y++) {
-      const due = new Date(start);
-      due.setFullYear(due.getFullYear() + y);
-      const startYr = due.getFullYear();
-      const label = `${startYr}-${String(startYr + 1).slice(2)}`;
-      schedule.push({ period_label: label, due_date: due.toISOString().slice(0, 10), amount });
-    }
-  }
-  return schedule;
+function dueStatusLabel(date, today) {
+  const due = new Date(date);
+  due.setHours(0, 0, 0, 0);
+  const diff = Math.round((due - today) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Due today';
+  if (diff === 1) return 'Due tomorrow';
+  if (diff > 1 && diff <= 30) return `Due in ${diff} days`;
+  if (diff < 0) return `Overdue by ${Math.abs(diff)} days`;
+  return fmtDate(date);
 }
 
 function daysUntilMaturity(maturityDate) {
@@ -95,6 +84,7 @@ export default function DetailClient({
 
   const marketType = isMarketInvestment(i.type_code);
   const metalType = isMetalInvestment(i.type_code);
+  const chitType = isChitInvestment(i.type_code);
   const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
   const [summary, setSummary] = useState(marketSummary);
@@ -351,12 +341,17 @@ export default function DetailClient({
   const monthlyInt = (Number(i.amount) * Number(i.rate_pct)) / 100 / 12;
   const monthlyPct = (Number(i.rate_pct) / 12).toFixed(3);
 
+  const chitSummary = chitType && i.chit_details
+    ? summarizeChitPick(i.chit_details, i.tenure_months, i.chit_details.pick_month)
+    : null;
+
   let totalInvested = Number(i.amount);
-  if (freq === 'monthly' && i.tenure_months) totalInvested = Number(i.amount) * Number(i.tenure_months);
+  if (chitType && chitSummary) totalInvested = Number(chitSummary.total_paid);
+  else if (freq === 'monthly' && i.tenure_months) totalInvested = Number(i.amount) * Number(i.tenure_months);
   else if (freq === 'yearly' && i.tenure_months) totalInvested = Number(i.amount) * Math.floor(Number(i.tenure_months) / 12);
 
-  const amountLabel = freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
-  const freqSuffix = freq === 'monthly' ? '/mo' : freq === 'yearly' ? '/yr' : '';
+  const amountLabel = chitType ? 'Chit value' : freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
+  const freqSuffix = chitType ? '' : freq === 'monthly' ? '/mo' : freq === 'yearly' ? '/yr' : '';
 
   const daysLeft = daysUntilMaturity(i.maturity_date);
   const maturityMatured = daysLeft !== null && daysLeft <= 0;
@@ -365,7 +360,11 @@ export default function DetailClient({
 
   const schedule = isRecurring ? buildSchedule(i) : [];
   const paidCount = schedule.filter((s) => paymentRecords[s.period_label]?.paid).length;
-  const totalPaid = paidCount * Number(i.amount);
+  const totalPaid = schedule.reduce((sum, s) => {
+    if (!paymentRecords[s.period_label]?.paid) return sum;
+    return sum + Number(paymentRecords[s.period_label]?.amount ?? s.amount ?? 0);
+  }, 0);
+  const scheduleTotal = schedule.reduce((sum, s) => sum + Number(s.amount || 0), 0) || totalInvested;
   const expectedPaid = (() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -573,12 +572,23 @@ export default function DetailClient({
             </>
           ) : isRecurring ? (
             <>
-              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span></p>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">
+                {chitType ? inr(i.amount) : <>{inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span></>}
+              </p>
+              {chitType && chitSummary && (
+                <p className="text-sm text-ink-soft mt-1">
+                  Pick month {chitSummary.pick_month} · Prize <span className="font-medium text-ink">{inr(chitSummary.prize)}</span>
+                  {' · '}
+                  <span className={Number(chitSummary.profit_loss) >= 0 ? 'text-mint-600 font-medium' : 'text-danger font-medium'}>
+                    {Number(chitSummary.profit_loss) >= 0 ? '+' : ''}{inr(chitSummary.profit_loss)}
+                  </span>
+                </p>
+              )}
               {paymentsLoaded ? (
                 <>
                   <p className="text-sm text-ink-soft mt-1">
                     Invested so far: <span className="font-medium text-ink">{inr(totalPaid)}</span>
-                    <span className="text-ink-mute"> / {inr(totalInvested)}</span>
+                    <span className="text-ink-mute"> / {inr(scheduleTotal)}</span>
                   </p>
                   <p className="text-sm text-ink-soft mt-0.5">
                     <span className="font-medium text-ink">{paidCount}</span>
@@ -591,7 +601,11 @@ export default function DetailClient({
               ) : (
                 <p className="text-sm text-ink-soft mt-1">Total invested: <span className="font-medium text-ink">{inr(totalInvested)}</span></p>
               )}
-              <p className="text-sm text-ink-soft mt-1">Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || totalInvested)}</span>{i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}</p>
+              <p className="text-sm text-ink-soft mt-1">
+                {chitType ? 'Prize' : 'Matures to'}{' '}
+                <span className="text-mint-600 font-medium">{inr(i.maturity_value || totalInvested)}</span>
+                {i.maturity_date && <> · ends {fmtDate(i.maturity_date)}</>}
+              </p>
             </>
           ) : (
             <>
@@ -609,12 +623,34 @@ export default function DetailClient({
             <Row
               label="Total invested"
               value={paymentsLoaded
-                ? <><span>{inr(totalPaid)}</span><span className="text-ink-soft font-normal"> / {inr(totalInvested)}</span></>
+                ? <><span>{inr(totalPaid)}</span><span className="text-ink-soft font-normal"> / {inr(scheduleTotal)}</span></>
                 : inr(totalInvested)
               }
             />
           )}
-          {!isTransactionType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
+          {chitType && chitSummary && (
+            <>
+              <Row label="Pick month" value={`Month ${chitSummary.pick_month}`} />
+              <Row label="Prize received" value={inr(chitSummary.prize)} />
+              <Row
+                label="Profit / loss"
+                value={
+                  <span className={Number(chitSummary.profit_loss) >= 0 ? 'text-mint-600' : 'text-danger'}>
+                    {Number(chitSummary.profit_loss) >= 0 ? '+' : ''}{inr(chitSummary.profit_loss)}
+                  </span>
+                }
+              />
+              <Row
+                label={Number(chitSummary.cashflows?.[0] || 0) > 0 ? 'Borrowing rate' : 'Return rate'}
+                value={
+                  chitSummary.monthly_rate_pct == null
+                    ? '—'
+                    : `${Number(chitSummary.monthly_rate_pct).toFixed(2)}% /mo · ${Number(chitSummary.annual_rate_pct).toFixed(2)}% annualized`
+                }
+              />
+            </>
+          )}
+          {!isTransactionType && !chitType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
           {!isTransactionType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
           {!isTransactionType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
           {!isTransactionType && <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />}
@@ -1097,7 +1133,7 @@ export default function DetailClient({
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] tracking-wider text-ink-mute uppercase">Payment history</p>
               {paymentsLoaded && (
-                <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(Number(i.amount) * schedule.length)}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
+                <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
               )}
             </div>
             {paymentsError && <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{paymentsError}</p>}
@@ -1121,7 +1157,7 @@ export default function DetailClient({
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{slot.period_label}</p>
-                        <p className="text-[11px] text-ink-mute">{fmtDate(slot.due_date)}</p>
+                        <p className="text-[11px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
                         {!paid && (
                           <div className="mt-1.5 flex items-center gap-2">
                             <label className="text-[10px] text-ink-mute">Paid on</label>

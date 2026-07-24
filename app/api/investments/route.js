@@ -4,16 +4,24 @@ import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
 import {
   attachInvestmentSummaries,
+  attachRecurringPaymentSummaries,
   computeTransactionGross,
   computeTransactionNetAmount,
   isMarketInvestment,
   isMetalInvestment,
   isTransactionBased,
 } from '@/lib/investments';
+import { isChitInvestment } from '@/lib/chit';
+import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
   return msg.includes('investment_transactions') && msg.includes('does not exist');
+}
+
+function missingPaymentRecordsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('payment_records') && msg.includes('does not exist');
 }
 
 function parseDateInput(value) {
@@ -76,25 +84,41 @@ export async function GET() {
   `;
 
   const transactionIds = investments.filter((investment) => isTransactionBased(investment.type_code)).map((investment) => investment.id);
-  if (transactionIds.length === 0) return NextResponse.json({ investments });
+  const recurringIds = investments
+    .filter((investment) => investment.payment_frequency === 'monthly' || investment.payment_frequency === 'yearly')
+    .map((investment) => investment.id);
 
-  try {
-    const transactions = await sql`
-      SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
-      FROM investment_transactions
-      WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
-      ORDER BY trade_date ASC, created_at ASC
-    `;
-    return NextResponse.json({ investments: attachInvestmentSummaries(investments, transactions) });
-  } catch (err) {
-    if (missingTransactionsTable(err)) {
-      return NextResponse.json({
-        investments,
-        warning: 'Market transactions are not available yet. Run db/migrations/2026-06-22-add-market-investment-transactions.sql in Neon SQL Editor.',
-      });
+  let withSummaries = investments;
+
+  if (transactionIds.length > 0) {
+    try {
+      const transactions = await sql`
+        SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
+        FROM investment_transactions
+        WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
+        ORDER BY trade_date ASC, created_at ASC
+      `;
+      withSummaries = attachInvestmentSummaries(withSummaries, transactions);
+    } catch (err) {
+      if (!missingTransactionsTable(err)) throw err;
     }
-    throw err;
   }
+
+  if (recurringIds.length > 0) {
+    try {
+      const paymentRecords = await sql`
+        SELECT investment_id, period_label, due_date, amount, paid, paid_at, notes
+        FROM payment_records
+        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        ORDER BY due_date ASC
+      `;
+      withSummaries = attachRecurringPaymentSummaries(withSummaries, paymentRecords);
+    } catch (err) {
+      if (!missingPaymentRecordsTable(err)) throw err;
+    }
+  }
+
+  return NextResponse.json({ investments: withSummaries });
 }
 
 export async function POST(req) {
@@ -104,10 +128,13 @@ export async function POST(req) {
     const body = await req.json();
     const marketInvestment = isMarketInvestment(body.type_code);
     const metalInvestment = isMetalInvestment(body.type_code);
+    const chitInvestment = isChitInvestment(body.type_code);
     const transactionBasedInvestment = marketInvestment || metalInvestment;
     const required = transactionBasedInvestment
       ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
-      : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+      : chitInvestment
+        ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
+        : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
@@ -179,6 +206,68 @@ export async function POST(req) {
           }
           throw err;
         }
+      }
+
+      if (Array.isArray(body.documents)) {
+        for (const doc of body.documents) {
+          if (!doc.filename || !doc.data_url) continue;
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            VALUES (${investment.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          `;
+        }
+      }
+
+      return NextResponse.json({ investment });
+    }
+
+    if (chitInvestment) {
+      const chitWrite = resolveChitWrite(body);
+      if (chitWrite?.error) {
+        return NextResponse.json({ error: chitWrite.error }, { status: 400 });
+      }
+
+      const startDate = parseDateInput(body.start_date);
+      if (!startDate) {
+        return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+      }
+      const maturityDate = addMonths(startDate, chitWrite.tenure_months);
+
+      let investment;
+      try {
+        const rows = await sql`
+          INSERT INTO investments (
+            user_id, goal_id, type_code, custom_type, bank, plan_name,
+            amount, rate_pct, tenure_months, tenure_days, compounding,
+            payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+            chit_details
+          )
+          VALUES (
+            ${me.id}, ${body.goal_id}, 'CHIT', NULL,
+            ${body.bank.trim()}, ${body.plan_name.trim()},
+            ${chitWrite.amount}, ${chitWrite.rate_pct}, ${chitWrite.tenure_months}, 0, ${chitWrite.compounding},
+            ${chitWrite.payment_frequency},
+            ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${chitWrite.maturity_value},
+            ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+            ${JSON.stringify(chitWrite.chit_details)}::jsonb
+          )
+          RETURNING *
+        `;
+        investment = rows[0];
+      } catch (err) {
+        if (missingChitDetailsColumn(err)) {
+          return NextResponse.json(
+            { error: 'Database schema is out of date. Run db/migrations/2026-07-24-add-chit-details.sql in Neon SQL Editor, then try again.' },
+            { status: 409 }
+          );
+        }
+        throw err;
+      }
+
+      try {
+        await seedPaymentRecords(sql, { investment, userId: me.id });
+      } catch (err) {
+        if (!missingPaymentRecordsTable(err)) throw err;
       }
 
       if (Array.isArray(body.documents)) {
