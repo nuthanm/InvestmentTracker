@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment, isActiveInvestment } from '@/lib/investments';
+import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
+import { isActiveInvestment } from '@/lib/investment-lifecycle';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();

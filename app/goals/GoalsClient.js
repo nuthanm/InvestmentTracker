@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor } from '@/lib/format';
-import { effectiveInvestedSoFar, isActiveInvestment } from '@/lib/investments';
-import { resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
+import { effectiveInvestedSoFar } from '@/lib/investments';
+import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
