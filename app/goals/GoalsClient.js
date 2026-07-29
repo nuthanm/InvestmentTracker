@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor } from '@/lib/format';
-import { effectiveInvestedSoFar } from '@/lib/investments';
+import { effectiveInvestedSoFar, isActiveInvestment } from '@/lib/investments';
+import { resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
@@ -239,19 +240,34 @@ export default function GoalsClient({ user }) {
                       {associatedInvestments.length === 0 ? (
                         <p className="text-xs text-ink-soft">No investments linked to this goal yet.</p>
                       ) : (
-                        associatedInvestments.map((investment) => (
-                          <Link
-                            key={investment.id}
-                            href={`/investments/${investment.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="block rounded-lg border border-edge px-2.5 py-2 hover:border-mint-600 transition"
-                          >
-                            <p className="text-xs font-medium truncate">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
-                            <p className="text-[11px] text-ink-soft mt-0.5">
-                              {labelFor(investment)} · {inr(effectiveInvestedSoFar(investment))}
-                            </p>
-                          </Link>
-                        ))
+                        associatedInvestments.map((investment) => {
+                          const active = isActiveInvestment(investment);
+                          const status = resolveLifecycleStatus(investment);
+                          const statusLabel = status === LIFECYCLE_STATUSES.MATURED ? 'Matured'
+                            : status === LIFECYCLE_STATUSES.PREMATURE_WITHDRAWAL ? 'Withdrawn'
+                            : 'Closed';
+                          return (
+                            <Link
+                              key={investment.id}
+                              href={`/investments/${investment.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`block rounded-lg border px-2.5 py-2 transition ${active ? 'border-edge hover:border-mint-600' : 'border-edge bg-paper-tint opacity-70 hover:opacity-100'}`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-xs font-medium truncate flex-1">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
+                                {!active && (
+                                  <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-ink-mute/10 text-ink-mute border border-ink-mute/20">
+                                    {statusLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] mt-0.5 text-ink-soft">
+                                {labelFor(investment)} · <span className={active ? '' : 'line-through'}>{inr(effectiveInvestedSoFar(investment))}</span>
+                                {!active && <span className="ml-1 italic">not counted</span>}
+                              </p>
+                            </Link>
+                          );
+                        })
                       )}
                     </div>
                   )}

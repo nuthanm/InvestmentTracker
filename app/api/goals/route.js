@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
+import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment, isActiveInvestment } from '@/lib/investments';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -14,7 +14,7 @@ export async function GET() {
 
   const [goals, rawInvestments] = await Promise.all([
     sql`SELECT * FROM goals WHERE user_id = ${me.id} ORDER BY created_at DESC`,
-    sql`SELECT id, goal_id, type_code, amount, payment_frequency, tenure_months, maturity_value, start_date FROM investments WHERE user_id = ${me.id}`,
+    sql`SELECT id, goal_id, type_code, amount, payment_frequency, tenure_months, maturity_value, start_date, lifecycle_status, is_closed FROM investments WHERE user_id = ${me.id}`,
   ]);
 
   let investments = rawInvestments;
@@ -36,8 +36,10 @@ export async function GET() {
   const counts = new Map();
   for (const investment of investments) {
     if (!investment.goal_id) continue;
-    totals.set(investment.goal_id, (totals.get(investment.goal_id) || 0) + effectiveInvestedSoFar(investment));
     counts.set(investment.goal_id, (counts.get(investment.goal_id) || 0) + 1);
+    if (isActiveInvestment(investment)) {
+      totals.set(investment.goal_id, (totals.get(investment.goal_id) || 0) + effectiveInvestedSoFar(investment));
+    }
   }
 
   const hydratedGoals = goals.map((goal) => ({
