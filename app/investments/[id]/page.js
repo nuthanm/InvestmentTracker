@@ -47,5 +47,7 @@ export default async function InvestmentDetailPage({ params }) {
     }
   }
 
-  return <DetailClient user={user} investment={rows[0]} documents={documents} marketTransactions={marketTransactions} marketSummary={marketSummary} marketWarning={marketWarning} />;
+  const goals = await sql`SELECT id, name FROM goals WHERE user_id = ${user.id} ORDER BY created_at DESC`;
+
+  return <DetailClient user={user} investment={rows[0]} documents={documents} marketTransactions={marketTransactions} marketSummary={marketSummary} marketWarning={marketWarning} goals={goals} />;
 }

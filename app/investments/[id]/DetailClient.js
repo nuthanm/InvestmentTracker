@@ -68,12 +68,38 @@ export default function DetailClient({
   marketTransactions = [],
   marketSummary = null,
   marketWarning = '',
+  goals = [],
 }) {
   const router = useRouter();
   const [viewing, setViewing] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalId, setGoalId] = useState(i.goal_id || '');
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [goalError, setGoalError] = useState('');
+
+  const saveGoal = async () => {
+    setSavingGoal(true);
+    setGoalError('');
+    try {
+      const res = await fetch(`/api/investments/${i.id}/goal`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal_id: goalId || null }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update goal.');
+      setEditingGoal(false);
+      router.refresh();
+    } catch (err) {
+      setGoalError(err.message || 'Could not update goal.');
+    } finally {
+      setSavingGoal(false);
+    }
+  };
 
   const [paymentRecords, setPaymentRecords] = useState({});
   const [togglingPeriod, setTogglingPeriod] = useState(null);
@@ -664,7 +690,29 @@ export default function DetailClient({
           {metalType && <Row label="Avg purchase price" value={`${inr(currentSummary.average_buy_price || 0)} / g`} />}
           {metalType && <Row label="Total cost (incl. charges)" value={inr(currentSummary.remaining_cost_basis || 0)} />}
           <Row label="Started" value={fmtDate(i.start_date)} />
-          <Row label="Goal" value={i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : '—'} />
+          <div className="flex justify-between py-2.5 border-b border-dashed border-edge text-sm gap-3 items-center">
+            <span className="text-ink-soft flex-shrink-0">Goal</span>
+            {editingGoal ? (
+              <div className="flex items-center gap-2 flex-1 justify-end flex-wrap">
+                <select
+                  value={goalId}
+                  onChange={(e) => setGoalId(e.target.value)}
+                  className="field-input text-sm py-1 px-2 flex-1 min-w-0 max-w-[200px]"
+                >
+                  <option value="">— No goal —</option>
+                  {goals.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                </select>
+                <button onClick={saveGoal} disabled={savingGoal} className="text-[11px] font-medium text-mint-600 hover:underline disabled:opacity-50">{savingGoal ? 'Saving…' : 'Save'}</button>
+                <button onClick={() => { setEditingGoal(false); setGoalId(i.goal_id || ''); setGoalError(''); }} className="text-[11px] text-ink-mute hover:underline">Cancel</button>
+                {goalError && <span className="text-[11px] text-danger w-full text-right">{goalError}</span>}
+              </div>
+            ) : (
+              <span className="font-medium text-right flex items-center gap-2">
+                {i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : <span className="text-ink-mute">—</span>}
+                <button onClick={() => setEditingGoal(true)} className="text-[11px] text-ink-mute hover:text-mint-600 transition">change</button>
+              </span>
+            )}
+          </div>
           <Row label="Nominee" value={i.nominee} />
           <Row label="Account holder" value={i.account_holder || 'Self'} />
           {!isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
