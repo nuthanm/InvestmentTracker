@@ -105,6 +105,11 @@ function getInitialChitState(initialInvestment) {
   };
 }
 
+function dateInputValue(value) {
+  const match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : '';
+}
+
 export default function NewInvestmentClient({
   user,
   goals,
@@ -116,7 +121,9 @@ export default function NewInvestmentClient({
   const isEditing = mode === 'edit';
   const initialCustomTenure = getInitialCustomTenure(initialInvestment);
   const initialChit = getInitialChitState(initialInvestment);
-  const [startDateInput, setStartDateInput] = useState(initialInvestment?.start_date || new Date().toISOString().slice(0, 10));
+  const [startDateInput, setStartDateInput] = useState(
+    dateInputValue(initialInvestment?.start_date) || new Date().toISOString().slice(0, 10)
+  );
   const startDate = useMemo(() => new Date(startDateInput), [startDateInput]);
 
   const [typeCode, setTypeCode] = useState(initialInvestment?.type_code || 'FD');
