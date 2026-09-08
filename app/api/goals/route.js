@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, effectiveInvestedSoFar, isMarketInvestment } from '@/lib/investments';
+import { attachInvestmentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
 import { isActiveInvestment } from '@/lib/investment-lifecycle';
 
 function missingTransactionsTable(err) {
@@ -19,13 +19,13 @@ export async function GET() {
   ]);
 
   let investments = rawInvestments;
-  const marketIds = rawInvestments.filter((investment) => isMarketInvestment(investment.type_code)).map((investment) => investment.id);
-  if (marketIds.length > 0) {
+  const transactionIds = rawInvestments.filter((investment) => isTransactionBased(investment.type_code)).map((investment) => investment.id);
+  if (transactionIds.length > 0) {
     try {
       const transactions = await sql`
         SELECT investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at, id
         FROM investment_transactions
-        WHERE user_id = ${me.id} AND investment_id = ANY(${marketIds})
+        WHERE user_id = ${me.id} AND investment_id = ANY(${transactionIds})
       `;
       investments = attachInvestmentSummaries(rawInvestments, transactions);
     } catch (err) {
@@ -38,7 +38,7 @@ export async function GET() {
   for (const investment of investments) {
     if (!investment.goal_id) continue;
     counts.set(investment.goal_id, (counts.get(investment.goal_id) || 0) + 1);
-    if (isActiveInvestment(investment)) {
+    if (isActiveInvestment(investment) || isMetalInvestment(investment.type_code)) {
       totals.set(investment.goal_id, (totals.get(investment.goal_id) || 0) + effectiveInvestedSoFar(investment));
     }
   }

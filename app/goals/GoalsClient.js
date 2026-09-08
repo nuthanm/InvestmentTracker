@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, fmtDate, labelFor } from '@/lib/format';
-import { effectiveInvestedSoFar } from '@/lib/investments';
+import { effectiveInvestedSoFar, isMetalInvestment } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
@@ -314,6 +314,7 @@ export default function GoalsClient({ user }) {
                       ) : (
                         associatedInvestments.map((investment) => {
                           const active = isActiveInvestment(investment);
+                          const countedTowardGoal = active || isMetalInvestment(investment.type_code);
                           const status = resolveLifecycleStatus(investment);
                           const statusLabel = status === LIFECYCLE_STATUSES.MATURED ? 'Matured'
                             : status === LIFECYCLE_STATUSES.PREMATURE_WITHDRAWAL ? 'Withdrawn'
@@ -334,8 +335,8 @@ export default function GoalsClient({ user }) {
                                 )}
                               </div>
                               <p className="text-[11px] mt-0.5 text-ink-soft">
-                                {labelFor(investment)} · <span className={active ? '' : 'line-through'}>{inr(effectiveInvestedSoFar(investment))}</span>
-                                {!active && <span className="ml-1 italic">not counted</span>}
+                                {labelFor(investment)} · <span className={countedTowardGoal ? '' : 'line-through'}>{inr(effectiveInvestedSoFar(investment))}</span>
+                                {!countedTowardGoal && <span className="ml-1 italic">not counted</span>}
                               </p>
                             </Link>
                           );
