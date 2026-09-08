@@ -10,6 +10,29 @@ import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 
+const computeProjectedGoal = (value, inflationPct, targetDate) => {
+  const base = Number(value);
+  const rate = Number(inflationPct || 0);
+  if (!base || base <= 0 || !targetDate) return base || 0;
+  const target = new Date(targetDate);
+  if (Number.isNaN(target.getTime())) return base;
+  const days = Math.max(0, (target.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const years = days / 365.25;
+  return base * Math.pow(1 + (rate / 100), years);
+};
+
+const getSavingsPace = (targetAmount, targetDate, currentAmount = 0) => {
+  const remaining = Math.max(0, Number(targetAmount || 0) - Number(currentAmount || 0));
+  if (!remaining || !targetDate) return { daily: 0, monthly: 0 };
+  const target = new Date(targetDate);
+  if (Number.isNaN(target.getTime())) return { daily: 0, monthly: 0 };
+  const days = Math.max(1, Math.ceil((target.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+  return {
+    daily: remaining / days,
+    monthly: remaining / Math.max(1, Math.ceil(days / 30)),
+  };
+};
+
 export default function GoalsClient({ user }) {
   const [goals, setGoals] = useState([]);
   const [investmentsByGoal, setInvestmentsByGoal] = useState({});
@@ -18,7 +41,7 @@ export default function GoalsClient({ user }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', amount: '', date: '', icon: 'house' });
+  const [editForm, setEditForm] = useState({ name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house' });
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const hostRef = useRef(null);
@@ -74,7 +97,9 @@ export default function GoalsClient({ user }) {
     setEditId(g.id);
     setEditForm({
       name: g.name,
+      description: g.description || '',
       amount: String(g.target_amount),
+      inflationPct: String(g.inflation_pct ?? 0),
       date: g.target_date ? g.target_date.slice(0, 10) : '',
       icon: g.icon || 'house',
     });
@@ -91,7 +116,10 @@ export default function GoalsClient({ user }) {
     e.stopPropagation();
     setEditError('');
     if (!editForm.name.trim()) { setEditError('Name is required.'); return; }
-    if (!editForm.amount || Number(editForm.amount) <= 0) { setEditError('Enter a valid target amount.'); return; }
+    if (!editForm.amount || Number(editForm.amount) <= 0) { setEditError('Enter a valid value.'); return; }
+    if (!editForm.date) { setEditError('Target date is required.'); return; }
+    if (Number(editForm.inflationPct) < 0) { setEditError('Inflation percentage must be zero or more.'); return; }
+    const projectedAmount = computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date);
     setEditSaving(true);
     try {
       const res = await fetch(`/api/goals/${id}`, {
@@ -99,8 +127,10 @@ export default function GoalsClient({ user }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editForm.name.trim(),
-          target_amount: Number(editForm.amount),
-          target_date: editForm.date || null,
+          description: editForm.description.trim(),
+          target_amount: Number(projectedAmount.toFixed(2)),
+          target_date: editForm.date,
+          inflation_pct: Number(editForm.inflationPct) || 0,
           icon: editForm.icon,
         }),
       });
@@ -156,6 +186,8 @@ export default function GoalsClient({ user }) {
           const nearGoal = progressRatio >= 0.85 && !reached;
           const isEditing = editId === g.id;
           const isExpanded = expandedGoalId === g.id;
+          const hasDescription = !!g.description?.trim();
+          const savingsPace = getSavingsPace(tgt, g.target_date, cur);
           const associatedInvestments = investmentsByGoal[g.id] || [];
 
           return (
@@ -179,20 +211,45 @@ export default function GoalsClient({ user }) {
                       onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))}
                       className="field-input"/>
                   </div>
+                  <div>
+                    <label className="block text-xs text-ink-soft mb-1">Description</label>
+                    <textarea rows={3} value={editForm.description}
+                      onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))}
+                      placeholder="Add any important details, milestones, or notes for this goal."
+                      className="field-input resize-none" />
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1">Target amount (₹)<span className="text-danger ml-0.5">*</span></label>
+                      <label className="block text-xs text-ink-soft mb-1">Value today (₹)<span className="text-danger ml-0.5">*</span></label>
                       <input type="number" inputMode="numeric" value={editForm.amount}
                         onChange={(e) => setEditForm(f => ({ ...f, amount: e.target.value }))}
                         className="field-input"/>
                     </div>
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-[10px] text-ink-mute">optional</span></label>
-                      <input type="date" value={editForm.date}
-                        onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))}
+                      <label className="block text-xs text-ink-soft mb-1">Inflation (%)</label>
+                      <input type="number" step="0.1" min="0" value={editForm.inflationPct}
+                        onChange={(e) => setEditForm(f => ({ ...f, inflationPct: e.target.value }))}
                         className="field-input"/>
                     </div>
                   </div>
+                  <div>
+                    <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-danger ml-0.5">*</span></label>
+                    <input type="date" value={editForm.date}
+                      onChange={(e) => setEditForm(f => ({ ...f, date: e.target.value }))}
+                      className="field-input"/>
+                  </div>
+                  {Number(editForm.amount) > 0 && editForm.date && (
+                    <div className="rounded-xl border border-mint-200 bg-mint-50 px-3 py-2 space-y-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
+                        <p className="text-sm font-medium text-mint-800">₹{Number(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
+                        <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(getSavingsPace(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date), editForm.date).daily).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day</span>
+                        <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(getSavingsPace(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date), editForm.date).monthly).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month</span>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs text-ink-soft mb-1.5">Icon</label>
                     <div className="flex flex-wrap gap-1.5">
@@ -237,6 +294,21 @@ export default function GoalsClient({ user }) {
                   </div>
                   {isExpanded && (
                     <div className="mt-3 pt-3 border-t border-edge space-y-2">
+                      {hasDescription && (
+                        <div className="rounded-lg bg-paper-tint border border-edge px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-wider text-ink-soft mb-1">Details</p>
+                          <p className="text-xs text-ink">{g.description}</p>
+                        </div>
+                      )}
+                      {g.target_date && (
+                        <div className="rounded-lg border border-mint-200 bg-mint-50 px-2.5 py-2">
+                          <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Need to save</p>
+                          <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
+                            <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.daily).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day</span>
+                            <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.monthly).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month</span>
+                          </div>
+                        </div>
+                      )}
                       {associatedInvestments.length === 0 ? (
                         <p className="text-xs text-ink-soft">No investments linked to this goal yet.</p>
                       ) : (

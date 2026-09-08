@@ -57,18 +57,38 @@ export async function POST(req) {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   try {
-    const { name, target_amount, target_date, icon } = await req.json();
+    const { name, description, target_amount, target_date, inflation_pct, icon } = await req.json();
     if (!name || !target_amount) {
       return NextResponse.json({ error: 'Name and target amount are required.' }, { status: 400 });
+    }
+    if (!target_date) {
+      return NextResponse.json({ error: 'Target date is required.' }, { status: 400 });
     }
     if (Number(target_amount) <= 0) {
       return NextResponse.json({ error: 'Target amount must be greater than zero.' }, { status: 400 });
     }
-    const rows = await sql`
-      INSERT INTO goals (user_id, name, target_amount, target_date, icon)
-      VALUES (${me.id}, ${name.trim()}, ${target_amount}, ${target_date || null}, ${icon || 'house'})
-      RETURNING *
-    `;
+    const infl = Number(inflation_pct || 0);
+    if (Number.isNaN(infl) || infl < 0) {
+      return NextResponse.json({ error: 'Inflation percentage must be zero or more.' }, { status: 400 });
+    }
+
+    let rows;
+    try {
+      rows = await sql`
+        INSERT INTO goals (user_id, name, description, target_amount, target_date, inflation_pct, icon)
+        VALUES (${me.id}, ${name.trim()}, ${description?.trim() || null}, ${target_amount}, ${target_date}, ${infl}, ${icon || 'house'})
+        RETURNING *
+      `;
+    } catch (err) {
+      const isMissingInflationColumn = err?.code === '42703' || /inflation_pct/i.test(String(err?.message || ''));
+      if (!isMissingInflationColumn) throw err;
+      rows = await sql`
+        INSERT INTO goals (user_id, name, description, target_amount, target_date, icon)
+        VALUES (${me.id}, ${name.trim()}, ${description?.trim() || null}, ${target_amount}, ${target_date}, ${icon || 'house'})
+        RETURNING *
+      `;
+    }
+
     return NextResponse.json({ goal: rows[0] });
   } catch (err) {
     console.error('create goal error', err);

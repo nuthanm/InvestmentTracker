@@ -78,8 +78,10 @@ CREATE TABLE IF NOT EXISTS goals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  description TEXT,
   target_amount NUMERIC(14,2) NOT NULL,
-  target_date DATE,
+  target_date DATE NOT NULL,
+  inflation_pct NUMERIC(6,3) DEFAULT 0,
   icon TEXT DEFAULT 'house',
   created_at TIMESTAMPTZ DEFAULT now()
 );
