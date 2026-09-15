@@ -64,6 +64,12 @@ input:focus, select:focus, textarea:focus {
   animation: burst 0.9s ease-out forwards;
   z-index: 50;
 }
+.spark-cracker {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  animation-duration: 1.05s;
+}
 
 @keyframes pulse-soft {
   0%, 100% { transform: scale(1); }
@@ -951,5 +957,172 @@ input:focus, select:focus, textarea:focus {
 
   .mock-option-grid.main-options {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Investment / goal growth visuals */
+.growth-stage {
+  position: relative;
+}
+
+.growth-avatar {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.growth-type-chip {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  min-width: 16px;
+  padding: 0 3px;
+  height: 13px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #E2DDCB;
+  color: #3A4742;
+  font-size: 7px;
+  font-weight: 600;
+  line-height: 11px;
+  text-align: center;
+  z-index: 2;
+}
+
+.growth-tree {
+  --grow: 0.2;
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+
+.growth-tree-soil {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 22px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: #D9D0B8;
+  border-radius: 999px;
+}
+
+.growth-tree-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 28px;
+  height: 30px;
+  transform: translateX(-50%);
+}
+
+.growth-tree-trunk {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 3px;
+  height: calc(7px + var(--grow) * 13px);
+  transform: translateX(-50%);
+  transform-origin: center bottom;
+  background: #6B4423;
+  border-radius: 2px;
+  transition: height 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.growth-tree-canopy {
+  position: absolute;
+  left: 50%;
+  bottom: calc(5px + var(--grow) * 12px);
+  width: calc(11px + var(--grow) * 15px);
+  height: calc(11px + var(--grow) * 13px);
+  transform: translateX(-50%);
+  background:
+    radial-gradient(circle at 38% 38%, #7ED9B8 0%, #0F6E56 62%, #085041 100%);
+  border-radius: 50%;
+  box-shadow: 4px 3px 0 -3px #5DCAA5;
+  transition: width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), bottom 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.growth-tree-wilted .growth-tree-trunk {
+  background: #8A5A28;
+  height: calc(6px + var(--grow) * 9px);
+}
+
+.growth-tree-wilted .growth-tree-canopy {
+  background: radial-gradient(circle at 40% 40%, #E2C08C 0%, #993C1D 70%);
+  transform: translateX(-50%) rotate(14deg) scale(0.86);
+  box-shadow: none;
+}
+
+.growth-tree-complete .growth-tree-canopy {
+  background: radial-gradient(circle at 35% 32%, #B7F0D8 0%, #0F6E56 58%, #085041 100%);
+  box-shadow: 5px 4px 0 -4px #EF9F27;
+}
+
+.growth-clap {
+  position: absolute;
+  right: -6px;
+  top: -8px;
+  font-size: 13px;
+  line-height: 1;
+  animation: clap-pop 0.55s ease-out both;
+  z-index: 3;
+}
+
+@keyframes clap-pop {
+  0% { transform: scale(0.3) rotate(-18deg); opacity: 0; }
+  55% { transform: scale(1.18) rotate(8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+
+.water-bubbles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 0;
+}
+
+.water-bubble {
+  position: absolute;
+  bottom: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.85), rgba(15, 110, 86, 0.28));
+  border: 1px solid rgba(15, 110, 86, 0.22);
+  animation: bubble-rise 4s linear infinite;
+}
+
+.water-bubbles-sky .water-bubble {
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(24, 95, 165, 0.25));
+  border-color: rgba(24, 95, 165, 0.2);
+}
+
+.water-bubbles-honey .water-bubble {
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(133, 79, 11, 0.22));
+  border-color: rgba(133, 79, 11, 0.18);
+}
+
+@keyframes bubble-rise {
+  0% { transform: translateY(0) scale(0.55); opacity: 0; }
+  12% { opacity: 0.75; }
+  100% { transform: translateY(-72px) scale(1); opacity: 0; }
+}
+
+.achieved-amount {
+  color: #085041;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .water-bubble,
+  .spark,
+  .spark-cracker,
+  .growth-clap,
+  .growth-tree-trunk,
+  .growth-tree-canopy {
+    animation: none !important;
+    transition: none !important;
   }
 }

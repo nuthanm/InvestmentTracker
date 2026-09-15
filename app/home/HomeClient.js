@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor } from '@/lib/format';
-import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { WaterBubbles } from '@/components/GrowthVisual';
+import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
+import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import {
   getLifecycleLabel,
   isActiveInvestment,
@@ -517,23 +518,48 @@ export default function HomeClient({ user }) {
                   const tone = toneFor(investment.type_code);
                   const marketType = isMarketInvestment(investment.type_code);
                   const metalType = isMetalInvestment(investment.type_code);
+                  const lumpSum = isLumpSumInvestment(investment);
                   const closedPlan = isClosedInvestment(investment);
                   const lifecycleLabel = getLifecycleLabel(resolveLifecycleStatus(investment));
+                  const progress = tenureProgress(investment);
+                  const investedSoFar = effectiveInvestedSoFar(investment);
+                  const suffix = frequencySuffix(investment.payment_frequency);
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <div className="flex gap-2.5 items-center min-w-0 flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                         <div className="min-w-0">
                           <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
                           <p className="text-[11px] text-ink-mute mt-0.5">
                             {closedPlan && <span className="text-ink-soft font-medium">{lifecycleLabel} · </span>}
-                            {labelFor(investment)} · {metalType ? `${formatUnits(investment.total_units)} g accumulated` : marketType ? `${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? `closed ${fmtDate(investment.closure_date)}` : `matures ${fmtDate(investment.maturity_date)}`}
+                            {labelFor(investment)}
+                            {progress && <> · {progress.label}</>}
+                            {metalType ? ` · ${formatUnits(investment.total_units)} g accumulated` : marketType ? ` · ${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? ` · closed ${fmtDate(investment.closure_date)}` : ` · matures ${fmtDate(investment.maturity_date)}`}
                           </p>
                         </div>
                       </div>
                       <div className="text-right ml-2 flex-shrink-0">
-                        <p className="text-xs font-medium">{metalType ? `${formatUnits(investment.total_units)} g` : inrShort(marketType ? investment.remaining_cost_basis : investment.amount)}</p>
-                        <p className={`text-[10px] mt-0.5 ${metalType ? 'text-honey-600' : marketType ? 'text-sky-600' : 'text-mint-600'}`}>{metalType ? `${inrShort(investment.remaining_cost_basis || 0)} cost` : marketType ? `${inrShort(investment.invested_amount)} invested` : `${investment.rate_pct}% p.a.`}</p>
+                        {metalType ? (
+                          <>
+                            <p className="text-xs font-medium">{formatUnits(investment.total_units)} g</p>
+                            <p className="text-[10px] mt-0.5 text-honey-600">{inrShort(investment.remaining_cost_basis || 0)} cost</p>
+                          </>
+                        ) : marketType ? (
+                          <>
+                            <p className="text-xs font-medium">{inrShort(investment.remaining_cost_basis)}</p>
+                            <p className="text-[10px] mt-0.5 text-sky-600">{inrShort(investment.invested_amount)} invested</p>
+                          </>
+                        ) : lumpSum ? (
+                          <>
+                            <p className="text-xs font-medium achieved-amount">{inrShort(investedSoFar)}</p>
+                            <p className="text-[10px] mt-0.5 text-mint-700">achieved{progress ? ` · ${progress.label}` : ''}</p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-xs font-medium">{inrShort(investment.amount)}{suffix}</p>
+                            <p className="text-[10px] mt-0.5 text-mint-700">{inrShort(investedSoFar)} invested{progress ? ` · ${progress.label}` : ''}</p>
+                          </>
+                        )}
                       </div>
                     </Link>
                   );
@@ -554,13 +580,16 @@ export default function HomeClient({ user }) {
                   const tgt = Number(g.target_amount || 1);
                   const pct = Math.min(100, Math.round((cur / tgt) * 100));
                   return (
-                    <Link key={g.id} href="/goals" className="block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium truncate pr-2">{g.name}</span>
-                        <span className="text-xs text-ink-soft">{pct}%</span>
-                      </div>
-                      <div className="h-1.5 bg-paper-card rounded-full overflow-hidden">
-                        <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
+                    <Link key={g.id} href="/goals" className="growth-stage block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition overflow-hidden">
+                      {pct < 100 ? <WaterBubbles count={4} tone="mint" /> : null}
+                      <div className="relative z-[1]">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium truncate pr-2">{g.name}</span>
+                          <span className={`text-xs ${pct >= 100 ? 'achieved-amount font-medium' : 'text-ink-soft'}`}>{pct}%{pct >= 100 ? ' 👏' : ''}</span>
+                        </div>
+                        <div className="h-1.5 bg-paper-card rounded-full overflow-hidden">
+                          <div className="fill-bar h-full bg-mint-600 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
                       </div>
                     </Link>
                   );

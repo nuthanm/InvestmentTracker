@@ -3,8 +3,18 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
+import { GrowthAvatar, WaterBubbles, useCelebrateOnce } from '@/components/GrowthVisual';
 import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment, isChitInvestment } from '@/lib/investments';
+import {
+  effectiveInvestedSoFar,
+  hasGrowthDeduction,
+  isLumpSumInvestment,
+  isMarketInvestment,
+  isMetalInvestment,
+  isChitInvestment,
+  isRecurringFrequency,
+  tenureProgress,
+} from '@/lib/investments';
 import {
   getLifecycleLabel,
   isActiveInvestment,
@@ -28,6 +38,159 @@ function daysUntilMaturity(maturityDate) {
 function formatUnits(value) {
   const n = Number(value || 0);
   return n.toFixed(n % 1 === 0 ? 0 : 3);
+}
+
+function growthKindFor(investment, { isClosedPlan, isPremature, progress, deducted }) {
+  const recurring = isRecurringFrequency(investment.payment_frequency) || isChitInvestment(investment.type_code);
+  if (isPremature) return recurring ? 'wilted' : 'bubbles';
+  if (isClosedPlan || progress?.complete) return recurring ? 'complete' : 'achieved';
+  if (recurring) return deducted ? 'wilted' : 'tree';
+  if (isLumpSumInvestment(investment)) return 'achieved';
+  return 'bubbles';
+}
+
+function InvestmentRow({ investment, idx }) {
+  const tone = toneFor(investment.type_code);
+  const marketType = isMarketInvestment(investment.type_code);
+  const metalType = isMetalInvestment(investment.type_code);
+  const chitType = isChitInvestment(investment.type_code);
+  const lumpSum = isLumpSumInvestment(investment);
+  const suffix = chitType ? '' : frequencySuffix(investment.payment_frequency);
+  const chitPl = Number(investment.chit_details?.summary?.profit_loss);
+  const chitMonthly = investment.chit_details?.summary?.monthly_rate_pct ?? investment.rate_pct;
+  const days = daysUntilMaturity(investment.maturity_date);
+  const isMatured = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
+  const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
+  const isWarning = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
+  const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
+  const isClosedPlan = isClosedInvestment(investment);
+  const lifecycleLabelText = getLifecycleLabel(resolveLifecycleStatus(investment));
+  const progress = tenureProgress(investment);
+  const investedSoFar = effectiveInvestedSoFar(investment);
+  const deducted = hasGrowthDeduction(investment) || isPremature;
+  const kind = growthKindFor(investment, { isClosedPlan, isPremature, progress, deducted });
+  const celebrate = kind === 'complete' && !isPremature;
+  const { hostRef, originRef } = useCelebrateOnce(`inv-${investment.id}`, celebrate);
+  const avatarTone = lumpSum && !isClosedPlan && !isPremature ? 'mint' : tone;
+  const showBubblesOnRow = kind === 'bubbles' || kind === 'achieved';
+  const rowTone = isClosedPlan
+    ? 'bg-paper-tint/80 opacity-90'
+    : isPremature
+      ? 'bg-danger-soft/30'
+      : celebrate || isMatured
+        ? 'bg-mint-50/60'
+        : lumpSum && !marketType && !metalType
+          ? 'bg-mint-50/40'
+          : isUrgent
+            ? 'bg-danger-soft/40'
+            : isWarning
+              ? 'bg-honey-50/60'
+              : '';
+
+  return (
+    <div ref={hostRef} className={`growth-stage ${idx > 0 ? 'border-t border-edge' : ''} ${rowTone}`}>
+      <Link
+        href={`/investments/${investment.id}`}
+        className="flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition relative"
+      >
+        {showBubblesOnRow && !isClosedPlan ? <WaterBubbles count={4} tone={lumpSum ? 'mint' : metalType ? 'honey' : 'sky'} /> : null}
+        <div ref={originRef} className="relative z-[1] flex-shrink-0">
+          <GrowthAvatar
+            kind={kind}
+            ratio={progress?.ratio || 0}
+            typeShort={TYPE_META[investment.type_code]?.short || 'OT'}
+            toneClass={TONE_BG[avatarTone]}
+            celebrate={celebrate}
+          />
+        </div>
+      <div className="flex-1 min-w-0 relative z-[1]">
+        <p className="text-sm font-medium truncate">{investment.bank} · {investment.plan_name}</p>
+        <p className="text-[11px] text-ink-mute mt-0.5 truncate">
+          {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
+          {labelFor(investment)}
+          {marketType ? (
+            <>
+              {' '}· {formatUnits(investment.total_units)} units
+              {investment.is_closed && <> · closed</>}
+              {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+              {investment.lifecycle_status === 'closed' && <> · closed</>}
+              {investment.lifecycle_status === 'matured' && <> · matured</>}
+            </>
+          ) : metalType ? (
+            <>
+              {' '}· {formatUnits(investment.total_units)} g held
+              {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+              {investment.lifecycle_status === 'closed' && <> · closed</>}
+              {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
+            </>
+          ) : (
+            <>
+              {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
+              {progress && <> · {progress.label}</>}
+              {investment.maturity_date && <> · matures {fmtDate(investment.maturity_date)}</>}
+              {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
+              {investment.lifecycle_status === 'closed' && <> · closed</>}
+              {investment.lifecycle_status === 'matured' && <> · matured</>}
+              {investment.auto_renew && <> · auto-renew</>}
+            </>
+          )}
+          {!metalType && investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
+        </p>
+      </div>
+      <div className="text-right flex-shrink-0 min-w-[5.5rem] relative z-[1]">
+        {marketType ? (
+          <>
+            <p className="text-sm font-medium">{inr(investment.remaining_cost_basis || 0)}</p>
+            <p className="text-[11px] text-sky-600 mt-0.5">{inr(investment.invested_amount || 0)} invested</p>
+          </>
+        ) : metalType ? (
+          <>
+            <p className="text-sm font-medium">{formatUnits(investment.total_units)} g</p>
+            <p className="text-[11px] text-honey-600 mt-0.5">{inr(investment.remaining_cost_basis || 0)} cost</p>
+          </>
+        ) : (
+          <>
+            {isClosedPlan ? (
+              <>
+                <p className="text-sm font-medium">{inr(Number(investment.closure_amount) > 0 ? investment.closure_amount : (investment.maturity_value || investment.amount))}</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">{Number(investment.closure_amount) > 0 ? 'received' : 'maturity value'}{investment.closure_date ? ` · ${fmtDate(investment.closure_date)}` : ''}</p>
+                {progress && <p className="text-[10px] text-ink-mute mt-0.5">{progress.label}</p>}
+              </>
+            ) : lumpSum ? (
+              <>
+                <p className="text-sm font-medium achieved-amount">{inr(investedSoFar)}</p>
+                <p className="text-[11px] text-mint-700 mt-0.5 font-medium">
+                  achieved{progress ? ` · ${progress.label}` : ''}
+                </p>
+                {Number(investment.rate_pct) > 0 && (
+                  <p className="text-[10px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
+                <p className="text-[11px] text-mint-700 mt-0.5">
+                  {inr(investedSoFar)} invested{progress ? ` · ${progress.label}` : ''}
+                </p>
+                {chitType ? (
+                  <p className={`text-[11px] mt-0.5 ${Number.isFinite(chitPl) && chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
+                    {Number.isFinite(chitPl) ? `${chitPl >= 0 ? '+' : ''}${inr(chitPl)}` : `${Number(chitMonthly || 0).toFixed(2)}%/mo`}
+                    {investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
+                )}
+                {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
+                {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
+                {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
+              </>
+            )}
+          </>
+        )}
+      </div>
+      </Link>
+    </div>
+  );
 }
 
 export default function InvestmentsClient({ user }) {
@@ -110,7 +273,7 @@ export default function InvestmentsClient({ user }) {
         )}
 
         {!loading && lifecycleFilter === 'closed' && closedCount === 0 && (
-          <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-2xl">
+          <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-xl">
             <p className="text-sm font-medium">No closed investments yet</p>
             <p className="text-sm text-ink-soft mt-1">Premature, matured, or redeemed plans will appear here.</p>
           </div>
@@ -156,97 +319,9 @@ export default function InvestmentsClient({ user }) {
 
         {!loading && filtered.length > 0 && (
           <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
-            {filtered.map((investment, idx) => {
-              const tone = toneFor(investment.type_code);
-              const marketType = isMarketInvestment(investment.type_code);
-              const metalType = isMetalInvestment(investment.type_code);
-              const chitType = isChitInvestment(investment.type_code);
-              const suffix = chitType ? '' : frequencySuffix(investment.payment_frequency);
-              const chitPl = Number(investment.chit_details?.summary?.profit_loss);
-              const chitMonthly = investment.chit_details?.summary?.monthly_rate_pct ?? investment.rate_pct;
-              const days = daysUntilMaturity(investment.maturity_date);
-              const isMatured = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
-              const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
-              const isWarning = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
-              const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
-              const isClosedPlan = isClosedInvestment(investment);
-              const lifecycleLabelText = getLifecycleLabel(resolveLifecycleStatus(investment));
-              return (
-                <Link key={investment.id} href={`/investments/${investment.id}`} className={`flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition ${idx > 0 ? 'border-t border-edge' : ''} ${isClosedPlan ? 'bg-paper-tint/80 opacity-90' : isPremature ? 'bg-danger-soft/30' : isMatured ? 'bg-mint-50/60' : isUrgent ? 'bg-danger-soft/40' : isWarning ? 'bg-honey-50/60' : ''}`}>
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 ${TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{investment.bank} · {investment.plan_name}</p>
-                    <p className="text-[11px] text-ink-mute mt-0.5 truncate">
-                      {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
-                      {labelFor(investment)}
-                      {marketType ? (
-                        <>
-                          {' '}· {formatUnits(investment.total_units)} units
-                          {investment.is_closed && <> · closed</>}
-                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
-                          {investment.lifecycle_status === 'closed' && <> · closed</>}
-                          {investment.lifecycle_status === 'matured' && <> · matured</>}
-                        </>
-                      ) : metalType ? (
-                        <>
-                          {' '}· {formatUnits(investment.total_units)} g held
-                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
-                          {investment.lifecycle_status === 'closed' && <> · closed</>}
-                          {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
-                        </>
-                      ) : (
-                        <>
-                          {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
-                          {investment.maturity_date && <> · matures {fmtDate(investment.maturity_date)}</>}
-                          {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
-                          {investment.lifecycle_status === 'closed' && <> · closed</>}
-                          {investment.lifecycle_status === 'matured' && <> · matured</>}
-                          {investment.auto_renew && <> · auto-renew</>}
-                        </>
-                      )}
-                      {!metalType && investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0 min-w-[5rem]">
-                    {marketType ? (
-                      <>
-                        <p className="text-sm font-medium">{inr(investment.remaining_cost_basis || 0)}</p>
-                        <p className="text-[11px] text-sky-600 mt-0.5">{inr(investment.invested_amount || 0)} invested</p>
-                      </>
-                    ) : metalType ? (
-                      <>
-                        <p className="text-sm font-medium">{formatUnits(investment.total_units)} g</p>
-                        <p className="text-[11px] text-honey-600 mt-0.5">{inr(investment.remaining_cost_basis || 0)} cost</p>
-                      </>
-                    ) : (
-                      <>
-                        {isClosedPlan ? (
-                          <>
-                            <p className="text-sm font-medium">{inr(Number(investment.closure_amount) > 0 ? investment.closure_amount : (investment.maturity_value || investment.amount))}</p>
-                            <p className="text-[11px] text-ink-soft mt-0.5">{Number(investment.closure_amount) > 0 ? 'received' : 'maturity value'}{investment.closure_date ? ` · ${fmtDate(investment.closure_date)}` : ''}</p>
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
-                            {chitType ? (
-                              <p className={`text-[11px] mt-0.5 ${Number.isFinite(chitPl) && chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
-                                {Number.isFinite(chitPl) ? `${chitPl >= 0 ? '+' : ''}${inr(chitPl)}` : `${Number(chitMonthly || 0).toFixed(2)}%/mo`}
-                                {investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
-                              </p>
-                            ) : (
-                              <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
-                            )}
-                            {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
-                            {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
-                            {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
+            {filtered.map((investment, idx) => (
+              <InvestmentRow key={investment.id} investment={investment} idx={idx} />
+            ))}
           </div>
         )}
       </div>
