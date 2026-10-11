@@ -257,12 +257,12 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Compute grams from investments
+  // Held grams, including matured schemes. A matured gold plan still counts while the weight is held.
   const totalGoldG = investments
-    .filter((inv) => inv.type_code === 'GOLD')
+    .filter((inv) => inv.type_code === 'GOLD' && Number(inv.total_units || 0) > 0)
     .reduce((sum, inv) => sum + Number(inv.total_units || 0), 0);
   const totalSilvG = investments
-    .filter((inv) => inv.type_code === 'SILV')
+    .filter((inv) => inv.type_code === 'SILV' && Number(inv.total_units || 0) > 0)
     .reduce((sum, inv) => sum + Number(inv.total_units || 0), 0);
 
   // ── Money goal handlers ──
@@ -497,7 +497,7 @@ export default function HomeClient({ user }) {
               </div>
 
               {/* ── Overall Goals (Gold · Silver · Money) ── */}
-              <GoalTrioSection investments={activeInvestments} currentValue={totalValue} investedValue={totalInvested} onMoneyGoalChange={setPortfolioGoal} />
+              <GoalTrioSection investments={investments} currentValue={totalValue} investedValue={totalInvested} onMoneyGoalChange={setPortfolioGoal} />
 
               {/* ── Portfolio projection chart ── */}
               <div className="mb-5">
