@@ -1244,12 +1244,14 @@ export default function DetailClient({
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{slot.period_label}</p>
-                        <p className="text-[11px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
                         {!paid && (
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <label className="text-[10px] text-ink-mute">Paid on</label>
-                            <input type="date" value={selectedPaidDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setManualPaidDate((prev) => ({ ...prev, [slot.period_label]: e.target.value }))} disabled={!paymentsWritable || isToggling} className="text-[11px] px-2 py-1 rounded-md border border-edge bg-paper-card" />
-                          </div>
+                          <>
+                            <p className="text-[11px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <label className="text-[10px] text-ink-mute">Paid on</label>
+                              <input type="date" value={selectedPaidDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setManualPaidDate((prev) => ({ ...prev, [slot.period_label]: e.target.value }))} disabled={!paymentsWritable || isToggling} className="text-[11px] px-2 py-1 rounded-md border border-edge bg-paper-card" />
+                            </div>
+                          </>
                         )}
                       </div>
                       <div className="text-right flex-shrink-0">
