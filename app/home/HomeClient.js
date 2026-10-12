@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { WaterBubbles } from '@/components/GrowthVisual';
+import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import {
@@ -155,7 +155,7 @@ function InfoTip({ text }) {
 }
 
 /** Single goal card (gold, silver, or money). */
-function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
+function GoalCard({ icon, thumb = null, label, tone, currentLabel, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
   const barColor = { honey: 'bg-honey-600', sky: 'bg-sky-600', mint: 'bg-mint-600' }[tone] || 'bg-mint-600';
   const accentColor = { honey: 'text-honey-600', sky: 'text-sky-600', mint: 'text-mint-600' }[tone] || 'text-mint-600';
   const borderActive = { honey: 'border-honey-600', sky: 'border-sky-500', mint: 'border-mint-600' }[tone] || 'border-mint-600';
@@ -163,7 +163,9 @@ function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining
   if (editing) {
     return (
       <div className={`bg-paper-card border ${borderActive} rounded-2xl p-4 flex flex-col`}>
-        <p className="text-[11px] font-medium text-ink-soft uppercase tracking-wider mb-3">{icon} {label} Goal</p>
+        <p className="text-[11px] font-medium text-ink-soft uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          {thumb ? <span className="inline-flex h-5 w-5"><CoinGlyph metal={thumb} /></span> : icon} {label} Goal
+        </p>
         <div className="space-y-2 mb-3">
           {form.fields.map((f) => (
             <div key={f.key}>
@@ -193,7 +195,7 @@ function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining
   if (!hasGoal) {
     return (
       <div className="border border-dashed border-edge rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[140px]">
-        <p className="text-2xl mb-1">{icon}</p>
+        {thumb ? <span className="mb-1 inline-flex h-10 w-10"><CoinGlyph metal={thumb} /></span> : <p className="text-2xl mb-1">{icon}</p>}
         <p className="text-sm font-medium">{label} goal</p>
         <p className="text-[11px] text-ink-mute mt-0.5 mb-3">Set a target to track progress</p>
         <button onClick={() => onEdit(true)} className="btn-primary py-1.5 px-3 rounded-full text-xs font-medium">+ Set goal</button>
@@ -202,10 +204,14 @@ function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining
   }
 
   return (
-    <div className="bg-paper-card border border-edge rounded-2xl p-4 flex flex-col">
+    <div className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col">
+      <GoalWaterFill pct={pct} />
+      <div className="goal-on-water flex flex-col flex-1">
       <div className="flex justify-between items-start mb-2">
         <div>
-          <p className="text-[11px] text-ink-mute uppercase tracking-wider">{icon} {label} Goal</p>
+          <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
+            {thumb ? <span className="inline-flex h-5 w-5 flex-shrink-0"><CoinGlyph metal={thumb} /></span> : icon} {label} Goal
+          </p>
           <p className="text-lg font-medium mt-0.5">{targetLabel}</p>
         </div>
         <div className="text-right">
@@ -218,6 +224,7 @@ function GoalCard({ icon, label, tone, currentLabel, targetLabel, pct, remaining
       </div>
       <p className="text-[11px] text-ink-mute flex-1">{currentLabel}</p>
       <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
+      </div>
     </div>
   );
 }
@@ -339,7 +346,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Gold */}
         <GoalCard
-          icon="🥇" label="Gold" tone="honey"
+          icon="🥇" thumb="gold" label="Gold" tone="honey"
           currentLabel={`${fmtG(totalGoldG)} accumulated`}
           targetLabel={goldTargetG ? fmtG(goldTargetG) : '—'}
           pct={goldPct}
@@ -354,7 +361,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
         />
         {/* Silver */}
         <GoalCard
-          icon="🥈" label="Silver" tone="sky"
+          icon="🥈" thumb="silver" label="Silver" tone="sky"
           currentLabel={`${fmtG(totalSilvG)} accumulated`}
           targetLabel={silvTargetG ? fmtG(silvTargetG) : '—'}
           pct={silvPct}
@@ -524,10 +531,23 @@ export default function HomeClient({ user }) {
                   const progress = tenureProgress(investment);
                   const investedSoFar = effectiveInvestedSoFar(investment);
                   const suffix = frequencySuffix(investment.payment_frequency);
+                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type);
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <div className="flex gap-2.5 items-center min-w-0 flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
+                        {thumbKind ? (
+                          <div className="w-8 h-8 flex-shrink-0">
+                            <TypeThumbnail
+                              typeCode={investment.type_code}
+                              customType={investment.custom_type}
+                              ratio={progress ? progress.ratio : null}
+                              wilted={Boolean(progress?.deducted)}
+                              complete={Boolean(progress?.complete)}
+                            />
+                          </div>
+                        ) : (
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
+                        )}
                         <div className="min-w-0">
                           <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
                           <p className="text-[11px] text-ink-mute mt-0.5">
@@ -580,9 +600,9 @@ export default function HomeClient({ user }) {
                   const tgt = Number(g.target_amount || 1);
                   const pct = Math.min(100, Math.round((cur / tgt) * 100));
                   return (
-                    <Link key={g.id} href="/goals" className="growth-stage block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition overflow-hidden">
-                      {pct < 100 ? <WaterBubbles count={4} tone="mint" /> : null}
-                      <div className="relative z-[1]">
+                    <Link key={g.id} href="/goals" className="growth-stage goal-water-card block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition overflow-hidden">
+                      <GoalWaterFill pct={pct} />
+                      <div className="goal-on-water">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-medium truncate pr-2">{g.name}</span>
                           <span className={`text-xs ${pct >= 100 ? 'achieved-amount font-medium' : 'text-ink-soft'}`}>{pct}%{pct >= 100 ? ' 👏' : ''}</span>

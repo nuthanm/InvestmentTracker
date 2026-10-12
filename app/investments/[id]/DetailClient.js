@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
+import { TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrPaise, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
 import {
@@ -14,6 +15,7 @@ import {
   isMarketInvestment,
   isMetalInvestment,
   isChitInvestment,
+  tenureProgress,
 } from '@/lib/investments';
 import { buildRecurringPaymentSchedule } from '@/lib/investments';
 import { summarizeChitPick } from '@/lib/chit';
@@ -112,6 +114,8 @@ export default function DetailClient({
   const marketType = isMarketInvestment(i.type_code);
   const metalType = isMetalInvestment(i.type_code);
   const chitType = isChitInvestment(i.type_code);
+  const thumbKind = investmentThumbKind(i.type_code, i.custom_type);
+  const planProgress = tenureProgress(i);
   const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
   const [summary, setSummary] = useState(marketSummary);
@@ -582,7 +586,20 @@ export default function DetailClient({
         )}
 
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(i)}</p>
+          <div className="flex items-center gap-2.5">
+            {thumbKind ? (
+              <span className="h-10 w-10 flex-shrink-0">
+                <TypeThumbnail
+                  typeCode={i.type_code}
+                  customType={i.custom_type}
+                  ratio={planProgress ? planProgress.ratio : null}
+                  wilted={Boolean(planProgress?.deducted)}
+                  complete={Boolean(planProgress?.complete)}
+                />
+              </span>
+            ) : null}
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(i)}</p>
+          </div>
           {marketType ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(currentSummary.remaining_cost_basis || 0)}</p>

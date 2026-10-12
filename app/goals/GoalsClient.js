@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { WaterBubbles, useCelebrateOnce } from '@/components/GrowthVisual';
+import { GoalWaterFill, TypeThumbnail, investmentThumbKind, useCelebrateOnce } from '@/components/GrowthVisual';
 import { inr, fmtDate, labelFor } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
@@ -68,9 +68,9 @@ function GoalCard({
     <div
       ref={hostRef}
       onClick={isEditing ? undefined : onToggleExpand}
-      className={`growth-stage bg-paper-card border border-edge rounded-2xl p-4 mb-3 transition ${reached ? 'bg-mint-50/50 border-mint-600/40' : 'overflow-hidden'} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
+      className={`growth-stage goal-water-card bg-paper-card border border-edge rounded-2xl p-4 mb-3 transition ${reached ? 'bg-mint-50/50 border-mint-600/40' : 'overflow-hidden'} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
     >
-      {!isEditing && !reached ? <WaterBubbles count={6} tone="mint" /> : null}
+      {!isEditing ? <GoalWaterFill pct={pct} /> : null}
       {isEditing ? (
         <div onClick={(e) => e.stopPropagation()} className="space-y-3 relative z-[1]">
           <p className="text-xs font-medium text-ink-soft uppercase tracking-wider mb-1">Edit goal</p>
@@ -140,7 +140,7 @@ function GoalCard({
           </div>
         </div>
       ) : (
-        <div className="relative z-[1]">
+        <div className="goal-on-water">
           <div className="flex justify-between items-start mb-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -189,6 +189,7 @@ function GoalCard({
                     : status === LIFECYCLE_STATUSES.PREMATURE_WITHDRAWAL ? 'Withdrawn'
                     : 'Closed';
                   const progress = tenureProgress(investment);
+                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type);
                   return (
                     <Link
                       key={investment.id}
@@ -196,7 +197,20 @@ function GoalCard({
                       onClick={(e) => e.stopPropagation()}
                       className={`block rounded-lg border px-2.5 py-2 transition ${active ? 'border-edge hover:border-mint-600' : 'border-edge bg-paper-tint opacity-70 hover:opacity-100'}`}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-start gap-2">
+                        {thumbKind ? (
+                          <span className="mt-0.5 h-7 w-7 flex-shrink-0">
+                            <TypeThumbnail
+                              typeCode={investment.type_code}
+                              customType={investment.custom_type}
+                              ratio={progress ? progress.ratio : null}
+                              wilted={Boolean(progress?.deducted)}
+                              complete={Boolean(progress?.complete)}
+                            />
+                          </span>
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
                         <p className="text-xs font-medium truncate flex-1">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
                         {!active && (
                           <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-ink-mute/10 text-ink-mute border border-ink-mute/20">
@@ -209,6 +223,8 @@ function GoalCard({
                         {progress && <> · {progress.label}</>}
                         {!countedTowardGoal && <span className="ml-1 italic">not counted</span>}
                       </p>
+                        </div>
+                      </div>
                     </Link>
                   );
                 })

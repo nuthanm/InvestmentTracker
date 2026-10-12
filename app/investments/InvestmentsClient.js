@@ -97,8 +97,10 @@ function InvestmentRow({ investment, idx }) {
         <div ref={originRef} className="relative z-[1] flex-shrink-0">
           <GrowthAvatar
             kind={kind}
-            ratio={progress?.ratio || 0}
+            ratio={progress ? progress.ratio : null}
             typeShort={TYPE_META[investment.type_code]?.short || 'OT'}
+            typeCode={investment.type_code}
+            customType={investment.custom_type}
             toneClass={TONE_BG[avatarTone]}
             celebrate={celebrate}
           />
