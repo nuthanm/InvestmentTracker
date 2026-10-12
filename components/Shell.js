@@ -104,7 +104,7 @@ export default function Shell({ children, user }) {
       <aside ref={sidebarRef} className="hidden md:flex md:flex-col md:border-r md:border-edge md:bg-paper-tint md:py-5 md:overflow-hidden transition-all duration-200 md:h-screen md:sticky md:top-0" style={{ width: sidebarOpen ? sidebarWidth : 60, minWidth: sidebarOpen ? sidebarWidth : 60 }}>
         {/* Logo */}
         <Link href="/home" className={`flex items-center gap-2 px-3 pb-4 mb-2 border-b border-edge ${sidebarOpen ? '' : 'justify-center'}`}>
-          <div className="w-9 h-9 rounded-xl bg-ink text-paper flex items-center justify-center font-medium text-sm">₹</div>
+          <div className="brand-mark w-9 h-9 rounded-xl bg-ink text-paper flex items-center justify-center font-medium text-sm">₹</div>
           {sidebarOpen && <div className="font-medium">My Investments</div>}
         </Link>
 
@@ -164,7 +164,7 @@ export default function Shell({ children, user }) {
       <main className="flex-1 flex flex-col min-w-0">
         <header className="md:hidden sticky top-0 z-20 bg-paper-card border-b border-edge px-4 py-3 flex items-center justify-between">
           <Link href="/home" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-ink text-paper flex items-center justify-center font-medium text-xs">₹</div>
+            <div className="brand-mark w-7 h-7 rounded-lg bg-ink text-paper flex items-center justify-center font-medium text-xs">₹</div>
             <div className="text-sm font-medium">My Investments</div>
           </Link>
           <div className="flex items-center gap-2">

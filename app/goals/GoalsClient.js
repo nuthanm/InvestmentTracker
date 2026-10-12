@@ -189,7 +189,7 @@ function GoalCard({
                     : status === LIFECYCLE_STATUSES.PREMATURE_WITHDRAWAL ? 'Withdrawn'
                     : 'Closed';
                   const progress = tenureProgress(investment);
-                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type);
+                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type, investment.plan_name);
                   return (
                     <Link
                       key={investment.id}
@@ -203,6 +203,7 @@ function GoalCard({
                             <TypeThumbnail
                               typeCode={investment.type_code}
                               customType={investment.custom_type}
+                              planName={investment.plan_name}
                               ratio={progress ? progress.ratio : null}
                               wilted={Boolean(progress?.deducted)}
                               complete={Boolean(progress?.complete)}
@@ -231,20 +232,20 @@ function GoalCard({
               )}
             </div>
           )}
-          <div className="flex justify-end items-center gap-3 mt-2">
-            <button onClick={onOpenEdit}
-              className="text-[11px] text-ink-mute hover:text-mint-600">edit</button>
+          <div className="flex justify-end items-center gap-1.5 mt-2">
+            <button type="button" onClick={onOpenEdit}
+              className="rounded-full border border-edge bg-paper-card px-2.5 py-0.5 text-xs font-medium leading-none text-ink shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none] hover:bg-paper">Edit</button>
             {confirmDeleteId === g.id ? (
-              <span className="flex items-center gap-1.5">
-                <span className="text-[11px] text-ink-soft">Sure?</span>
-                <button onClick={(e) => onDelete(e, g.id)}
-                  className="text-[11px] text-danger font-medium">Yes</button>
-                <button onClick={onCancelDelete}
-                  className="text-[11px] text-ink-mute">No</button>
+              <span className="inline-flex items-center gap-1 rounded-full border border-danger/25 bg-paper-card px-1.5 py-0.5 shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none]">
+                <span className="px-1 text-[11px] font-medium leading-none text-ink">Sure?</span>
+                <button type="button" onClick={(e) => onDelete(e, g.id)}
+                  className="rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold leading-none text-danger [text-shadow:none] hover:bg-[#f6d6d6]">Yes</button>
+                <button type="button" onClick={onCancelDelete}
+                  className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none text-ink [text-shadow:none] hover:bg-paper-tint">No</button>
               </span>
             ) : (
-              <button onClick={(e) => onConfirmDelete(e, g.id)}
-                className="text-[11px] text-ink-mute hover:text-danger">delete</button>
+              <button type="button" onClick={(e) => onConfirmDelete(e, g.id)}
+                className="rounded-full border border-danger/30 bg-paper-card px-2.5 py-0.5 text-xs font-medium leading-none text-danger shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none] hover:bg-danger-soft">Delete</button>
             )}
           </div>
         </div>

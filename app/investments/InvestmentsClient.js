@@ -101,6 +101,7 @@ function InvestmentRow({ investment, idx }) {
             typeShort={TYPE_META[investment.type_code]?.short || 'OT'}
             typeCode={investment.type_code}
             customType={investment.custom_type}
+            planName={investment.plan_name}
             toneClass={TONE_BG[avatarTone]}
             celebrate={celebrate}
           />

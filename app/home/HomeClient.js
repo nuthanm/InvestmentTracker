@@ -40,6 +40,10 @@ function eventWhenLabel(date, today) {
   return fmtDate(date);
 }
 
+function eventIsSoon(date, today) {
+  return daysUntil(date, today) <= 3;
+}
+
 function dateKey(date) {
   return startOfDay(date).toISOString().slice(0, 10);
 }
@@ -106,6 +110,7 @@ function buildUpcomingEvents(investments) {
         detail: `${inv.bank} · ${inv.plan_name}`,
         amountLine: `${inrShort(inv.amount)} contribution`,
         when: eventWhenLabel(dueDate, today),
+        soon: eventIsSoon(dueDate, today),
         href: `/investments/${inv.id}`,
         cta: 'View plan',
       });
@@ -122,6 +127,7 @@ function buildUpcomingEvents(investments) {
           detail: `${inv.bank} · ${inv.plan_name}`,
           amountLine: `${inrShort(inv.maturity_value || inv.amount)} projected`,
           when: eventWhenLabel(maturityDate, today),
+          soon: eventIsSoon(maturityDate, today),
           href: `/investments/${inv.id}`,
           cta: 'Open details',
         });
@@ -155,8 +161,9 @@ function InfoTip({ text }) {
 }
 
 /** Single goal card (gold, silver, or money). */
-function GoalCard({ icon, thumb = null, label, tone, currentLabel, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
-  const barColor = { honey: 'bg-honey-600', sky: 'bg-sky-600', mint: 'bg-mint-600' }[tone] || 'bg-mint-600';
+function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote = null, emphasizeCurrent = false, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
+  const barClass = { honey: 'goal-bar-gold', sky: 'goal-bar-silver', mint: 'goal-bar-wealth' }[tone] || 'goal-bar-wealth';
+  const accumClass = { honey: 'goal-accum-gold', sky: 'goal-accum-silver', mint: 'goal-accum-wealth' }[tone] || 'goal-accum-wealth';
   const accentColor = { honey: 'text-honey-600', sky: 'text-sky-600', mint: 'text-mint-600' }[tone] || 'text-mint-600';
   const borderActive = { honey: 'border-honey-600', sky: 'border-sky-500', mint: 'border-mint-600' }[tone] || 'border-mint-600';
 
@@ -220,9 +227,12 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, targetLabel, 
         </div>
       </div>
       <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
-        <div className={`fill-bar h-full ${barColor} rounded-full`} style={{ width: `${pct}%` }} />
+        <div className={`fill-bar h-full ${barClass} rounded-full`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[11px] text-ink-mute flex-1">{currentLabel}</p>
+      <p className="text-[11px] flex-1 leading-snug">
+        <span className={emphasizeCurrent ? accumClass : 'text-ink-mute'}>{currentLabel}</span>
+        {currentNote ? <span className="goal-accum-note"> · {currentNote}</span> : null}
+      </p>
       <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
       </div>
     </div>
@@ -336,6 +346,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
   // ── Progress calculations ──
   const goldPct = goldTargetG > 0 ? Math.min(100, Math.round((totalGoldG / goldTargetG) * 100)) : 0;
   const silvPct = silvTargetG > 0 ? Math.min(100, Math.round((totalSilvG / silvTargetG) * 100)) : 0;
+  // Overall wealth fill is invested amount / existing target, capped at 100.
   const moneyPct = moneyGoal?.amount > 0 ? Math.min(100, Math.round((investedValue / moneyGoal.amount) * 100)) : 0;
 
   const fmtG = (g) => { const n = Number(g || 0); return n.toFixed(n % 1 === 0 ? 0 : 3) + ' g'; };
@@ -348,6 +359,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
         <GoalCard
           icon="🥇" thumb="gold" label="Gold" tone="honey"
           currentLabel={`${fmtG(totalGoldG)} accumulated`}
+          emphasizeCurrent
           targetLabel={goldTargetG ? fmtG(goldTargetG) : '—'}
           pct={goldPct}
           remainingLabel={goldTargetG ? `${fmtG(Math.max(0, goldTargetG - totalGoldG))} to go` : ''}
@@ -363,6 +375,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
         <GoalCard
           icon="🥈" thumb="silver" label="Silver" tone="sky"
           currentLabel={`${fmtG(totalSilvG)} accumulated`}
+          emphasizeCurrent
           targetLabel={silvTargetG ? fmtG(silvTargetG) : '—'}
           pct={silvPct}
           remainingLabel={silvTargetG ? `${fmtG(Math.max(0, silvTargetG - totalSilvG))} to go` : ''}
@@ -377,7 +390,9 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
         {/* Money */}
         <GoalCard
           icon="💰" label="Overall Wealth" tone="mint"
-          currentLabel={`${inrShort(currentValue)} projected · ${inrShort(investedValue)} invested`}
+          currentLabel={`${inrShort(investedValue)} invested`}
+          currentNote={`${inrShort(currentValue)} projected`}
+          emphasizeCurrent
           targetLabel={moneyGoal ? inrShort(moneyGoal.amount) : '—'}
           pct={moneyPct}
           remainingLabel={moneyGoal ? `${inrShort(Math.max(0, moneyGoal.amount - investedValue))} to go` : ''}
@@ -474,32 +489,32 @@ export default function HomeClient({ user }) {
               </div>
 
               {/* ── Stat cards ── */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 mb-6">
-                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-                  <p className="text-[11px] text-ink-mute">Active plans</p>
-                  <p className="text-lg font-medium mt-1">{activeInvestments.length} <span className="text-ink-mute text-sm">→</span></p>
+              <div className="home-stat-grid">
+                <Link href="/investments?view=active" className="home-stat">
+                  <p className="home-stat-label">Active plans</p>
+                  <p className="home-stat-value">{activeInvestments.length} <span className="home-stat-arrow">→</span></p>
                 </Link>
-                <Link href="/investments?view=closed" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-                  <p className="text-[11px] text-ink-mute">Closed plans</p>
-                  <p className="text-lg font-medium mt-1">{closedInvestments.length} <span className="text-ink-mute text-sm">→</span></p>
+                <Link href="/investments?view=closed" className="home-stat">
+                  <p className="home-stat-label">Closed plans</p>
+                  <p className="home-stat-value">{closedInvestments.length} <span className="home-stat-arrow">→</span></p>
                   {closedInvestments.length > 0 && (
-                    <p className="text-[10px] text-ink-soft mt-0.5">{inrShort(closedReceivedTotal)} received</p>
+                    <p className="home-stat-note">{inrShort(closedReceivedTotal)} received</p>
                   )}
                 </Link>
-                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-                  <p className="text-[11px] text-ink-mute">Maturing in 30 days</p>
-                  <p className="text-lg font-medium mt-1 text-honey-600">{maturingSoon} <span className="text-ink-mute text-sm">→</span></p>
+                <Link href="/investments?view=active" className="home-stat">
+                  <p className="home-stat-label">Maturing in 30 days</p>
+                  <p className="home-stat-value home-stat-value-honey">{maturingSoon} <span className="home-stat-arrow">→</span></p>
                 </Link>
-                <Link href="/goals" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-                  <p className="text-[11px] text-ink-mute">Goals</p>
-                  <p className="text-lg font-medium mt-1">{goals.length} <span className="text-ink-mute text-sm">→</span></p>
+                <Link href="/goals" className="home-stat">
+                  <p className="home-stat-label">Goals</p>
+                  <p className="home-stat-value">{goals.length} <span className="home-stat-arrow">→</span></p>
                 </Link>
-                <Link href="/investments?view=active" className="bg-paper-card border border-edge rounded-xl p-3.5 hover:border-mint-600 transition">
-                  <p className="text-[11px] text-ink-mute">
+                <Link href="/investments?view=active" className="home-stat">
+                  <p className="home-stat-label">
                     Maturity value
                     <InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />
                   </p>
-                  <p className="text-lg font-medium mt-1 text-mint-600">{inrShort(totalValue)}</p>
+                  <p className="home-stat-value home-stat-value-mint">{inrShort(totalValue)}</p>
                 </Link>
               </div>
 
@@ -531,7 +546,7 @@ export default function HomeClient({ user }) {
                   const progress = tenureProgress(investment);
                   const investedSoFar = effectiveInvestedSoFar(investment);
                   const suffix = frequencySuffix(investment.payment_frequency);
-                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type);
+                  const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type, investment.plan_name);
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
                       <div className="flex gap-2.5 items-center min-w-0 flex-1">
@@ -540,6 +555,7 @@ export default function HomeClient({ user }) {
                             <TypeThumbnail
                               typeCode={investment.type_code}
                               customType={investment.custom_type}
+                              planName={investment.plan_name}
                               ratio={progress ? progress.ratio : null}
                               wilted={Boolean(progress?.deducted)}
                               complete={Boolean(progress?.complete)}
@@ -625,14 +641,14 @@ export default function HomeClient({ user }) {
                 ) : (
                   <div className="space-y-2">
                     {upcomingEvents.slice(0, 2).map((event) => (
-                      <Link key={event.key} href={event.href} className="block border border-edge rounded-lg p-2 bg-paper-tint/60 hover:border-mint-600 transition text-[11px]">
+                      <Link key={event.key} href={event.href} className={event.soon ? 'event-due-card block rounded-lg p-2 transition text-[11px]' : 'block border border-edge rounded-lg p-2 bg-paper-tint/60 hover:border-mint-600 transition text-[11px]'}>
                         <div className="flex items-start justify-between gap-1 mb-1">
                           <span className="font-medium truncate flex-1">{event.title}</span>
                           <span className="text-[9px] px-1 py-0.5 rounded bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap flex-shrink-0">{event.tag}</span>
                         </div>
                         <p className="text-ink-mute truncate mb-1">{event.detail}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-ember-600 font-medium text-[10px]">{event.when}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={event.soon ? 'event-due-badge' : 'text-ember-600 font-medium text-[10px]'}>{event.when}</span>
                           <span className="text-sky-600 text-[10px]">View →</span>
                         </div>
                       </Link>
@@ -641,25 +657,6 @@ export default function HomeClient({ user }) {
                 )}
               </section>
 
-              <section className="mt-5 pt-4 border-t border-edge">
-                <div className="flex justify-between items-baseline mb-3">
-                  <h2 className="text-sm font-medium">Recent investments</h2>
-                  <Link href="/investments" className="text-xs text-sky-600">view all</Link>
-                </div>
-                {investments.slice(0, 3).map((investment) => {
-                  const marketType = isMarketInvestment(investment.type_code);
-                  const closedPlan = isClosedInvestment(investment);
-                  const lifecycleLabel = getLifecycleLabel(resolveLifecycleStatus(investment));
-                  return (
-                    <Link key={`side-${investment.id}`} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2 border-b border-edge last:border-b-0 text-sm hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
-                      <span className="truncate pr-2">{investment.plan_name}</span>
-                      <span className="text-ink-soft text-xs whitespace-nowrap">
-                        {closedPlan ? lifecycleLabel : marketType ? 'Market holding' : `Matures ${fmtDate(investment.maturity_date)}`}
-                      </span>
-                    </Link>
-                  );
-                })}
-              </section>
             </aside>
           </div>
         </div>

@@ -114,7 +114,7 @@ export default function DetailClient({
   const marketType = isMarketInvestment(i.type_code);
   const metalType = isMetalInvestment(i.type_code);
   const chitType = isChitInvestment(i.type_code);
-  const thumbKind = investmentThumbKind(i.type_code, i.custom_type);
+  const thumbKind = investmentThumbKind(i.type_code, i.custom_type, i.plan_name);
   const planProgress = tenureProgress(i);
   const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
@@ -592,6 +592,7 @@ export default function DetailClient({
                 <TypeThumbnail
                   typeCode={i.type_code}
                   customType={i.custom_type}
+                  planName={i.plan_name}
                   ratio={planProgress ? planProgress.ratio : null}
                   wilted={Boolean(planProgress?.deducted)}
                   complete={Boolean(planProgress?.complete)}

@@ -58,20 +58,66 @@ export function visualGrowRatio(ratio, deducted) {
   return Math.pow(wilted, 0.55);
 }
 
+function normalizeTypeToken(value) {
+  return String(value || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+}
+
 const GOLD_TYPE_CODES = new Set(['GOLD', 'GD', 'SGB']);
 const SILVER_TYPE_CODES = new Set(['SILV', 'SILVER', 'SLV']);
 const RD_TYPE_CODES = new Set(['RD', 'RECURRINGDEPOSIT']);
+const CHIT_TYPE_CODES = new Set(['CHIT', 'CHITFUND']);
+const SAVINGS_TYPE_CODES = new Set(['SAVINGS', 'SAVING', 'SAV', 'CASH']);
+const FUND_TYPE_CODES = new Set(['MF', 'MUTUALFUND']);
+const OTHER_TYPE_CODES = new Set(['OT', 'OTHER']);
+const MARKET_TYPE_CODES = new Set(['ETF', 'STOCK', 'ST', 'EQ', 'EQUITY', 'SHARES']);
 
-/** Gold (physical or SGB), silver, and recurring deposit — including label variants. */
-export function investmentThumbKind(typeCode, customType = '') {
-  const code = String(typeCode || '').trim().toUpperCase().replace(/[\s_-]+/g, '');
+function compactLabel(value) {
+  return String(value || '').trim().toUpperCase().replace(/[\s_\-–—·•./]+/g, '');
+}
+
+function labelIsSavingsOrCash(value) {
+  const compact = compactLabel(value);
+  if (!compact) return false;
+  if (SAVINGS_TYPE_CODES.has(compact)) return true;
+  return compact.includes('SAVING') || compact.includes('CASH');
+}
+
+function labelIsMutualFund(value) {
+  const compact = compactLabel(value);
+  if (!compact) return false;
+  if (FUND_TYPE_CODES.has(compact)) return true;
+  return compact.includes('MUTUALFUND');
+}
+
+function customHasMarketLabel(normalized, raw) {
+  if (MARKET_TYPE_CODES.has(normalized)) return true;
+  return normalized.includes('ETF') || normalized.includes('STOCK') || normalized.includes('EQUITY') || /\betf\b|\bstock\b|\bequity\b/.test(raw);
+}
+
+/**
+ * Gold, silver, RD, chit, savings/cash, mutual fund, and ETF/stock.
+ * Type code wins, then the custom type label. An OT/OTHER plan is cash only
+ * when its plan name or custom label actually says savings or cash.
+ */
+export function investmentThumbKind(typeCode, customType = '', planName = '') {
+  const code = normalizeTypeToken(typeCode);
+  const extraNorm = normalizeTypeToken(customType);
   const extra = String(customType || '').trim().toLowerCase();
   if (SILVER_TYPE_CODES.has(code)) return 'silver';
   if (GOLD_TYPE_CODES.has(code)) return 'gold';
   if (RD_TYPE_CODES.has(code)) return 'rd';
-  if (/\bsilver\b/.test(extra)) return 'silver';
-  if (/\bgold\b/.test(extra) || /sovereign gold/.test(extra)) return 'gold';
-  if (/\brd\b/.test(extra) || /recurring deposit/.test(extra)) return 'rd';
+  if (CHIT_TYPE_CODES.has(code)) return 'chit';
+  if (SAVINGS_TYPE_CODES.has(code) || labelIsSavingsOrCash(typeCode)) return 'savings';
+  if (FUND_TYPE_CODES.has(code) || labelIsMutualFund(typeCode)) return 'fund';
+  if (MARKET_TYPE_CODES.has(code)) return 'market';
+  if (customHasMarketLabel(extraNorm, extra)) return 'market';
+  if (SILVER_TYPE_CODES.has(extraNorm) || /\bsilver\b/.test(extra)) return 'silver';
+  if (GOLD_TYPE_CODES.has(extraNorm) || /\bgold\b/.test(extra) || /sovereign gold/.test(extra)) return 'gold';
+  if (RD_TYPE_CODES.has(extraNorm) || /\brd\b/.test(extra) || /recurring deposit/.test(extra)) return 'rd';
+  if (CHIT_TYPE_CODES.has(extraNorm) || /\bchit\b/.test(extra) || /chit fund/.test(extra)) return 'chit';
+  if (labelIsMutualFund(customType)) return 'fund';
+  if (labelIsSavingsOrCash(customType)) return 'savings';
+  if (OTHER_TYPE_CODES.has(code) && labelIsSavingsOrCash(planName)) return 'savings';
   return null;
 }
 
@@ -91,19 +137,18 @@ const WAVE_FRONT = buildWavePath({ amp: 13, base: 26, troughFirst: true });
 const WAVE_CREST = buildWavePath({ amp: 13, base: 26, troughFirst: true, close: false });
 
 /**
- * Water depth tracks the goal percentage already shown on the tile.
- * 0% keeps a thin surface line; 100% fills the tile.
+ * Water depth is exactly the progress percentage of the tile height.
+ * 0% renders nothing. 1% is a 1% layer. 100% fills the tile.
  */
 export function GoalWaterFill({ pct = 0 }) {
   const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+  if (fill <= 0) return null;
   const full = fill >= 100;
-  const height = full ? '100%' : `max(16px, ${fill}%)`;
-  const surface = !full && fill < 8;
   return (
     <div className="goal-water-clip" data-water={fill} aria-hidden="true">
       <div
-        className={`goal-water-body${surface ? ' is-surface' : ''}${full ? ' is-full' : ''}`}
-        style={{ height }}
+        className={`goal-water-body${full ? ' is-full' : ''}`}
+        style={{ height: `${fill}%` }}
       >
         <div className="goal-water-fill">
           <span className="goal-water-caustic" />
@@ -262,14 +307,88 @@ export function RealTreeGlyph({ wilted = false, ratio = null, complete = false }
   );
 }
 
+/** Notes and a coin that tick forward, like cash being counted. */
+export function CashGlyph() {
+  return (
+    <span className="cash-count" aria-hidden="true">
+      <svg viewBox="0 0 36 36" className="cash-count-svg">
+        <g className="cash-note cash-note-back">
+          <rect x="5.5" y="15.5" width="20" height="12" rx="2" />
+          <circle cx="15.5" cy="21.5" r="2.4" />
+        </g>
+        <g className="cash-note cash-note-mid">
+          <rect x="7.2" y="12.2" width="20" height="12" rx="2" />
+          <circle cx="17.2" cy="18.2" r="2.4" />
+        </g>
+        <g className="cash-note cash-note-front">
+          <rect x="9" y="8.5" width="20" height="12.5" rx="2" />
+          <circle cx="19" cy="14.7" r="2.7" />
+          <text x="19" y="16.15" textAnchor="middle" fontSize="4.2" fontWeight="700" fontFamily="Georgia, serif">₹</text>
+        </g>
+        <g className="cash-coin">
+          <circle cx="27.2" cy="26.2" r="5.1" />
+          <circle cx="27.2" cy="26.2" r="3.5" />
+          <text x="27.2" y="27.7" textAnchor="middle" fontSize="4.4" fontWeight="700" fontFamily="Georgia, serif">₹</text>
+        </g>
+      </svg>
+    </span>
+  );
+}
+
+/** Candles and a trend line that redraw, as a small market mark. */
+export function MarketGlyph() {
+  return (
+    <span className="market-mark" aria-hidden="true">
+      <svg viewBox="0 0 36 36" className="market-mark-svg">
+        <line className="market-axis" x1="4" y1="30" x2="33" y2="30" />
+        <g className="market-candle market-candle-a">
+          <line x1="9" y1="22" x2="9" y2="8" />
+          <rect x="6.6" y="12" width="4.8" height="8" rx="0.6" />
+        </g>
+        <g className="market-candle market-candle-b market-candle-down">
+          <line x1="17" y1="24" x2="17" y2="11" />
+          <rect x="14.6" y="14" width="4.8" height="7" rx="0.6" />
+        </g>
+        <g className="market-candle market-candle-c">
+          <line x1="25" y1="20" x2="25" y2="6" />
+          <rect x="22.6" y="8" width="4.8" height="9" rx="0.6" />
+        </g>
+        <polyline className="market-trend" points="5,23 11,16 17,19 25,9 32,6" />
+      </svg>
+    </span>
+  );
+}
+
+/** A fund pie that pulses, with bars that rise beside it. */
+export function FundGlyph() {
+  return (
+    <span className="fund-mark" aria-hidden="true">
+      <svg viewBox="0 0 36 36" className="fund-mark-svg">
+        <g className="fund-pie">
+          <path className="fund-slice fund-slice-a" d="M12 18 L12 10.6 A7.4 7.4 0 0 1 15.7 24.41 Z" />
+          <path className="fund-slice fund-slice-b" d="M12 18 L15.7 24.41 A7.4 7.4 0 0 1 4.6 18 Z" />
+          <path className="fund-slice fund-slice-c" d="M12 18 L4.6 18 A7.4 7.4 0 0 1 12 10.6 Z" />
+          <circle cx="12" cy="18" r="3.1" className="fund-pie-hole" />
+        </g>
+        <g className="fund-bars">
+          <rect className="fund-bar fund-bar-a" x="22.2" y="22" width="3.3" height="8" rx="0.8" />
+          <rect className="fund-bar fund-bar-b" x="26.4" y="16.5" width="3.3" height="13.5" rx="0.8" />
+          <rect className="fund-bar fund-bar-c" x="30.6" y="11" width="3.3" height="19" rx="0.8" />
+        </g>
+      </svg>
+    </span>
+  );
+}
+
 export function TypeThumbnail({
   typeCode,
   customType,
+  planName = '',
   wilted = false,
   ratio = null,
   complete = false,
 }) {
-  const thumb = investmentThumbKind(typeCode, customType);
+  const thumb = investmentThumbKind(typeCode, customType, planName);
   if (thumb === 'gold' || thumb === 'silver') {
     return (
       <span className="type-thumb">
@@ -277,10 +396,31 @@ export function TypeThumbnail({
       </span>
     );
   }
-  if (thumb === 'rd') {
+  if (thumb === 'rd' || thumb === 'chit') {
     return (
       <span className="type-thumb">
         <RealTreeGlyph wilted={wilted} ratio={ratio} complete={complete} />
+      </span>
+    );
+  }
+  if (thumb === 'savings') {
+    return (
+      <span className="type-thumb">
+        <CashGlyph />
+      </span>
+    );
+  }
+  if (thumb === 'fund') {
+    return (
+      <span className="type-thumb">
+        <FundGlyph />
+      </span>
+    );
+  }
+  if (thumb === 'market') {
+    return (
+      <span className="type-thumb">
+        <MarketGlyph />
       </span>
     );
   }
@@ -293,25 +433,28 @@ export function GrowthAvatar({
   typeShort,
   typeCode,
   customType,
+  planName = '',
   toneClass,
   celebrate = false,
 }) {
-  const thumb = investmentThumbKind(typeCode, customType);
+  const thumb = investmentThumbKind(typeCode, customType, planName);
   const showTree = kind === 'tree' || kind === 'wilted' || kind === 'complete';
   const showBubbles = kind === 'bubbles' || kind === 'achieved';
   const treeRatio = Number(ratio) || 0;
-  if (thumb === 'gold' || thumb === 'silver' || thumb === 'rd') {
+  if (thumb === 'gold' || thumb === 'silver' || thumb === 'rd' || thumb === 'chit' || thumb === 'savings' || thumb === 'fund' || thumb === 'market') {
+    const treeThumb = thumb === 'rd' || thumb === 'chit';
     return (
       <div className="growth-avatar">
         <TypeThumbnail
           typeCode={typeCode}
           customType={customType}
+          planName={planName}
           wilted={kind === 'wilted'}
           ratio={ratio}
           complete={kind === 'complete' || celebrate}
         />
-        {thumb === 'rd' && (kind === 'complete' || celebrate) ? <span className="growth-clap">👏</span> : null}
-        {thumb === 'rd' ? <span className="growth-type-chip">{typeShort}</span> : null}
+        {treeThumb && (kind === 'complete' || celebrate) ? <span className="growth-clap">👏</span> : null}
+        {treeThumb ? <span className="growth-type-chip">{typeShort}</span> : null}
       </div>
     );
   }
