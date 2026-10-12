@@ -493,21 +493,24 @@ export default function HomeClient({ user }) {
                 <Link href="/investments?view=active" className="home-stat">
                   <p className="home-stat-label">Active plans</p>
                   <p className="home-stat-value">{activeInvestments.length} <span className="home-stat-arrow">→</span></p>
+                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
                 </Link>
                 <Link href="/investments?view=closed" className="home-stat">
                   <p className="home-stat-label">Closed plans</p>
                   <p className="home-stat-value">{closedInvestments.length} <span className="home-stat-arrow">→</span></p>
-                  {closedInvestments.length > 0 && (
-                    <p className="home-stat-note">{inrShort(closedReceivedTotal)} received</p>
-                  )}
+                  <p className="home-stat-note">
+                    {closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : '\u00a0'}
+                  </p>
                 </Link>
                 <Link href="/investments?view=active" className="home-stat">
                   <p className="home-stat-label">Maturing in 30 days</p>
                   <p className="home-stat-value home-stat-value-honey">{maturingSoon} <span className="home-stat-arrow">→</span></p>
+                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
                 </Link>
                 <Link href="/goals" className="home-stat">
                   <p className="home-stat-label">Goals</p>
                   <p className="home-stat-value">{goals.length} <span className="home-stat-arrow">→</span></p>
+                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
                 </Link>
                 <Link href="/investments?view=active" className="home-stat">
                   <p className="home-stat-label">
@@ -515,6 +518,7 @@ export default function HomeClient({ user }) {
                     <InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />
                   </p>
                   <p className="home-stat-value home-stat-value-mint">{inrShort(totalValue)}</p>
+                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
                 </Link>
               </div>
 
