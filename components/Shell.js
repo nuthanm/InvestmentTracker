@@ -13,6 +13,77 @@ const NAV_ITEMS = [
   { key: 'security', label: 'Security Activity', href: '/account/security-activity', icon: 'shield' },
 ];
 
+const FINANCIAL_QUOTES = [
+  { text: 'Do not save what is left after spending, but spend what is left after saving.', author: 'Warren Buffett' },
+  { text: 'Price is what you pay. Value is what you get.', author: 'Warren Buffett' },
+  { text: 'Risk comes from not knowing what you are doing.', author: 'Warren Buffett' },
+  { text: 'The best investment you can make is in yourself.', author: 'Warren Buffett' },
+  { text: 'The stock market is a device for transferring money from the impatient to the patient.', author: 'Warren Buffett' },
+  { text: 'Someone is sitting in the shade today because someone planted a tree a long time ago.', author: 'Warren Buffett' },
+  { text: 'Never invest in a business you cannot understand.', author: 'Warren Buffett' },
+  { text: 'Our favorite holding period is forever.', author: 'Warren Buffett' },
+  { text: 'Be fearful when others are greedy, and greedy when others are fearful.', author: 'Warren Buffett' },
+  { text: 'Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.', author: 'Warren Buffett' },
+  { text: 'The big money is not in the buying and selling, but in the waiting.', author: 'Charlie Munger' },
+  { text: 'Time is your friend; impulse is your enemy.', author: 'John C. Bogle' },
+  { text: 'Know what you own, and know why you own it.', author: 'Peter Lynch' },
+  { text: 'The individual investor should act consistently as an investor and not as a speculator.', author: 'Benjamin Graham' },
+  { text: 'An investment in knowledge pays the best interest.', author: 'Benjamin Franklin' },
+  { text: 'Beware of little expenses. A small leak will sink a great ship.', author: 'Benjamin Franklin' },
+  { text: 'A budget is telling your money where to go instead of wondering where it went.', author: 'Dave Ramsey' },
+  { text: 'Financial peace is learning to live on less than you make.', author: 'Dave Ramsey' },
+  { text: 'It is not how much money you make, but how much money you keep.', author: 'Robert Kiyosaki' },
+  { text: 'The four most dangerous words in investing are: this time it is different.', author: 'John Templeton' },
+];
+
+function QuoteStrip() {
+  const [index, setIndex] = useState(0);
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    const pickDifferent = (current) => {
+      let next = Math.floor(Math.random() * FINANCIAL_QUOTES.length);
+      if (FINANCIAL_QUOTES.length > 1 && next === current) {
+        next = (current + 1) % FINANCIAL_QUOTES.length;
+      }
+      return next;
+    };
+
+    setIndex(Math.floor(Math.random() * FINANCIAL_QUOTES.length));
+    setShown(true);
+
+    let fadeTimer;
+    const interval = setInterval(() => {
+      setShown(false);
+      fadeTimer = setTimeout(() => {
+        setIndex((current) => pickDifferent(current));
+        setShown(true);
+      }, 320);
+    }, 16000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(fadeTimer);
+    };
+  }, []);
+
+  const quote = FINANCIAL_QUOTES[index];
+
+  return (
+    <blockquote
+      className="quote-pastel min-w-0 w-full flex-1 self-stretch flex flex-col items-center justify-center gap-0.5 px-4 py-2 sm:flex-row sm:gap-2 sm:px-6"
+      title={`“${quote.text}” — ${quote.author}`}
+    >
+      <p className={`min-w-0 text-[12px] sm:text-[13px] italic text-ink-soft leading-snug text-center sm:truncate sm:leading-none transition-opacity duration-300 ${shown ? 'opacity-100' : 'opacity-0'}`}>
+        “{quote.text}”
+      </p>
+      <cite className={`shrink-0 not-italic text-[11px] sm:text-xs text-ink-mute whitespace-nowrap transition-opacity duration-300 ${shown ? 'opacity-100' : 'opacity-0'}`}>
+        — {quote.author}
+      </cite>
+    </blockquote>
+  );
+}
+
 function NavIcon({ name }) {
   const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
   if (name === 'home') return (<svg {...common}><path d="M3 9.5L12 3l9 6.5V21H3z"/><path d="M9 21V12h6v9"/></svg>);
@@ -162,12 +233,15 @@ export default function Shell({ children, user }) {
       )}
 
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden sticky top-0 z-20 bg-paper-card border-b border-edge px-4 py-3 flex items-center justify-between">
-          <Link href="/home" className="flex items-center gap-2">
+        <header className="md:hidden sticky top-0 z-20 bg-paper-card border-b border-edge grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3">
+          <Link href="/home" className="col-start-1 row-start-1 flex items-center gap-2 px-4 py-2.5">
             <div className="brand-mark w-7 h-7 rounded-lg bg-ink text-paper flex items-center justify-center font-medium text-xs">₹</div>
             <div className="text-sm font-medium">My Investments</div>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="col-span-3 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 min-w-0 self-stretch flex">
+            <QuoteStrip />
+          </div>
+          <div className="col-start-3 row-start-1 flex items-center gap-2 px-4 py-2.5">
             <Link href="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-paper-tint">
               <NavIcon name="bell" />
               {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-medium rounded-full flex items-center justify-center">{unread}</span>}
@@ -190,25 +264,28 @@ export default function Shell({ children, user }) {
           </div>
         </header>
 
-        <header className="hidden md:flex sticky top-0 z-20 bg-paper-card border-b border-edge px-6 h-14 items-center justify-end gap-3">
-          <Link href="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-paper-tint">
-            <NavIcon name="bell" />
-            {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-medium rounded-full flex items-center justify-center">{unread}</span>}
-          </Link>
-          <div className="relative">
-            <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center text-xs font-medium hover:ring-2 hover:ring-sky-200 transition">
-              {initials}
-            </button>
-            {showProfileMenu && (
-              <div className="absolute right-0 mt-2 w-40 bg-paper-card border border-edge rounded-lg shadow-lg overflow-hidden z-50">
-                <Link href="/account" onClick={() => setShowProfileMenu(false)} className="block px-4 py-3 text-sm text-ink hover:bg-paper-tint border-b border-edge">
-                  Account Settings
-                </Link>
-                <button onClick={() => { setShowProfileMenu(false); setConfirmSignOut(true); }} className="w-full text-left px-4 py-3 text-sm text-danger hover:bg-danger/5 transition">
-                  Sign out
-                </button>
-              </div>
-            )}
+        <header className="hidden md:flex sticky top-0 z-20 bg-paper-card border-b border-edge h-14 items-stretch">
+          <QuoteStrip />
+          <div className="flex items-center gap-3 shrink-0 px-4">
+            <Link href="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-paper-tint">
+              <NavIcon name="bell" />
+              {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-medium rounded-full flex items-center justify-center">{unread}</span>}
+            </Link>
+            <div className="relative">
+              <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center text-xs font-medium hover:ring-2 hover:ring-sky-200 transition">
+                {initials}
+              </button>
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-2 w-40 bg-paper-card border border-edge rounded-lg shadow-lg overflow-hidden z-50">
+                  <Link href="/account" onClick={() => setShowProfileMenu(false)} className="block px-4 py-3 text-sm text-ink hover:bg-paper-tint border-b border-edge">
+                    Account Settings
+                  </Link>
+                  <button onClick={() => { setShowProfileMenu(false); setConfirmSignOut(true); }} className="w-full text-left px-4 py-3 text-sm text-danger hover:bg-danger/5 transition">
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

@@ -85,6 +85,30 @@ input:focus, select:focus, textarea:focus {
 }
 .anim-fade { animation: fade-in 0.25s ease; }
 
+@keyframes quote-pastel {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.quote-pastel {
+  background-image: linear-gradient(
+    100deg,
+    #d7f3ea 0%,
+    #e4f2fb 20%,
+    #eeedfe 42%,
+    #fbe8f1 64%,
+    #faeeda 84%,
+    #d7f3ea 100%
+  );
+  background-size: 280% 280%;
+  animation: quote-pastel 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-pastel { animation: none; }
+}
+
 .scroll-area::-webkit-scrollbar { width: 6px; }
 .scroll-area::-webkit-scrollbar-thumb { background: #E2DDCB; border-radius: 3px; }
 
