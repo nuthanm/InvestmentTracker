@@ -263,7 +263,12 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         <div className="flex items-start justify-between mb-4 gap-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
-            <p className="text-sm text-ink-soft mt-1">{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · {inr(total)} invested</p>
+            <p className="text-sm text-ink-soft mt-1">
+              {filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'}
+              {readOnly
+                ? <> · Total invested <span className="font-medium text-ink">{inr(total)}</span></>
+                : <> · {inr(total)} invested</>}
+            </p>
           </div>
           {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>}
         </div>

@@ -4,9 +4,19 @@ import { getViewAccess, loadViewPortfolio, viewLinkIsActive } from '@/lib/view-a
 import InvestmentsClient from '@/app/investments/InvestmentsClient';
 import ViewUnlockClient from './ViewUnlockClient';
 import { inr, fmtDate } from '@/lib/format';
+import { effectiveInvestedSoFar, isMetalInvestment } from '@/lib/investments';
+import { isActiveInvestment } from '@/lib/investment-lifecycle';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+function investedTowardGoal(goalId, investments) {
+  return investments.reduce((sum, investment) => {
+    if (String(investment.goal_id || '') !== String(goalId)) return sum;
+    if (!isActiveInvestment(investment) && !isMetalInvestment(investment.type_code)) return sum;
+    return sum + effectiveInvestedSoFar(investment);
+  }, 0);
+}
 
 function InactiveView() {
   return (
@@ -53,15 +63,26 @@ export default async function ViewPortfolioPage({ params }) {
           <section className="mb-2">
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Goals</p>
             <div className="grid sm:grid-cols-2 gap-2">
-              {portfolio.goals.map((goal) => (
-                <div key={goal.id} className="bg-paper-card border border-edge rounded-xl px-3.5 py-3">
-                  <p className="text-sm font-medium truncate">{goal.name}</p>
-                  {goal.description ? <p className="text-[11px] text-ink-soft mt-1 line-clamp-2">{goal.description}</p> : null}
-                  <p className="text-[11px] text-ink-mute mt-1">
-                    {inr(goal.target_amount)} · {fmtDate(goal.target_date)}
-                  </p>
-                </div>
-              ))}
+              {portfolio.goals.map((goal) => {
+                const invested = investedTowardGoal(goal.id, portfolio.investments);
+                return (
+                  <div key={goal.id} className="bg-paper-card border border-edge rounded-xl px-3.5 py-3">
+                    <p className="text-sm font-medium">{goal.name}</p>
+                    {goal.description ? <p className="text-[11px] text-ink-soft mt-1 line-clamp-2">{goal.description}</p> : null}
+                    <div className="mt-2.5 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+                      <div className="min-w-0">
+                        <p className="text-[10px] tracking-wider uppercase text-ink-mute">Target</p>
+                        <p className="text-base font-medium leading-snug">{inr(goal.target_amount)}</p>
+                      </div>
+                      <p className="shrink-0 text-[11px] text-ink-soft pb-0.5">By {fmtDate(goal.target_date)}</p>
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-dashed border-edge">
+                      <p className="text-[10px] tracking-wider uppercase text-ink-mute">Invested</p>
+                      <p className="text-sm font-medium text-mint-700">{inr(invested)}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
         )}
