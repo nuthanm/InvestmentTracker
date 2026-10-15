@@ -49,7 +49,7 @@ function growthKindFor(investment, { isClosedPlan, isPremature, progress, deduct
   return 'bubbles';
 }
 
-function InvestmentRow({ investment, idx }) {
+function InvestmentRow({ investment, idx, href }) {
   const tone = toneFor(investment.type_code);
   const marketType = isMarketInvestment(investment.type_code);
   const metalType = isMetalInvestment(investment.type_code);
@@ -90,7 +90,7 @@ function InvestmentRow({ investment, idx }) {
   return (
     <div ref={hostRef} className={`growth-stage ${idx > 0 ? 'border-t border-edge' : ''} ${rowTone}`}>
       <Link
-        href={`/investments/${investment.id}`}
+        href={href || `/investments/${investment.id}`}
         className="flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition relative"
       >
         {showBubblesOnRow && !isClosedPlan ? <WaterBubbles count={4} tone={lumpSum ? 'mint' : metalType ? 'honey' : 'sky'} /> : null}
@@ -196,9 +196,10 @@ function InvestmentRow({ investment, idx }) {
   );
 }
 
-export default function InvestmentsClient({ user }) {
-  const [investments, setInvestments] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function InvestmentsClient({ user, initialInvestments = null, readOnly = false, linkBase = '/investments' }) {
+  const seeded = Array.isArray(initialInvestments);
+  const [investments, setInvestments] = useState(seeded ? initialInvestments : []);
+  const [loading, setLoading] = useState(!seeded);
   const [filter, setFilter] = useState('ALL');
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
 
@@ -211,11 +212,13 @@ export default function InvestmentsClient({ user }) {
   }, []);
 
   useEffect(() => {
+    if (seeded) return undefined;
     fetch('/api/investments').then((r) => r.json()).then((d) => {
       setInvestments(d.investments || []);
       setLoading(false);
     });
-  }, []);
+    return undefined;
+  }, [seeded]);
 
   const activeInvestments = investments.filter(isActiveInvestment);
   const closedInvestments = investments.filter(isClosedInvestment);
@@ -249,15 +252,14 @@ export default function InvestmentsClient({ user }) {
 
   const lifecycleLabel = lifecycleFilter === 'active' ? 'Active' : lifecycleFilter === 'closed' ? 'Closed' : 'All';
 
-  return (
-    <Shell user={user}>
+  const content = (
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-4xl mx-auto w-full">
         <div className="flex items-start justify-between mb-4 gap-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
             <p className="text-sm text-ink-soft mt-1">{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · {inr(total)} invested</p>
           </div>
-          <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>
+          {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>}
         </div>
 
         {!loading && investments.length > 0 && (
@@ -285,21 +287,21 @@ export default function InvestmentsClient({ user }) {
         {!loading && prematureCount > 0 && lifecycleFilter !== 'active' && (
           <div className="flex items-start gap-3 bg-danger-soft border border-danger/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">⚠️</span>
-            <p className="text-sm text-danger"><span className="font-medium">{prematureCount} investment{prematureCount > 1 ? 's were' : ' was'} prematurely withdrawn.</span> Review closure amounts and update records if needed.</p>
+            <p className="text-sm text-danger"><span className="font-medium">{prematureCount} investment{prematureCount > 1 ? 's were' : ' was'} prematurely withdrawn.</span> {readOnly ? 'Closure amounts are shown with each plan.' : 'Review closure amounts and update records if needed.'}</p>
           </div>
         )}
 
         {!loading && nearMaturityCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-honey-50 border border-honey-600/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">📅</span>
-            <p className="text-sm text-honey-600"><span className="font-medium">{nearMaturityCount} investment{nearMaturityCount > 1 ? 's' : ''} maturing within 90 days.</span> Tap to review and decide: renew, withdraw, or reinvest.</p>
+            <p className="text-sm text-honey-600"><span className="font-medium">{nearMaturityCount} investment{nearMaturityCount > 1 ? 's' : ''} maturing within 90 days.</span> {readOnly ? 'Open a plan to see the maturity date.' : 'Tap to review and decide: renew, withdraw, or reinvest.'}</p>
           </div>
         )}
 
         {!loading && maturedCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-mint-50 border border-mint-600/30 rounded-xl p-3.5 mb-4">
             <span className="text-xl leading-none">✅</span>
-            <p className="text-sm text-mint-700"><span className="font-medium">{maturedCount} investment{maturedCount > 1 ? 's are' : ' is'} matured.</span> Review closure, withdrawal, or reinvestment action.</p>
+            <p className="text-sm text-mint-700"><span className="font-medium">{maturedCount} investment{maturedCount > 1 ? 's are' : ' is'} matured.</span> {readOnly ? 'Open a plan to see the recorded outcome.' : 'Review closure, withdrawal, or reinvestment action.'}</p>
           </div>
         )}
 
@@ -315,19 +317,26 @@ export default function InvestmentsClient({ user }) {
         {!loading && investments.length === 0 && (
           <div className="text-center py-16">
             <p className="text-base font-medium mb-1">No investments yet</p>
-            <p className="text-sm text-ink-soft mb-5">Add your first FD, RD, chit fund, mutual fund, or other investment.</p>
-            <Link href="/investments/new" className="btn-primary py-2.5 px-5 rounded-lg text-sm font-medium inline-block">Add an investment</Link>
+            <p className="text-sm text-ink-soft mb-5">{readOnly ? 'This portfolio has no investments yet.' : 'Add your first FD, RD, chit fund, mutual fund, or other investment.'}</p>
+            {!readOnly && <Link href="/investments/new" className="btn-primary py-2.5 px-5 rounded-lg text-sm font-medium inline-block">Add an investment</Link>}
           </div>
         )}
 
         {!loading && filtered.length > 0 && (
           <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
             {filtered.map((investment, idx) => (
-              <InvestmentRow key={investment.id} investment={investment} idx={idx} />
+              <InvestmentRow
+                key={investment.id}
+                investment={investment}
+                idx={idx}
+                href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
+              />
             ))}
           </div>
         )}
       </div>
-    </Shell>
   );
+
+  if (readOnly) return content;
+  return <Shell user={user}>{content}</Shell>;
 }
