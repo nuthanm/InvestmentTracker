@@ -199,7 +199,7 @@ function InvestmentRow({ investment, idx, href }) {
 export default function InvestmentsClient({ user, initialInvestments = null, readOnly = false, linkBase = '/investments' }) {
   const seeded = Array.isArray(initialInvestments);
   const [investments, setInvestments] = useState(seeded ? initialInvestments : []);
-  const [loading, setLoading] = useState(!seeded);
+  const [loading, setLoading] = useState(!seeded && !readOnly);
   const [filter, setFilter] = useState('ALL');
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
 
@@ -212,13 +212,19 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   }, []);
 
   useEffect(() => {
-    if (seeded) return undefined;
+    if (readOnly && !seeded && process.env.NODE_ENV !== 'production') {
+      console.warn('InvestmentsClient: pass initialInvestments when readOnly=true (view links have no auth for /api/investments).');
+    }
+  }, [readOnly, seeded]);
+
+  useEffect(() => {
+    if (seeded || readOnly) return undefined;
     fetch('/api/investments').then((r) => r.json()).then((d) => {
       setInvestments(d.investments || []);
       setLoading(false);
     });
     return undefined;
-  }, [seeded]);
+  }, [seeded, readOnly]);
 
   const activeInvestments = investments.filter(isActiveInvestment);
   const closedInvestments = investments.filter(isClosedInvestment);
