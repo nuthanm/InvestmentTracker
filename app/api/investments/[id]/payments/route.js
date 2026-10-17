@@ -75,6 +75,37 @@ export async function POST(req, { params }) {
     }
 
     const paidBool = !!paid;
+    if (!paidBool) {
+      try {
+        const [paidRows, withdrawnRows] = await Promise.all([
+          sql`
+            SELECT period_label, amount, paid
+            FROM payment_records
+            WHERE investment_id = ${params.id} AND user_id = ${me.id}
+          `,
+          sql`
+            SELECT COALESCE(SUM(amount), 0) AS total
+            FROM partial_withdrawals
+            WHERE investment_id = ${params.id} AND user_id = ${me.id}
+          `,
+        ]);
+        const withdrawn = Number(withdrawnRows[0]?.total || 0);
+        if (withdrawn > 0) {
+          const paidAfter = paidRows.reduce((sum, row) => {
+            const staysPaid = String(row.period_label) === String(period_label) ? false : !!row.paid;
+            return staysPaid ? sum + Number(row.amount || 0) : sum;
+          }, 0);
+          if (withdrawn > paidAfter + 0.001) {
+            return NextResponse.json({
+              error: 'This instalment is already counted in a partial withdrawal. Remove or reduce that withdrawal before marking it unpaid.',
+            }, { status: 400 });
+          }
+        }
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (!(msg.includes('partial_withdrawals') && msg.includes('does not exist'))) throw err;
+      }
+    }
     const paidAtInput = typeof paid_at === 'string' ? paid_at.trim() : '';
     let paidAt = null;
     if (paidBool) {

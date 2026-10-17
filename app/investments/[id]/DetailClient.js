@@ -110,12 +110,19 @@ export default function DetailClient({
   const [paymentsWritable, setPaymentsWritable] = useState(true);
   const [paymentsError, setPaymentsError] = useState('');
   const [manualPaidDate, setManualPaidDate] = useState({});
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [withdrawalsWritable, setWithdrawalsWritable] = useState(true);
+  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [withdrawalNotes, setWithdrawalNotes] = useState('');
+  const [savingWithdrawal, setSavingWithdrawal] = useState(false);
+  const [removingWithdrawalId, setRemovingWithdrawalId] = useState(null);
+  const [withdrawalError, setWithdrawalError] = useState('');
 
   const marketType = isMarketInvestment(i.type_code);
   const metalType = isMetalInvestment(i.type_code);
   const chitType = isChitInvestment(i.type_code);
   const thumbKind = investmentThumbKind(i.type_code, i.custom_type, i.plan_name);
-  const planProgress = tenureProgress(i);
   const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
   const [summary, setSummary] = useState(marketSummary);
@@ -200,6 +207,19 @@ export default function DetailClient({
       })
       .catch((err) => setPaymentsError(err.message || 'Could not load payment history.'))
       .finally(() => setPaymentsLoaded(true));
+
+    fetch(`/api/investments/${i.id}/withdrawals`)
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Could not load withdrawals.');
+        return d;
+      })
+      .then((d) => {
+        setWithdrawals(d.withdrawals || []);
+        setWithdrawalsWritable(d.writable !== false);
+        if (d.warning) setWithdrawalError(d.warning);
+      })
+      .catch((err) => setWithdrawalError(err.message || 'Could not load withdrawals.'));
   }, [i.id, isRecurring]);
 
   const togglePayment = async (slot) => {
@@ -221,6 +241,47 @@ export default function DetailClient({
       setPaymentsError(err.message || 'Could not update payment record.');
     } finally {
       setTogglingPeriod(null);
+    }
+  };
+
+  const recordWithdrawal = async (e) => {
+    e.preventDefault();
+    setWithdrawalError('');
+    setSavingWithdrawal(true);
+    try {
+      const res = await fetch(`/api/investments/${i.id}/withdrawals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: Number(withdrawalAmount),
+          withdrawn_on: withdrawalDate,
+          notes: withdrawalNotes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not record the withdrawal.');
+      setWithdrawals((prev) => [...prev, data.withdrawal].sort((a, b) => String(a.withdrawn_on).localeCompare(String(b.withdrawn_on))));
+      setWithdrawalAmount('');
+      setWithdrawalNotes('');
+    } catch (err) {
+      setWithdrawalError(err.message || 'Could not record the withdrawal.');
+    } finally {
+      setSavingWithdrawal(false);
+    }
+  };
+
+  const removeWithdrawal = async (withdrawalId) => {
+    setWithdrawalError('');
+    setRemovingWithdrawalId(withdrawalId);
+    try {
+      const res = await fetch(`/api/investments/${i.id}/withdrawals?withdrawalId=${encodeURIComponent(withdrawalId)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not remove the withdrawal.');
+      setWithdrawals((prev) => prev.filter((row) => row.id !== withdrawalId));
+    } catch (err) {
+      setWithdrawalError(err.message || 'Could not remove the withdrawal.');
+    } finally {
+      setRemovingWithdrawalId(null);
     }
   };
 
@@ -395,12 +456,22 @@ export default function DetailClient({
     if (!paymentRecords[s.period_label]?.paid) return sum;
     return sum + Number(paymentRecords[s.period_label]?.amount ?? s.amount ?? 0);
   }, 0);
+  const withdrawnTotal = withdrawals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const stillInvested = Math.max(0, totalPaid - withdrawnTotal);
   const scheduleTotal = schedule.reduce((sum, s) => sum + Number(s.amount || 0), 0) || totalInvested;
   const expectedPaid = (() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return schedule.filter((s) => new Date(s.due_date) <= today).length;
   })();
+  const planProgress = tenureProgress(isRecurring && paymentsLoaded
+    ? {
+      ...i,
+      payment_schedule_length: schedule.length,
+      payment_paid_count: paidCount,
+      payment_overdue_count: Math.max(0, expectedPaid - paidCount),
+    }
+    : i);
 
   const currentSummary = summary || {
     total_units: 0,
@@ -414,7 +485,7 @@ export default function DetailClient({
     is_closed: false,
   };
 
-  const investedOverride = isRecurring && paymentsLoaded ? totalPaid : undefined;
+  const investedOverride = isRecurring && paymentsLoaded ? stillInvested : undefined;
 
   const closurePreview = useMemo(() => {
     if (lifecycleStatus === LIFECYCLE_STATUSES.ACTIVE) return null;
@@ -630,9 +701,15 @@ export default function DetailClient({
               {paymentsLoaded ? (
                 <>
                   <p className="text-sm text-ink-soft mt-1">
-                    Invested so far: <span className="font-medium text-ink">{inr(totalPaid)}</span>
+                    Still invested: <span className="font-medium text-ink">{inr(stillInvested)}</span>
                     <span className="text-ink-mute"> / {inr(scheduleTotal)}</span>
                   </p>
+                  {withdrawnTotal > 0 && (
+                    <p className="text-sm text-ink-soft mt-0.5">
+                      Paid <span className="font-medium text-ink">{inr(totalPaid)}</span>
+                      <span className="text-ink-mute"> − withdrawn {inr(withdrawnTotal)}</span>
+                    </p>
+                  )}
                   <p className="text-sm text-ink-soft mt-0.5">
                     <span className="font-medium text-ink">{paidCount}</span>
                     <span className="text-ink-mute">/{schedule.length} {freq === 'yearly' ? 'years' : 'months'} paid</span>
@@ -664,12 +741,15 @@ export default function DetailClient({
           {!isTransactionType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
           {!isTransactionType && isRecurring && (
             <Row
-              label="Total invested"
+              label="Still invested"
               value={paymentsLoaded
-                ? <><span>{inr(totalPaid)}</span><span className="text-ink-soft font-normal"> / {inr(scheduleTotal)}</span></>
+                ? <><span>{inr(stillInvested)}</span><span className="text-ink-soft font-normal"> / {inr(scheduleTotal)}</span></>
                 : inr(totalInvested)
               }
             />
+            {paymentsLoaded && withdrawnTotal > 0 && (
+              <Row label="Partial withdrawals" value={<span className="text-danger">− {inr(withdrawnTotal)}</span>} />
+            )}
           )}
           {chitType && chitSummary && (
             <>
@@ -1262,6 +1342,64 @@ export default function DetailClient({
                   );
                 })}
               </div>
+            )}
+          </section>
+        )}
+
+        {isRecurring && (
+          <section className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
+              {paymentsLoaded && (
+                <span className="text-[11px] text-ink-soft">
+                  {paidCount}/{schedule.length} paid · {inr(stillInvested)} still invested
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-ink-soft mb-2">The same plan stays open. Checked months stay checked, and only the amount still invested goes down.</p>
+            {withdrawalError && <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{withdrawalError}</p>}
+            {withdrawals.length > 0 && (
+              <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden mb-3">
+                {withdrawals.map((row, idx) => (
+                  <div key={row.id} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{fmtDate(row.withdrawn_on)}</p>
+                      {row.notes ? <p className="text-[11px] text-ink-soft mt-0.5">{row.notes}</p> : null}
+                    </div>
+                    <p className="text-sm font-medium text-danger">− {inr(row.amount)}</p>
+                    {withdrawalsWritable && (
+                      <button type="button" onClick={() => removeWithdrawal(row.id)} disabled={removingWithdrawalId === row.id} className="text-[11px] text-ink-soft hover:text-danger">
+                        {removingWithdrawalId === row.id ? '…' : 'Remove'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {withdrawalsWritable && !lifecycleClosed && (
+              <form onSubmit={recordWithdrawal} className="bg-paper-card border border-edge rounded-2xl p-3.5">
+                <div className="grid sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] text-ink-mute mb-1">Amount</label>
+                    <input type="number" min="0.01" step="0.01" value={withdrawalAmount} onChange={(e) => setWithdrawalAmount(e.target.value)} className="field-input text-sm" placeholder="0" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-ink-mute mb-1">Withdrawn on</label>
+                    <input type="date" value={withdrawalDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setWithdrawalDate(e.target.value)} className="field-input text-sm" required />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-ink-mute mb-1">Note</label>
+                    <input type="text" value={withdrawalNotes} onChange={(e) => setWithdrawalNotes(e.target.value)} className="field-input text-sm" placeholder="Optional" maxLength={500} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3 gap-3">
+                  <p className="text-[11px] text-ink-mute">Available from checked payments: {inr(stillInvested)}</p>
+                  <button type="submit" disabled={savingWithdrawal || stillInvested <= 0} className="btn-primary py-2 px-3 rounded-lg text-sm font-medium">{savingWithdrawal ? 'Saving…' : 'Record withdrawal'}</button>
+                </div>
+              </form>
+            )}
+            {withdrawals.length === 0 && !withdrawalsWritable && !withdrawalError && (
+              <p className="text-sm text-ink-soft">No partial withdrawals recorded.</p>
             )}
           </section>
         )}

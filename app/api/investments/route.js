@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
 import {
   attachInvestmentSummaries,
+  attachPartialWithdrawals,
   attachRecurringPaymentSummaries,
   computeTransactionGross,
   computeTransactionNetAmount,
@@ -115,6 +116,19 @@ export async function GET() {
       withSummaries = attachRecurringPaymentSummaries(withSummaries, paymentRecords);
     } catch (err) {
       if (!missingPaymentRecordsTable(err)) throw err;
+    }
+
+    try {
+      const withdrawals = await sql`
+        SELECT id, investment_id, amount, withdrawn_on, notes
+        FROM partial_withdrawals
+        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        ORDER BY withdrawn_on ASC, created_at ASC
+      `;
+      withSummaries = attachPartialWithdrawals(withSummaries, withdrawals);
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (!(msg.includes('partial_withdrawals') && msg.includes('does not exist'))) throw err;
     }
   }
 

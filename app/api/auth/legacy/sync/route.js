@@ -68,6 +68,9 @@ export async function POST(req) {
     if (await tableExists('payment_records')) {
       await sql`UPDATE payment_records SET user_id = ${me.id} WHERE user_id = ${legacy.id}`;
     }
+    if (await tableExists('partial_withdrawals')) {
+      await sql`UPDATE partial_withdrawals SET user_id = ${me.id} WHERE user_id = ${legacy.id}`;
+    }
 
     if (await tableExists('notifications')) {
       await sql`UPDATE notifications SET user_id = ${me.id} WHERE user_id = ${legacy.id}`;

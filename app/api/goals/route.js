@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
+import { attachInvestmentSummaries, attachPartialWithdrawals, attachRecurringPaymentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
 import { isActiveInvestment } from '@/lib/investment-lifecycle';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
   return msg.includes('investment_transactions') && msg.includes('does not exist');
+}
+
+function missingPaymentRecordsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('payment_records') && msg.includes('does not exist');
 }
 
 export async function GET() {
@@ -30,6 +35,35 @@ export async function GET() {
       investments = attachInvestmentSummaries(rawInvestments, transactions);
     } catch (err) {
       if (!missingTransactionsTable(err)) throw err;
+    }
+  }
+
+  const recurringIds = investments
+    .filter((investment) => investment.payment_frequency === 'monthly' || investment.payment_frequency === 'yearly')
+    .map((investment) => investment.id);
+  if (recurringIds.length > 0) {
+    try {
+      const paymentRecords = await sql`
+        SELECT investment_id, period_label, due_date, amount, paid, paid_at
+        FROM payment_records
+        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+      `;
+      investments = attachRecurringPaymentSummaries(investments, paymentRecords);
+    } catch (err) {
+      if (!missingPaymentRecordsTable(err)) throw err;
+    }
+
+    try {
+      const withdrawals = await sql`
+        SELECT id, investment_id, amount, withdrawn_on, notes
+        FROM partial_withdrawals
+        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        ORDER BY withdrawn_on ASC
+      `;
+      investments = attachPartialWithdrawals(investments, withdrawals);
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (!(msg.includes('partial_withdrawals') && msg.includes('does not exist'))) throw err;
     }
   }
 

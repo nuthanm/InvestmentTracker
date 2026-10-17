@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { computeMaturity, computeRecurringMaturity, inrShort } from '@/lib/format';
-import { isMarketInvestment, isChitInvestment } from '@/lib/investments';
+import { isMarketInvestment, isChitInvestment, netRecurringInvestedAsOf } from '@/lib/investments';
 import { chitPaymentsThroughMonth } from '@/lib/chit';
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
@@ -27,6 +27,8 @@ function valueAtDate(inv, D) {
     if (pickMonth > 0 && elapsed >= pickMonth) {
       return Number(inv.maturity_value || inv.chit_details?.summary?.prize || 0);
     }
+    const confirmed = netRecurringInvestedAsOf(inv, D, { projectFuture: true });
+    if (confirmed != null) return confirmed;
     return chitPaymentsThroughMonth(inv.chit_details, tenureMonths, elapsed, pickMonth);
   }
 
@@ -34,6 +36,15 @@ function valueAtDate(inv, D) {
   const ratePct = Number(inv.rate_pct || 0);
   const tenureMonths = Number(inv.tenure_months || 0) + Number(inv.tenure_days || 0) / 30;
   const frequency = inv.payment_frequency || 'lump_sum';
+
+  if ((frequency === 'monthly' || frequency === 'yearly') && Array.isArray(inv.payment_installments)) {
+    const invested = investedAtDate(inv, D);
+    const periods = amount > 0 ? invested / amount : 0;
+    if (periods <= 0) return 0;
+    const paidMonths = Math.min(frequency === 'yearly' ? periods * 12 : periods, tenureMonths);
+    return computeRecurringMaturity({ amountPerPeriod: amount, ratePct, months: paidMonths, paymentFrequency: frequency });
+  }
+
   const monthsElapsed = Math.min((D - start) / MS_MONTH, tenureMonths);
   if (monthsElapsed <= 0) return 0;
 
@@ -48,6 +59,12 @@ function investedAtDate(inv, D) {
   const start = inv.start_date ? new Date(inv.start_date) : null;
   if (!start || D < start) return 0;
 
+  const frequency = inv.payment_frequency || 'lump_sum';
+  if (frequency === 'monthly' || frequency === 'yearly' || isChitInvestment(inv.type_code)) {
+    const confirmed = netRecurringInvestedAsOf(inv, D, { projectFuture: true });
+    if (confirmed != null) return confirmed;
+  }
+
   if (isChitInvestment(inv.type_code) && inv.chit_details) {
     const tenureMonths = Number(inv.tenure_months || 0);
     const monthsDiff = (D.getFullYear() - start.getFullYear()) * 12 + (D.getMonth() - start.getMonth());
@@ -58,7 +75,6 @@ function investedAtDate(inv, D) {
   }
 
   const amount = Number(inv.amount || 0);
-  const frequency = inv.payment_frequency || 'lump_sum';
   const tenureMonths = Number(inv.tenure_months || 0);
 
   if (frequency === 'monthly') {

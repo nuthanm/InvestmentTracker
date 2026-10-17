@@ -32,6 +32,14 @@ export async function GET(req) {
       sql`SELECT * FROM notifications WHERE user_id = ${me.id}`,
     ]);
 
+    let withdrawals = [];
+    try {
+      withdrawals = await sql`SELECT * FROM partial_withdrawals WHERE user_id = ${me.id}`;
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (!(msg.includes('partial_withdrawals') && msg.includes('does not exist'))) throw err;
+    }
+
     // Build CSV content
     const csvSections = [];
     
@@ -59,6 +67,13 @@ export async function GET(req) {
       csvSections.push('');
     }
     
+    if (withdrawals.length > 0) {
+      const withdrawalHeaders = Object.keys(withdrawals[0]);
+      csvSections.push('PARTIAL WITHDRAWALS');
+      csvSections.push(arrayToCSV(withdrawalHeaders, withdrawals));
+      csvSections.push('');
+    }
+
     // Notifications section
     if (notifications.length > 0) {
       const notificationHeaders = Object.keys(notifications[0]);

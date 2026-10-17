@@ -66,6 +66,9 @@ export default async function ViewInvestmentPage({ params }) {
   const paymentsByPeriod = new Map(detail.payments.map((payment) => [String(payment.period_label), payment]));
   const paidCount = detail.payments.filter((payment) => payment.paid).length;
   const totalPaid = detail.payments.reduce((sum, payment) => sum + (payment.paid ? Number(payment.amount || 0) : 0), 0);
+  const withdrawals = detail.withdrawals || [];
+  const withdrawnTotal = withdrawals.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const stillInvested = Math.max(0, totalPaid - withdrawnTotal);
   const scheduleTotal = schedule.reduce((sum, slot) => sum + Number(slot.amount || 0), 0);
   const progress = tenureProgress(investment);
   const closed = isClosedLifecycleStatus(investment.lifecycle_status);
@@ -115,8 +118,9 @@ export default async function ViewInvestmentPage({ params }) {
               </p>
               {recurring ? (
                 <p className="text-sm text-ink-soft mt-1">
-                  Invested so far {inr(totalPaid)} / {inr(scheduleTotal || investment.amount)}
+                  Still invested {inr(stillInvested)} / {inr(scheduleTotal || investment.amount)}
                   {schedule.length > 0 && ` · ${paidCount}/${schedule.length} paid`}
+                  {withdrawnTotal > 0 && ` · withdrawn ${inr(withdrawnTotal)}`}
                 </p>
               ) : null}
               <p className="text-sm text-ink-soft mt-1">
@@ -217,6 +221,26 @@ export default async function ViewInvestmentPage({ params }) {
                   </div>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {recurring && withdrawals.length > 0 && (
+          <section className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
+              <span className="text-[11px] text-ink-soft">{inr(stillInvested)} still invested</span>
+            </div>
+            <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
+              {withdrawals.map((row, idx) => (
+                <div key={row.id} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{fmtDate(row.withdrawn_on)}</p>
+                    {row.notes ? <p className="text-[11px] text-ink-soft mt-0.5">{row.notes}</p> : null}
+                  </div>
+                  <p className="text-sm font-medium">− {inr(row.amount)}</p>
+                </div>
+              ))}
             </div>
           </section>
         )}
