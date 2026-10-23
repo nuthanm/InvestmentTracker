@@ -143,11 +143,30 @@ CREATE TABLE IF NOT EXISTS investment_transactions (
   charges NUMERIC(14,2) NOT NULL DEFAULT 0,
   taxes NUMERIC(14,2) NOT NULL DEFAULT 0,
   notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_investment_transactions_investment ON investment_transactions(investment_id, trade_date DESC);
 CREATE INDEX IF NOT EXISTS idx_investment_transactions_user ON investment_transactions(user_id, trade_date DESC);
+
+-- Audit trail of every transaction create, update and delete.
+-- transaction_id has no foreign key so audit rows survive the transaction being deleted.
+CREATE TABLE IF NOT EXISTS investment_transaction_audit (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  investment_id   UUID NOT NULL REFERENCES investments(id) ON DELETE CASCADE,
+  user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  transaction_id  UUID NOT NULL,
+  action          TEXT NOT NULL,            -- create | update | delete
+  before_data     JSONB,
+  after_data      JSONB,
+  ip_address      TEXT,
+  user_agent      TEXT,
+  created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_transaction_audit_investment ON investment_transaction_audit(investment_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_transaction_audit_transaction ON investment_transaction_audit(transaction_id, created_at DESC);
 
 -- ---------- Payment Records ----------
 -- Tracks whether each periodic instalment (monthly/yearly) was paid.

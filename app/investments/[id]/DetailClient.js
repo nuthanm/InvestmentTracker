@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrPaise, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
@@ -62,6 +62,82 @@ function daysUntilMaturity(maturityDate) {
 function formatUnits(value) {
   const n = Number(value || 0);
   return n.toFixed(n % 1 === 0 ? 0 : 3);
+}
+
+function toDateInput(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
+function fmtDateTime(value) {
+  if (!value) return '—';
+  const dt = new Date(value);
+  if (Number.isNaN(dt.getTime())) return '—';
+  return dt.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function sortTransactionsDesc(list) {
+  const key = (tx) => `${toDateInput(tx.trade_date)}|${new Date(tx.created_at || 0).toISOString()}`;
+  return [...list].sort((a, b) => key(b).localeCompare(key(a)));
+}
+
+const EMPTY_TX_FORM = { transaction_type: 'buy', trade_date: '', units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' };
+
+// Metal buys append these computed lines to notes on save; strip them before editing so they are not duplicated.
+const GENERATED_METAL_NOTE_PREFIXES = ['Pricing:', 'Discount:', 'GST:', 'Bill compare:', 'Scheme making input:', 'Scheme tracking:', 'Premature withdrawal:', 'Premature gold settlement', 'Scheme grams'];
+
+function stripGeneratedMetalNotes(notes) {
+  return String(notes || '')
+    .split('\n')
+    .filter((line) => !GENERATED_METAL_NOTE_PREFIXES.some((prefix) => line.trim().startsWith(prefix)))
+    .join('\n')
+    .trim();
+}
+
+const AUDIT_FIELDS = [
+  ['transaction_type', 'Type'],
+  ['trade_date', 'Date'],
+  ['units', 'Units'],
+  ['price_per_unit', 'Price'],
+  ['total_amount', 'Amount'],
+  ['charges', 'Charges'],
+  ['taxes', 'Taxes'],
+  ['notes', 'Notes'],
+];
+
+function auditFieldValue(field, value) {
+  if (value == null || value === '') return '—';
+  if (field === 'transaction_type') return getTransactionTypeLabel(value);
+  if (field === 'trade_date') return fmtDate(value);
+  if (field === 'units') return formatUnits(value);
+  if (field === 'notes') return String(value);
+  return inrPaise(value);
+}
+
+function describeAuditChanges(event) {
+  const before = event.before_data || {};
+  const after = event.after_data || {};
+  return AUDIT_FIELDS
+    .filter(([field]) => {
+      const a = before[field];
+      const b = after[field];
+      if (field === 'trade_date') return toDateInput(a) !== toDateInput(b);
+      if (field === 'notes' || field === 'transaction_type') return String(a ?? '') !== String(b ?? '');
+      return Number(a || 0) !== Number(b || 0);
+    })
+    .map(([field, label]) => ({ label, from: auditFieldValue(field, before[field]), to: auditFieldValue(field, after[field]) }));
+}
+
+function auditSnapshotLine(data, unitLabel) {
+  if (!data) return '';
+  const parts = [getTransactionTypeLabel(data.transaction_type), fmtDate(data.trade_date)];
+  if (Number(data.units || 0) > 0) parts.push(`${formatUnits(data.units)} ${unitLabel}`);
+  if (Number(data.price_per_unit || 0) > 0) parts.push(`@ ${inrPaise(data.price_per_unit)}`);
+  parts.push(inrPaise(computeTransactionNetAmount(data)));
+  return parts.join(' · ');
 }
 
 export default function DetailClient({
@@ -128,16 +204,15 @@ export default function DetailClient({
   const [summary, setSummary] = useState(marketSummary);
   const [transactionError, setTransactionError] = useState(marketWarning);
   const [savingTransaction, setSavingTransaction] = useState(false);
-  const [txForm, setTxForm] = useState({
-    transaction_type: 'buy',
-    trade_date: new Date().toISOString().slice(0, 10),
-    units: '',
-    price_per_unit: '',
-    cash_amount: '',
-    charges: '0',
-    taxes: '0',
-    notes: '',
-  });
+  const [txForm, setTxForm] = useState({ ...EMPTY_TX_FORM, trade_date: toDateInput(new Date()) });
+  const [editingTxId, setEditingTxId] = useState(null);
+  const [confirmDeleteTxId, setConfirmDeleteTxId] = useState(null);
+  const [deletingTxId, setDeletingTxId] = useState(null);
+  const [historyError, setHistoryError] = useState('');
+  const [auditEvents, setAuditEvents] = useState([]);
+  const [auditError, setAuditError] = useState('');
+  const [showAudit, setShowAudit] = useState(false);
+  const txFormRef = useRef(null);
   const [makingChargePct, setMakingChargePct] = useState('0');
   const [useMakingPercent, setUseMakingPercent] = useState(true);
   const [actualMakingValue, setActualMakingValue] = useState('0');
@@ -397,38 +472,112 @@ export default function DetailClient({
         notes: notesLines.length ? notesLines.join('\n') : null,
       };
 
-      const res = await fetch(`/api/investments/${i.id}/transactions`, {
-        method: 'POST',
+      const url = editingTxId
+        ? `/api/investments/${i.id}/transactions/${editingTxId}`
+        : `/api/investments/${i.id}/transactions`;
+      const res = await fetch(url, {
+        method: editingTxId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save transaction.');
-      setTransactions((prev) => ([{ ...data.record, net_amount: data.record.net_amount ?? computeTransactionNetAmount(data.record) }, ...prev]
-        .sort((a, b) => `${b.trade_date}|${b.created_at || b.id}`.localeCompare(`${a.trade_date}|${a.created_at || a.id}`))));
+      const saved = { ...data.record, net_amount: data.record.net_amount ?? computeTransactionNetAmount(data.record) };
+      setTransactions((prev) => sortTransactionsDesc(editingTxId
+        ? prev.map((tx) => (tx.id === saved.id ? saved : tx))
+        : [saved, ...prev]));
       setSummary(data.summary);
-      setTxForm({ transaction_type: 'buy', trade_date: new Date().toISOString().slice(0, 10), units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' });
-      setAutoCalcCharges(true);
-      if (metalType) {
-        setUseMakingPercent(true);
-        setActualMakingValue('0');
-        setPayableMakingValue('0');
-        setGstInputMode('percentage');
-        setUseGstSplit(true);
-        setSgstPct('1.5');
-        setCgstPct('1.5');
-        setSgstValue('0');
-        setCgstValue('0');
-        setGstTotalValue('0');
-        setSchemeAccumulatedGrams('');
-        setSchemePurchasedGrams('');
-      }
+      resetTxForm();
+      loadAudit();
     } catch (err) {
       setTransactionError(err.message || 'Could not save transaction.');
     } finally {
       setSavingTransaction(false);
     }
   };
+
+  function resetTxForm() {
+    setEditingTxId(null);
+    setTxForm({ ...EMPTY_TX_FORM, trade_date: toDateInput(new Date()) });
+    setAutoCalcCharges(true);
+    if (metalType) {
+      setUseMakingPercent(true);
+      setActualMakingValue('0');
+      setPayableMakingValue('0');
+      setGstInputMode('percentage');
+      setUseGstSplit(true);
+      setSgstPct('1.5');
+      setCgstPct('1.5');
+      setSgstValue('0');
+      setCgstValue('0');
+      setGstTotalValue('0');
+      setSchemeAccumulatedGrams('');
+      setSchemePurchasedGrams('');
+    }
+  }
+
+  const startEditTransaction = (tx) => {
+    const type = String(tx.transaction_type || 'buy');
+    const metalBuy = metalType && type === 'buy';
+    setTransactionError('');
+    setConfirmDeleteTxId(null);
+    setEditingTxId(tx.id);
+    setTxForm({
+      transaction_type: type,
+      trade_date: toDateInput(tx.trade_date),
+      units: Number(tx.units || 0) ? String(Number(tx.units)) : '',
+      price_per_unit: Number(tx.price_per_unit || 0) ? String(Number(tx.price_per_unit)) : '',
+      cash_amount: type === 'dividend' ? String(Number(tx.total_amount || 0)) : '',
+      charges: String(Number(tx.charges || 0)),
+      taxes: String(Number(tx.taxes || 0)),
+      notes: metalBuy ? stripGeneratedMetalNotes(tx.notes) : (tx.notes || ''),
+    });
+    setAutoCalcCharges(false);
+    if (metalBuy) {
+      // Saved metal buys only keep the final making and GST amounts, so edit them as fixed values.
+      setPurchaseMode('general');
+      setUseMakingPercent(false);
+      setActualMakingValue(String(Number(tx.charges || 0)));
+      setPayableMakingValue(String(Number(tx.charges || 0)));
+      setUseGstSplit(false);
+      setGstTotalValue(String(Number(tx.taxes || 0)));
+    }
+    txFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const deleteTransaction = async (txId) => {
+    setHistoryError('');
+    setDeletingTxId(txId);
+    try {
+      const res = await fetch(`/api/investments/${i.id}/transactions/${txId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not delete transaction.');
+      setTransactions((prev) => prev.filter((tx) => tx.id !== txId));
+      setSummary(data.summary);
+      setConfirmDeleteTxId(null);
+      if (editingTxId === txId) resetTxForm();
+      loadAudit();
+    } catch (err) {
+      setHistoryError(err.message || 'Could not delete transaction.');
+    } finally {
+      setDeletingTxId(null);
+    }
+  };
+
+  const loadAudit = useCallback(async () => {
+    if (!isTransactionType) return;
+    try {
+      const res = await fetch(`/api/investments/${i.id}/transactions/audit`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load transaction activity.');
+      setAuditEvents(data.events || []);
+      setAuditError('');
+    } catch (err) {
+      setAuditError(err.message || 'Could not load transaction activity.');
+    }
+  }, [i.id, isTransactionType]);
+
+  useEffect(() => { loadAudit(); }, [loadAudit]);
 
   const monthlyInt = (Number(i.amount) * Number(i.rate_pct)) / 100 / 12;
   const monthlyPct = (Number(i.rate_pct) / 12).toFixed(3);
@@ -740,16 +889,18 @@ export default function DetailClient({
           <Row label={metalType ? 'Item description' : 'Plan'} value={i.plan_name} />
           {!isTransactionType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
           {!isTransactionType && isRecurring && (
-            <Row
-              label="Still invested"
-              value={paymentsLoaded
-                ? <><span>{inr(stillInvested)}</span><span className="text-ink-soft font-normal"> / {inr(scheduleTotal)}</span></>
-                : inr(totalInvested)
-              }
-            />
-            {paymentsLoaded && withdrawnTotal > 0 && (
-              <Row label="Partial withdrawals" value={<span className="text-danger">− {inr(withdrawnTotal)}</span>} />
-            )}
+            <>
+              <Row
+                label="Still invested"
+                value={paymentsLoaded
+                  ? <><span>{inr(stillInvested)}</span><span className="text-ink-soft font-normal"> / {inr(scheduleTotal)}</span></>
+                  : inr(totalInvested)
+                }
+              />
+              {paymentsLoaded && withdrawnTotal > 0 && (
+                <Row label="Partial withdrawals" value={<span className="text-danger">− {inr(withdrawnTotal)}</span>} />
+              )}
+            </>
           )}
           {chitType && chitSummary && (
             <>
@@ -940,10 +1091,12 @@ export default function DetailClient({
               </div>
             )}
 
-            <div className="bg-paper-card border border-edge rounded-2xl p-4">
+            <div ref={txFormRef} className={`bg-paper-card border rounded-2xl p-4 scroll-mt-4 ${editingTxId ? 'border-sky-600/40 ring-2 ring-sky-600/10' : 'border-edge'}`}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-medium">{metalType ? 'Add purchase / sale' : 'Add transaction'}</p>
-                <span className="text-[11px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>
+                <p className="text-sm font-medium">{editingTxId ? 'Edit transaction' : (metalType ? 'Add purchase / sale' : 'Add transaction')}</p>
+                {editingTxId
+                  ? <button type="button" onClick={() => { resetTxForm(); setTransactionError(''); }} className="text-[11px] text-sky-700 hover:underline">Cancel edit</button>
+                  : <span className="text-[11px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>}
               </div>
               {transactionError && <p className="text-[11px] text-danger mb-3">{transactionError}</p>}
               {metalType && (
@@ -1261,8 +1414,13 @@ export default function DetailClient({
                     />
                   </div>
                 )}
-                <div className="md:col-span-2 flex justify-end">
-                  <button type="submit" disabled={savingTransaction} className="btn-primary py-2 px-4 rounded-lg text-sm font-medium">{savingTransaction ? 'Saving…' : 'Save transaction'}</button>
+                <div className="md:col-span-2 flex justify-end gap-2">
+                  {editingTxId && (
+                    <button type="button" onClick={() => { resetTxForm(); setTransactionError(''); }} className="btn-ghost py-2 px-4 rounded-lg text-sm">Cancel</button>
+                  )}
+                  <button type="submit" disabled={savingTransaction} className="btn-primary py-2 px-4 rounded-lg text-sm font-medium">
+                    {savingTransaction ? 'Saving…' : (editingTxId ? 'Update transaction' : 'Save transaction')}
+                  </button>
                 </div>
               </form>
             </div>
@@ -1272,25 +1430,95 @@ export default function DetailClient({
                 <p className="text-[11px] tracking-wider text-ink-mute uppercase">Transaction history</p>
                 <span className="text-[11px] text-ink-soft">{transactions.length} entries</span>
               </div>
+              {historyError && <p role="alert" className="text-[11px] text-danger mb-2">{historyError}</p>}
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                 {transactions.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? 'No purchases yet. Record your first purchase above.' : 'No transactions yet. Add your first buy or SIP above.'}</div>
-                ) : transactions.map((tx, idx) => (
-                  <div key={tx.id} className={`px-4 py-3 ${idx > 0 ? 'border-t border-edge' : ''}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{getTransactionTypeLabel(tx.transaction_type)}</p>
-                        <p className="text-[11px] text-ink-mute mt-0.5">{fmtDate(tx.trade_date)}{Number(tx.units || 0) > 0 && <> · {formatUnits(tx.units)} {metalType ? 'g' : 'units'}</>}{Number(tx.price_per_unit || 0) > 0 && <> · {inr(tx.price_per_unit)} {metalType ? '/ g' : '/ unit'}</>}</p>
-                        {tx.notes && <p className="text-[11px] text-ink-soft mt-1">{tx.notes}</p>}
+                ) : transactions.map((tx, idx) => {
+                  const unitLabel = metalType ? 'g' : 'units';
+                  const isEditing = editingTxId === tx.id;
+                  const isConfirmingDelete = confirmDeleteTxId === tx.id;
+                  return (
+                    <div key={tx.id} className={`px-4 py-3 ${idx > 0 ? 'border-t border-edge' : ''} ${isEditing ? 'bg-sky-50' : ''}`}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">{getTransactionTypeLabel(tx.transaction_type)} <span className="text-ink-mute font-normal">· {fmtDate(tx.trade_date)}</span></p>
+                          {isEditing && <p className="text-[11px] text-sky-700 mt-0.5">Editing above</p>}
+                        </div>
+                        <p className="text-sm font-medium">{inrPaise(tx.net_amount ?? computeTransactionNetAmount(tx))}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{inr(tx.net_amount ?? computeTransactionNetAmount(tx))}</p>
-                        {(Number(tx.charges || 0) > 0 || Number(tx.taxes || 0) > 0) && <p className="text-[11px] text-ink-mute mt-0.5">fees {inr((Number(tx.charges || 0) + Number(tx.taxes || 0)))}</p>}
+                      <dl className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[12px]">
+                        <TxDetail label={metalType ? 'Weight' : 'Units'} value={`${formatUnits(tx.units)} ${unitLabel}`} />
+                        <TxDetail label={metalType ? 'Price / g' : 'Price / unit'} value={inrPaise(tx.price_per_unit)} />
+                        <TxDetail label="Gross amount" value={inrPaise(tx.total_amount)} />
+                        <TxDetail label="Charges" value={inrPaise(tx.charges)} />
+                        <TxDetail label="Taxes" value={inrPaise(tx.taxes)} />
+                        <TxDetail label="Net amount" value={inrPaise(tx.net_amount ?? computeTransactionNetAmount(tx))} />
+                        <TxDetail label="Added on" value={fmtDateTime(tx.created_at)} />
+                        <TxDetail label="Last edited" value={tx.updated_at ? fmtDateTime(tx.updated_at) : '—'} />
+                      </dl>
+                      {tx.notes && <p className="text-[11px] text-ink-soft mt-2 whitespace-pre-line">{tx.notes}</p>}
+                      <div className="mt-2 flex items-center justify-end gap-3 text-[12px]">
+                        {isConfirmingDelete ? (
+                          <>
+                            <span className="text-ink-soft">Delete this transaction?</span>
+                            <button type="button" onClick={() => setConfirmDeleteTxId(null)} disabled={deletingTxId === tx.id} className="text-ink-soft hover:underline">Keep</button>
+                            <button type="button" onClick={() => deleteTransaction(tx.id)} disabled={deletingTxId === tx.id} className="text-danger font-medium hover:underline">{deletingTxId === tx.id ? 'Deleting…' : 'Yes, delete'}</button>
+                          </>
+                        ) : (
+                          <>
+                            <button type="button" onClick={() => startEditTransaction(tx)} className="text-sky-700 hover:underline">Edit</button>
+                            <button type="button" onClick={() => { setHistoryError(''); setConfirmDeleteTxId(tx.id); }} className="text-danger hover:underline">Delete</button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] tracking-wider text-ink-mute uppercase">Transaction activity log</p>
+                <button type="button" onClick={() => setShowAudit((v) => !v)} className="text-[11px] text-sky-700 hover:underline">
+                  {showAudit ? 'Hide' : `Show (${auditEvents.length})`}
+                </button>
+              </div>
+              {auditError && <p className="text-[11px] text-danger mb-2">{auditError}</p>}
+              {showAudit && (
+                <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
+                  {auditEvents.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-ink-soft text-center">No activity recorded yet. Adds, edits and deletes will appear here.</div>
+                  ) : auditEvents.map((event, idx) => {
+                    const unitLabel = metalType ? 'g' : 'units';
+                    const changes = event.action === 'update' ? describeAuditChanges(event) : [];
+                    const tone = event.action === 'delete' ? 'text-danger' : event.action === 'update' ? 'text-sky-700' : 'text-mint-600';
+                    const label = event.action === 'delete' ? 'Deleted' : event.action === 'update' ? 'Edited' : 'Added';
+                    return (
+                      <div key={event.id} className={`px-4 py-3 text-[12px] ${idx > 0 ? 'border-t border-edge' : ''}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <p><span className={`font-medium ${tone}`}>{label}</span> <span className="text-ink-soft">{auditSnapshotLine(event.after_data || event.before_data, unitLabel)}</span></p>
+                          <span className="text-ink-mute whitespace-nowrap">{fmtDateTime(event.created_at)}</span>
+                        </div>
+                        {event.action === 'update' && (
+                          changes.length === 0
+                            ? <p className="text-ink-mute mt-1">Saved with no changes.</p>
+                            : (
+                              <ul className="mt-1 space-y-0.5">
+                                {changes.map((change) => (
+                                  <li key={change.label} className="text-ink-soft">
+                                    {change.label}: <span className="line-through text-ink-mute">{change.from}</span> → <span className="text-ink font-medium">{change.to}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1455,6 +1683,15 @@ function Row({ label, value }) {
     <div className="flex justify-between py-2.5 border-b border-dashed border-edge text-sm gap-3">
       <span className="text-ink-soft">{label}</span>
       <span className="font-medium text-right">{value}</span>
+    </div>
+  );
+}
+
+function TxDetail({ label, value }) {
+  return (
+    <div className="flex justify-between md:block gap-2">
+      <dt className="text-ink-mute">{label}</dt>
+      <dd className="font-medium md:mt-0.5">{value}</dd>
     </div>
   );
 }

@@ -34,7 +34,7 @@ export default async function InvestmentDetailPage({ params }) {
   if (isMarketInvestment(rows[0].type_code) || isMetalInvestment(rows[0].type_code)) {
     try {
       marketTransactions = await sql`
-        SELECT id, investment_id, transaction_type, trade_date, units, price_per_unit, total_amount, charges, taxes, notes, created_at
+        SELECT *
         FROM investment_transactions
         WHERE investment_id = ${params.id} AND user_id = ${user.id}
         ORDER BY trade_date DESC, created_at DESC
