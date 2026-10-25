@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
@@ -16,6 +16,12 @@ import {
   schemeNeedsTracking,
   validateSchemeTracking,
 } from '@/lib/metal-pricing';
+import {
+  DOCUMENT_ACCEPT,
+  MAX_DOCUMENT_BYTES,
+  documentBadge,
+  isAllowedDocumentName,
+} from '@/lib/documents';
 
 const TYPES = ['FD', 'RD', 'MF', 'ETF', 'ST', 'GD', 'GOLD', 'SILV', 'PPF', 'CHIT', 'OT'];
 const PRESET_TYPES = ['Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
@@ -182,6 +188,9 @@ export default function NewInvestmentClient({
   const [initialNotes, setInitialNotes] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
+  const dragDepth = useRef(0);
 
   const isMarketType = isMarketInvestment(typeCode);
   const isMetalType = isMetalInvestment(typeCode);
@@ -326,22 +335,65 @@ export default function NewInvestmentClient({
     if (useGstSplit) setGstTotalValue(metalPricing.totalGst.toFixed(2));
   }, [autoCalcCharges, isMetalType, metalPricing, purchaseMode, useGstSplit]);
 
-  const onUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    for (const f of files) {
-      if (f.type !== 'application/pdf') {
-        setError(`${f.name} is not a PDF.`);
+  const addFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    const errors = [];
+    const nextDocs = [];
+    for (const file of files) {
+      if (!isAllowedDocumentName(file.name)) {
+        errors.push(`${file.name} is not supported. Use PDF, PNG, JPG, DOCX, XLSX, or CSV.`);
         continue;
       }
-      if (f.size > 5 * 1024 * 1024) {
-        setError(`${f.name} is too large (max 5 MB for the free tier).`);
+      if (file.size > MAX_DOCUMENT_BYTES) {
+        errors.push(`${file.name} is too large (max 5 MB).`);
         continue;
       }
-      const dataUrl = await fileToDataUrl(f);
-      setDocs((d) => [...d, { filename: f.name, size_bytes: f.size, data_url: dataUrl, page_count: 1 }]);
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        nextDocs.push({ filename: file.name, size_bytes: file.size, data_url: dataUrl, page_count: 1 });
+      } catch {
+        errors.push(`Could not read ${file.name}.`);
+      }
     }
+    if (nextDocs.length) setDocs((current) => [...current, ...nextDocs]);
+    setError(errors.join(' '));
+  };
+
+  const onUpload = async (e) => {
+    await addFiles(e.target.files);
     e.target.value = '';
   };
+
+  const onDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current += 1;
+    setDragOver(true);
+  };
+
+  const onDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const onDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  };
+
+  const onDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = 0;
+    setDragOver(false);
+    await addFiles(e.dataTransfer?.files);
+  };
+
+  const openFilePicker = () => fileInputRef.current?.click();
 
   const removeDoc = (idx) => setDocs((d) => d.filter((_, i) => i !== idx));
 
@@ -1202,21 +1254,47 @@ export default function NewInvestmentClient({
 
           <section>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Document <span className="text-[10px] text-ink-mute normal-case ml-1">optional</span></p>
-            <label className="block border border-dashed border-edge rounded-xl p-5 text-center cursor-pointer hover:bg-paper-tint transition">
-              <input type="file" accept="application/pdf" multiple className="hidden" onChange={onUpload} />
-              <div className="text-sm font-medium">Tap to upload PDF</div>
-              <div className="text-[11px] text-ink-soft mt-1">Up to 5 MB · multi-page supported</div>
-            </label>
-            {docs.map((d, i) => (
-              <div key={i} className="flex items-center gap-2.5 p-2.5 bg-paper-tint rounded-lg mt-2">
-                <div className="w-7 h-9 bg-danger-soft text-danger rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0">PDF</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium truncate">{d.filename}</p>
-                  <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB</p>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={openFilePicker}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openFilePicker();
+                }
+              }}
+              onDragEnter={onDragEnter}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              className={`block border border-dashed rounded-xl p-5 text-center cursor-pointer transition ${dragOver ? 'border-mint-600 bg-mint-50' : 'border-edge hover:bg-paper-tint'}`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={DOCUMENT_ACCEPT}
+                multiple
+                className="hidden"
+                onChange={onUpload}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div className="text-sm font-medium">{dragOver ? 'Drop to upload' : 'Drag and drop, or tap to browse'}</div>
+              <div className="text-[11px] text-ink-soft mt-1">PDF, PNG, JPG, DOCX, XLSX, or CSV · up to 5 MB each</div>
+            </div>
+            {docs.map((d, i) => {
+              const badge = documentBadge(d.filename);
+              return (
+                <div key={i} className="flex items-center gap-2.5 p-2.5 bg-paper-tint rounded-lg mt-2">
+                  <div className={`w-8 h-9 rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium truncate">{d.filename}</p>
+                    <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button type="button" onClick={() => removeDoc(i)} className="text-ink-mute hover:text-danger px-2">×</button>
                 </div>
-                <button type="button" onClick={() => removeDoc(i)} className="text-ink-mute hover:text-danger px-2">×</button>
-              </div>
-            ))}
+              );
+            })}
           </section>
 
           {error && <p className="text-xs text-danger">{error}</p>}

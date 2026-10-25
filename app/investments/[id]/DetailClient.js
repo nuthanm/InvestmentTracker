@@ -34,6 +34,7 @@ import {
   isClosedLifecycleStatus,
   isPrematureWithdrawalStatus,
 } from '@/lib/investment-lifecycle';
+import { documentBadge, documentPreviewKind, downloadDataUrl } from '@/lib/documents';
 
 function buildSchedule(investment) {
   return buildRecurringPaymentSchedule(investment);
@@ -1635,16 +1636,20 @@ export default function DetailClient({
         {documents.length > 0 && (
           <section className="mb-5">
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Documents</p>
-            {documents.map((d) => (
-              <button key={d.id} onClick={() => setViewing(d)} className="w-full flex items-center gap-3 p-3 bg-paper-card border border-edge rounded-xl mb-2 hover:border-mint-600 transition text-left">
-                <div className="w-7 h-9 bg-danger-soft text-danger rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0">PDF</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{d.filename}</p>
-                  <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB · tap to view</p>
-                </div>
-                <span className="text-ink-mute text-sm">›</span>
-              </button>
-            ))}
+            {documents.map((d) => {
+              const badge = documentBadge(d.filename);
+              const canPreview = documentPreviewKind(d.filename) !== 'download';
+              return (
+                <button key={d.id} onClick={() => setViewing(d)} className="w-full flex items-center gap-3 p-3 bg-paper-card border border-edge rounded-xl mb-2 hover:border-mint-600 transition text-left">
+                  <div className={`w-8 h-9 rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{d.filename}</p>
+                    <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB · {canPreview ? 'tap to view' : 'tap to download'}</p>
+                  </div>
+                  <span className="text-ink-mute text-sm">›</span>
+                </button>
+              );
+            })}
           </section>
         )}
 
@@ -1669,8 +1674,18 @@ export default function DetailClient({
             <span className="text-sm font-medium truncate">{viewing.filename}</span>
             <button onClick={() => setViewing(null)} className="text-2xl leading-none px-2 text-ink-soft">×</button>
           </div>
-          <div className="flex-1 overflow-auto p-3 flex items-center justify-center">
-            <iframe src={viewing.data_url} className="w-full h-full bg-white rounded" title={viewing.filename} />
+          <div className="flex-1 overflow-auto p-3 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {documentPreviewKind(viewing.filename) === 'image' ? (
+              <img src={viewing.data_url} alt={viewing.filename} className="max-w-full max-h-full object-contain bg-white rounded" />
+            ) : documentPreviewKind(viewing.filename) === 'pdf' ? (
+              <iframe src={viewing.data_url} className="w-full h-full min-h-[70vh] bg-white rounded" title={viewing.filename} />
+            ) : (
+              <div className="bg-paper-card rounded-xl p-6 text-center max-w-sm">
+                <p className="text-sm font-medium break-all">{viewing.filename}</p>
+                <p className="text-xs text-ink-soft mt-2">This file opens in Word, Excel, or another app on your computer.</p>
+                <button type="button" onClick={() => downloadDataUrl(viewing.data_url, viewing.filename)} className="btn-primary mt-4 py-2 px-4 rounded-lg text-sm font-medium">Download</button>
+              </div>
+            )}
           </div>
         </div>
       )}

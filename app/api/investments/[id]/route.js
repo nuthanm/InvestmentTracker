@@ -5,6 +5,7 @@ import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/form
 import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
+import { documentUploadError } from '@/lib/documents';
 
 function parseDateInput(value, fallback) {
   const dt = value ? new Date(value) : fallback ? new Date(fallback) : new Date();
@@ -126,6 +127,11 @@ export async function PATCH(req, { params }) {
     `;
     if (goalRows.length === 0) {
       return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
+    }
+
+    const documentError = documentUploadError(body.documents);
+    if (documentError) {
+      return NextResponse.json({ error: documentError }, { status: 400 });
     }
 
     const startDate = parseDateInput(body.start_date, current.start_date);

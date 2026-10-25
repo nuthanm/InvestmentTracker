@@ -14,6 +14,7 @@ import {
 } from '@/lib/investments';
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
+import { documentUploadError } from '@/lib/documents';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -167,6 +168,11 @@ export async function POST(req) {
     `;
     if (goalRows.length === 0) {
       return NextResponse.json({ error: 'Please select a valid goal.' }, { status: 400 });
+    }
+
+    const documentError = documentUploadError(body.documents);
+    if (documentError) {
+      return NextResponse.json({ error: documentError }, { status: 400 });
     }
 
     if (transactionBasedInvestment) {
