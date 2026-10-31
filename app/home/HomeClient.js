@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
+import { CoinGlyph, GoalCoinFill, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import {
@@ -167,19 +167,16 @@ function StatTile({ href, icon, label, value, pct, note, tone = 'mint', extra })
   const fill = Math.max(0, Math.min(100, Number(pct) || 0));
 
   return (
-    <Link href={href} className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col min-h-[148px] hover:border-mint-600 transition">
-      <GoalWaterFill pct={fill} />
-      <div className="goal-on-water flex flex-col flex-1">
-        <div className="flex justify-between items-start gap-2 mb-2">
-          <div className="min-w-0">
-            <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
-              <span aria-hidden="true">{icon}</span>
-              <span>{label}</span>
-              {extra}
-            </p>
-            <p className="text-lg font-medium mt-0.5 leading-tight">{value}</p>
-          </div>
-          <p className={`text-xl font-medium ${accent}`}>{fill}%</p>
+    <Link href={href} className="relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col min-h-[132px] hover:border-mint-600 transition">
+      <div className="flex flex-col flex-1">
+        <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1 min-w-0">
+          <span aria-hidden="true" className="flex-shrink-0">{icon}</span>
+          <span className="leading-tight">{label}</span>
+          {extra}
+        </p>
+        <div className="flex items-baseline justify-between gap-2 mt-1 mb-2">
+          <p className="text-lg font-medium leading-tight min-w-0">{value}</p>
+          <p className={`text-sm font-medium flex-shrink-0 ${accent}`}>{fill}%</p>
         </div>
         <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
           <div className={`fill-bar h-full ${barClass} rounded-full`} style={{ width: `${fill}%` }} />
@@ -241,8 +238,8 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
   }
 
   return (
-    <div className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col">
-      <GoalWaterFill pct={pct} />
+    <div className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col overflow-hidden">
+      <GoalCoinFill pct={pct} kind={thumb || 'cash'} />
       <div className="goal-on-water flex flex-col flex-1">
       <div className="flex justify-between items-start mb-2">
         <div>

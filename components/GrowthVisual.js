@@ -169,6 +169,64 @@ export function GoalWaterFill({ pct = 0 }) {
   );
 }
 
+const PILE_COINS = 64;
+
+const PILE_FACE = {
+  gold: { rim0: '#FFF3C4', rim1: '#E0B03A', rim2: '#8C6414', face0: '#FFF8DC', face1: '#F0C453', face2: '#C49216', ink: '#6A4510', mark: '' },
+  silver: { rim0: '#F7FBFF', rim1: '#C5CED6', rim2: '#66727E', face0: '#FFFFFF', face1: '#E2E8EE', face2: '#9AA6B2', ink: '#3C4A56', mark: '' },
+  cash: { rim0: '#E7F6EF', rim1: '#5DCAA5', rim2: '#0F6E56', face0: '#F4FBF8', face1: '#7DCEB0', face2: '#1A7A5C', ink: '#0C5C45', mark: '₹' },
+};
+
+function PileCoin({ kind, index }) {
+  const face = PILE_FACE[kind] || PILE_FACE.gold;
+  return (
+    <span
+      className={`goal-pile-coin goal-pile-coin-${kind}`}
+      style={{ animationDelay: `${(index % 9) * 0.18}s` }}
+    >
+      <svg viewBox="0 0 36 36" aria-hidden="true">
+        <defs>
+          <linearGradient id={`pile-rim-${kind}-${index}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={face.rim0} />
+            <stop offset="48%" stopColor={face.rim1} />
+            <stop offset="100%" stopColor={face.rim2} />
+          </linearGradient>
+          <radialGradient id={`pile-face-${kind}-${index}`} cx="34%" cy="30%" r="72%">
+            <stop offset="0%" stopColor={face.face0} />
+            <stop offset="46%" stopColor={face.face1} />
+            <stop offset="100%" stopColor={face.face2} />
+          </radialGradient>
+        </defs>
+        <circle cx="18" cy="18" r="16" fill={`url(#pile-rim-${kind}-${index})`} />
+        <circle cx="18" cy="18" r="12.6" fill={`url(#pile-face-${kind}-${index})`} />
+        <ellipse cx="13" cy="12" rx="4.2" ry="2.2" fill="rgba(255,255,255,0.62)" />
+        {face.mark ? (
+          <text x="18" y="22.4" textAnchor="middle" fontSize="13" fontWeight="700" fontFamily="Georgia, serif" fill={face.ink}>{face.mark}</text>
+        ) : (
+          <circle cx="18" cy="18" r="7.2" fill="none" stroke={face.ink} strokeOpacity="0.35" strokeWidth="0.8" />
+        )}
+      </svg>
+    </span>
+  );
+}
+
+/** Coin pile rises to the progress percentage. Gold, silver, or rupee coins. */
+export function GoalCoinFill({ pct = 0, kind = 'gold' }) {
+  const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+  if (fill <= 0) return null;
+  const coinKind = kind === 'silver' || kind === 'cash' ? kind : 'gold';
+  const count = Math.max(1, Math.round((fill / 100) * PILE_COINS));
+  return (
+    <div className={`goal-coin-clip goal-coin-${coinKind}`} aria-hidden="true">
+      <div className="goal-coin-pile">
+        {Array.from({ length: count }, (_, index) => (
+          <PileCoin key={index} kind={coinKind} index={index} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function WaterBubbles({ count = 5, tone = 'mint' }) {
   const n = Math.max(3, Math.min(8, count));
   return (
