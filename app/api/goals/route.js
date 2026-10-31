@@ -20,7 +20,7 @@ export async function GET() {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   const [goals, rawInvestments] = await Promise.all([
-    sql`SELECT * FROM goals WHERE user_id = ${me.id} ORDER BY created_at DESC`,
+    sql`SELECT * FROM goals WHERE user_id = ${me.id} ORDER BY sort_order ASC NULLS LAST, created_at DESC`,
     sql`SELECT id, goal_id, type_code, amount, payment_frequency, tenure_months, maturity_value, start_date, maturity_date, auto_renew, lifecycle_status, chit_details FROM investments WHERE user_id = ${me.id}`,
   ]);
 

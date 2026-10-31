@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS goals (
   for_liquidity BOOLEAN NOT NULL DEFAULT FALSE,
   amount_as_of DATE,                     -- day the liquidity amount was set, for inflation growth
   icon TEXT DEFAULT 'house',
+  sort_order INT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -123,6 +124,7 @@ CREATE TABLE IF NOT EXISTS investments (
   interest_loss NUMERIC(14,2),
   closure_notes TEXT,
   chit_details JSONB,                    -- CHIT schedule, pick month, dual-rate / custom months
+  sort_order INT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

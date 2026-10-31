@@ -12,6 +12,36 @@ import { isLiquidityGoal } from '@/lib/goals';
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 
+function DragHandle({ onDragStart }) {
+  if (!onDragStart) return null;
+  return (
+    <button
+      type="button"
+      draggable
+      aria-label="Drag to change priority"
+      title="Drag to change priority"
+      onClick={(e) => e.stopPropagation()}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        onDragStart(e);
+      }}
+      className="cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink px-1 text-sm leading-none flex-shrink-0"
+    >
+      ⋮⋮
+    </button>
+  );
+}
+
+function moveItem(items, fromId, toId) {
+  const next = items.slice();
+  const from = next.findIndex((item) => item.id === fromId);
+  const to = next.findIndex((item) => item.id === toId);
+  if (from < 0 || to < 0 || from === to) return items;
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
 function LayoutToggle({ value, onChange }) {
   return (
     <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
@@ -63,6 +93,7 @@ function GoalCard({
   onConfirmDelete,
   onCancelDelete,
   layout = 'tiles',
+  onDragStart,
 }) {
   const cur = Number(g.current_amount || 0);
   const liquidity = isLiquidityGoal(g);
@@ -81,9 +112,9 @@ function GoalCard({
     <div
       ref={hostRef}
       onClick={isEditing ? undefined : onToggleExpand}
-      className={`growth-stage bg-paper-card border border-edge transition ${compact ? 'rounded-xl mb-2' : `goal-water-card rounded-2xl p-4 ${layout === 'tiles' ? 'mb-0 h-full' : 'mb-3'}`} ${reached && !compact ? 'bg-mint-50/50 border-mint-600/40' : compact ? '' : 'overflow-hidden'} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
+      className={`growth-stage goal-water-card bg-paper-card border border-edge transition overflow-hidden ${compact ? 'rounded-xl mb-2' : `rounded-2xl p-4 ${layout === 'tiles' ? 'mb-0 h-full' : 'mb-3'}`} ${reached && !compact ? 'bg-mint-50/50 border-mint-600/40' : ''} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
     >
-      {!isEditing && !compact ? <GoalWaterFill pct={pct} /> : null}
+      {!isEditing ? <GoalWaterFill pct={pct} /> : null}
       {isEditing ? (
         <div onClick={(e) => e.stopPropagation()} className="space-y-3 relative z-[1]">
           <p className="text-xs font-medium text-ink-soft uppercase tracking-wider mb-1">Edit goal</p>
@@ -169,9 +200,10 @@ function GoalCard({
           </div>
         </div>
       ) : (
-        <div className={compact ? 'px-3 py-2.5' : 'goal-on-water'}>
+        <div className={`relative z-[1] goal-on-water ${compact ? 'px-3 py-2.5' : ''}`}>
           {compact ? (
             <div className="flex items-center gap-3">
+              <DragHandle onDragStart={onDragStart} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate">{g.name}</span>
@@ -190,7 +222,8 @@ function GoalCard({
           ) : (
             <>
           <div className="flex justify-between items-start mb-2.5">
-            <div className="min-w-0">
+            <DragHandle onDragStart={onDragStart} />
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">{g.name}</span>
                 {liquidity && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium">Liquidity</span>}
@@ -330,6 +363,8 @@ export default function GoalsClient({ user }) {
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [layout, setLayout] = useState('list');
+  const [draggingId, setDraggingId] = useState(null);
+  const [orderError, setOrderError] = useState('');
 
   const load = () => {
     setLoadError('');
@@ -428,6 +463,34 @@ export default function GoalsClient({ user }) {
     }
   };
 
+  const onGoalDragStart = (e, id) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingId(id);
+  };
+
+  const onGoalDrop = async (e, targetId) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggingId;
+    setDraggingId(null);
+    if (!sourceId || sourceId === targetId) return;
+    const next = moveItem(goals, sourceId, targetId);
+    setGoals(next);
+    setOrderError('');
+    try {
+      const res = await fetch('/api/goals/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: next.map((goal) => goal.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save the new order.');
+    } catch (err) {
+      setOrderError(err.message);
+      load();
+    }
+  };
+
   const onDelete = async (e, id) => {
     e.stopPropagation();
     await fetch(`/api/goals/${id}`, { method: 'DELETE' });
@@ -462,14 +525,24 @@ export default function GoalsClient({ user }) {
           </div>
         )}
 
+        {orderError && <p className="text-sm text-danger mb-3">{orderError}</p>}
+        {!loading && goals.length > 0 && (
+          <p className="text-[11px] text-ink-mute mb-2">Drag the handle to set which goal comes first.</p>
+        )}
         {!loading && goals.length > 0 && (
           <div className={layout === 'tiles' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 items-start' : ''}>
             {goals.map((g, idx) => (
-              <div key={g.id} className={layout === 'tiles' && editId === g.id ? 'sm:col-span-2' : ''}>
+              <div
+                key={g.id}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                onDrop={(e) => onGoalDrop(e, g.id)}
+                className={`${layout === 'tiles' && editId === g.id ? 'sm:col-span-2' : ''} ${draggingId === g.id ? 'opacity-60' : ''}`}
+              >
                 <GoalCard
                   goal={g}
                   idx={idx}
                   layout={layout}
+                  onDragStart={(e) => onGoalDragStart(e, g.id)}
                   investments={investmentsByGoal[g.id] || []}
                   isEditing={editId === g.id}
                   isExpanded={expandedGoalId === g.id}

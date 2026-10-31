@@ -160,6 +160,36 @@ function InfoTip({ text }) {
   );
 }
 
+function StatTile({ href, icon, label, value, pct, note, tone = 'mint', extra }) {
+  const barClass = { honey: 'goal-bar-gold', sky: 'goal-bar-silver', mint: 'goal-bar-wealth' }[tone] || 'goal-bar-wealth';
+  const noteClass = { honey: 'goal-accum-gold', sky: 'goal-accum-silver', mint: 'goal-accum-wealth' }[tone] || 'goal-accum-wealth';
+  const accent = { honey: 'text-honey-600', sky: 'text-sky-600', mint: 'text-mint-600' }[tone] || 'text-mint-600';
+  const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+
+  return (
+    <Link href={href} className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col min-h-[148px] hover:border-mint-600 transition">
+      <GoalWaterFill pct={fill} />
+      <div className="goal-on-water flex flex-col flex-1">
+        <div className="flex justify-between items-start gap-2 mb-2">
+          <div className="min-w-0">
+            <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
+              <span aria-hidden="true">{icon}</span>
+              <span>{label}</span>
+              {extra}
+            </p>
+            <p className="text-lg font-medium mt-0.5 leading-tight">{value}</p>
+          </div>
+          <p className={`text-xl font-medium ${accent}`}>{fill}%</p>
+        </div>
+        <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
+          <div className={`fill-bar h-full ${barClass} rounded-full`} style={{ width: `${fill}%` }} />
+        </div>
+        <p className={`text-[11px] mt-auto leading-snug ${noteClass}`}>{note}</p>
+      </div>
+    </Link>
+  );
+}
+
 /** Single goal card (gold, silver, or money). */
 function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote = null, emphasizeCurrent = false, targetLabel, pct, remaining, remainingLabel, onEdit, editing, form, onFormChange, saving, onSave, onRemove, error, hasGoal }) {
   const barClass = { honey: 'goal-bar-gold', sky: 'goal-bar-silver', mint: 'goal-bar-wealth' }[tone] || 'goal-bar-wealth';
@@ -444,6 +474,16 @@ export default function HomeClient({ user }) {
     return sum + effectiveCurrentValue(inv);
   }, 0);
 
+  const planTotal = investments.length;
+  const goalsPct = goals.length
+    ? Math.round(goals.reduce((sum, goal) => {
+      const target = Number(goal.required_amount || goal.target_amount || 0);
+      const current = Number(goal.current_amount || 0);
+      if (!(target > 0)) return sum;
+      return sum + Math.min(100, (current / target) * 100);
+    }, 0) / goals.length)
+    : 0;
+
   const maturingSoon = activeInvestments.filter((inv) => {
     if (isMarketInvestment(inv.type_code) || isLiquiditySaving(inv) || !inv.maturity_date) return false;
     const days = (new Date(inv.maturity_date) - new Date()) / (1000 * 60 * 60 * 24);
@@ -496,36 +536,49 @@ export default function HomeClient({ user }) {
 
               {/* ── Stat cards ── */}
               <div className="home-stat-grid">
-                <Link href="/investments?view=active" className="home-stat">
-                  <p className="home-stat-label">Active plans</p>
-                  <p className="home-stat-value">{activeInvestments.length} <span className="home-stat-arrow">→</span></p>
-                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
-                </Link>
-                <Link href="/investments?view=closed" className="home-stat">
-                  <p className="home-stat-label">Closed plans</p>
-                  <p className="home-stat-value">{closedInvestments.length} <span className="home-stat-arrow">→</span></p>
-                  <p className="home-stat-note">
-                    {closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : '\u00a0'}
-                  </p>
-                </Link>
-                <Link href="/investments?view=active" className="home-stat">
-                  <p className="home-stat-label">Maturing in 30 days</p>
-                  <p className="home-stat-value home-stat-value-honey">{maturingSoon} <span className="home-stat-arrow">→</span></p>
-                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
-                </Link>
-                <Link href="/goals" className="home-stat">
-                  <p className="home-stat-label">Goals</p>
-                  <p className="home-stat-value">{goals.length} <span className="home-stat-arrow">→</span></p>
-                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
-                </Link>
-                <Link href="/investments?view=active" className="home-stat">
-                  <p className="home-stat-label">
-                    Maturity value
-                    <InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />
-                  </p>
-                  <p className="home-stat-value home-stat-value-mint">{inrShort(totalValue)}</p>
-                  <p className="home-stat-note" aria-hidden="true">&nbsp;</p>
-                </Link>
+                <StatTile
+                  href="/investments?view=active"
+                  icon="🌱"
+                  label="Active plans"
+                  value={activeInvestments.length}
+                  pct={planTotal ? Math.round((activeInvestments.length / planTotal) * 100) : 0}
+                  note={planTotal ? `${planTotal} plans in all` : 'No plans yet'}
+                />
+                <StatTile
+                  href="/investments?view=closed"
+                  icon="📁"
+                  label="Closed plans"
+                  value={closedInvestments.length}
+                  pct={planTotal ? Math.round((closedInvestments.length / planTotal) * 100) : 0}
+                  tone="sky"
+                  note={closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : 'Nothing closed yet'}
+                />
+                <StatTile
+                  href="/investments?view=active"
+                  icon="📅"
+                  label="Due in 30 days"
+                  value={maturingSoon}
+                  pct={activeInvestments.length ? Math.round((maturingSoon / activeInvestments.length) * 100) : 0}
+                  tone="honey"
+                  note={maturingSoon > 0 ? 'Need a decision soon' : 'Nothing due this month'}
+                />
+                <StatTile
+                  href="/goals"
+                  icon="🎯"
+                  label="Goals"
+                  value={goals.length}
+                  pct={goalsPct}
+                  note={goals.length ? 'Average progress' : 'No goals yet'}
+                />
+                <StatTile
+                  href="/investments?view=active"
+                  icon="💰"
+                  label="Maturity value"
+                  value={inrShort(totalValue)}
+                  pct={totalValue > 0 ? Math.min(100, Math.round((totalCurrentPortfolioValue / totalValue) * 100)) : 0}
+                  note={totalValue > 0 ? `${inrShort(totalCurrentPortfolioValue)} held now` : 'No active maturity yet'}
+                  extra={<InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />}
+                />
               </div>
 
               {/* ── Overall Goals (Gold · Silver · Money) ── */}

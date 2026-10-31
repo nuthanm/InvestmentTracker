@@ -84,7 +84,7 @@ export async function GET() {
     FROM investments i
     LEFT JOIN goals g ON g.id = i.goal_id
     WHERE i.user_id = ${me.id}
-    ORDER BY i.created_at DESC
+    ORDER BY i.sort_order ASC NULLS LAST, i.created_at DESC
   `;
 
   const transactionIds = investments.filter((investment) => isTransactionBased(investment.type_code)).map((investment) => investment.id);

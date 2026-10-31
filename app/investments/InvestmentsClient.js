@@ -52,6 +52,38 @@ function categoryLabel(key) {
   return CATEGORY_DEFS.find((item) => item.key === key)?.label || TYPE_META[key]?.label || key;
 }
 
+function DragHandle({ onDragStart }) {
+  if (!onDragStart) return null;
+  return (
+    <button
+      type="button"
+      draggable
+      aria-label="Drag to change priority"
+      title="Drag to change priority"
+      onClick={(e) => e.stopPropagation()}
+      onDragStart={(e) => {
+        e.stopPropagation();
+        onDragStart(e);
+      }}
+      className="cursor-grab active:cursor-grabbing text-ink-mute hover:text-ink px-1.5 text-sm leading-none flex-shrink-0"
+    >
+      ⋮⋮
+    </button>
+  );
+}
+
+function moveVisible(all, visible, fromId, toId) {
+  const nextVisible = visible.slice();
+  const from = nextVisible.findIndex((item) => item.id === fromId);
+  const to = nextVisible.findIndex((item) => item.id === toId);
+  if (from < 0 || to < 0 || from === to) return all;
+  const [item] = nextVisible.splice(from, 1);
+  nextVisible.splice(to, 0, item);
+  const visibleIds = new Set(visible.map((entry) => entry.id));
+  let index = 0;
+  return all.map((entry) => (visibleIds.has(entry.id) ? nextVisible[index++] : entry));
+}
+
 function LayoutToggle({ value, onChange }) {
   return (
     <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
@@ -95,7 +127,7 @@ function growthKindFor(investment, { isClosedPlan, isPremature, progress, deduct
   return 'bubbles';
 }
 
-function InvestmentRow({ investment, idx, href }) {
+function InvestmentRow({ investment, idx, href, onDragStart }) {
   const tone = toneFor(investment.type_code);
   const marketType = isMarketInvestment(investment.type_code);
   const metalType = isMetalInvestment(investment.type_code);
@@ -134,10 +166,13 @@ function InvestmentRow({ investment, idx, href }) {
               : '';
 
   return (
-    <div ref={hostRef} className={`growth-stage ${idx > 0 ? 'border-t border-edge' : ''} ${rowTone}`}>
+    <div ref={hostRef} className={`growth-stage flex items-stretch ${idx > 0 ? 'border-t border-edge' : ''} ${rowTone}`}>
+      <div className="flex items-center pl-2">
+        <DragHandle onDragStart={onDragStart} />
+      </div>
       <Link
         href={href || `/investments/${investment.id}`}
-        className="flex items-center gap-3 p-3.5 hover:bg-paper-tint/50 transition relative"
+        className="flex flex-1 items-center gap-3 p-3.5 pr-3.5 hover:bg-paper-tint/50 transition relative min-w-0"
       >
         {showBubblesOnRow && !isClosedPlan ? <WaterBubbles count={4} tone={lumpSum ? 'mint' : metalType ? 'honey' : 'sky'} /> : null}
         <div ref={originRef} className="relative z-[1] flex-shrink-0">
@@ -223,7 +258,7 @@ function savedSoFar(investment) {
   };
 }
 
-function InvestmentTile({ investment, href }) {
+function InvestmentTile({ investment, href, onDragStart }) {
   const saved = savedSoFar(investment);
   const tone = toneFor(investment.type_code);
   const metalType = isMetalInvestment(investment.type_code);
@@ -243,7 +278,11 @@ function InvestmentTile({ investment, href }) {
   const dates = planDateLine(investment);
 
   return (
-    <Link href={href} className="flex gap-3 bg-paper-card border border-edge rounded-2xl p-3.5 hover:border-mint-600 transition h-full">
+    <div className="flex items-stretch bg-paper-card border border-edge rounded-2xl hover:border-mint-600 transition h-full">
+      <div className="flex items-center pl-2">
+        <DragHandle onDragStart={onDragStart} />
+      </div>
+      <Link href={href} className="flex flex-1 gap-3 p-3.5 min-w-0">
       <div className="flex-shrink-0">
         <GrowthAvatar
           kind={kind}
@@ -270,7 +309,8 @@ function InvestmentTile({ investment, href }) {
         {metalType && <p className="text-[10px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
         {marketType && <p className="text-[10px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
       </div>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -281,6 +321,8 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const [filter, setFilter] = useState('ALL');
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
   const [layout, setLayout] = useState('list');
+  const [draggingId, setDraggingId] = useState(null);
+  const [orderError, setOrderError] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -295,6 +337,33 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const chooseLayout = (next) => {
     setLayout(next);
     window.localStorage.setItem('investments-layout', next);
+  };
+
+  const onInvestmentDragStart = (e, id) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingId(id);
+  };
+
+  const onInvestmentDrop = async (e, targetId) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggingId;
+    setDraggingId(null);
+    if (readOnly || !sourceId || sourceId === targetId) return;
+    const next = moveVisible(investments, filtered, sourceId, targetId);
+    setInvestments(next);
+    setOrderError('');
+    try {
+      const res = await fetch('/api/investments/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: next.map((item) => item.id) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save the new order.');
+    } catch (err) {
+      setOrderError(err.message);
+    }
   };
 
   useEffect(() => {
@@ -461,26 +530,44 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
+        {orderError && <p className="text-sm text-danger mb-3">{orderError}</p>}
+        {!loading && !readOnly && filtered.length > 1 && (
+          <p className="text-[11px] text-ink-mute mb-2">Drag the handle to set which plan comes first.</p>
+        )}
         {!loading && filtered.length > 0 && (
           layout === 'tiles' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {filtered.map((investment) => (
-                <InvestmentTile
+                <div
                   key={investment.id}
-                  investment={investment}
-                  href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
-                />
+                  onDragOver={(e) => { if (!readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                  onDrop={(e) => onInvestmentDrop(e, investment.id)}
+                  className={draggingId === investment.id ? 'opacity-60' : ''}
+                >
+                  <InvestmentTile
+                    investment={investment}
+                    href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
+                    onDragStart={readOnly ? null : (e) => onInvestmentDragStart(e, investment.id)}
+                  />
+                </div>
               ))}
             </div>
           ) : (
             <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
               {filtered.map((investment, idx) => (
-                <InvestmentRow
+                <div
                   key={investment.id}
-                  investment={investment}
-                  idx={idx}
-                  href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
-                />
+                  onDragOver={(e) => { if (!readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+                  onDrop={(e) => onInvestmentDrop(e, investment.id)}
+                  className={draggingId === investment.id ? 'opacity-60' : ''}
+                >
+                  <InvestmentRow
+                    investment={investment}
+                    idx={idx}
+                    href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
+                    onDragStart={readOnly ? null : (e) => onInvestmentDragStart(e, investment.id)}
+                  />
+                </div>
               ))}
             </div>
           )
