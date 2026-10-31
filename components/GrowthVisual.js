@@ -169,60 +169,92 @@ export function GoalWaterFill({ pct = 0 }) {
   );
 }
 
-const PILE_COINS = 64;
+const BOX_COINS = 12;
+const BOX_COLS = 6;
 
-const PILE_FACE = {
-  gold: { rim0: '#FFF3C4', rim1: '#E0B03A', rim2: '#8C6414', face0: '#FFF8DC', face1: '#F0C453', face2: '#C49216', ink: '#6A4510', mark: '' },
-  silver: { rim0: '#F7FBFF', rim1: '#C5CED6', rim2: '#66727E', face0: '#FFFFFF', face1: '#E2E8EE', face2: '#9AA6B2', ink: '#3C4A56', mark: '' },
-  cash: { rim0: '#E7F6EF', rim1: '#5DCAA5', rim2: '#0F6E56', face0: '#F4FBF8', face1: '#7DCEB0', face2: '#1A7A5C', ink: '#0C5C45', mark: '₹' },
+const COIN_METAL = {
+  gold: { edge: '#6E4A0C', rim: '#F8E7A2', mid: '#E2B23A', deep: '#8C5E12', face: '#FFF4C8', faceMid: '#F0C14B', ink: '#6A4510', mark: '' },
+  silver: { edge: '#5C6872', rim: '#F4F7FA', mid: '#C5CED6', deep: '#7B8792', face: '#FFFFFF', faceMid: '#E4EAF0', ink: '#3E4C58', mark: '' },
+  cash: { edge: '#7A5A10', rim: '#FFE7A8', mid: '#E0A82E', deep: '#A87412', face: '#FFF6D6', faceMid: '#F2C85A', ink: '#6A4510', mark: '₹' },
 };
 
-function PileCoin({ kind, index }) {
-  const face = PILE_FACE[kind] || PILE_FACE.gold;
+function RealCoin({ kind, index }) {
+  const metal = COIN_METAL[kind] || COIN_METAL.gold;
+  const id = `${kind}-${index}`;
   return (
-    <span
-      className={`goal-pile-coin goal-pile-coin-${kind}`}
-      style={{ animationDelay: `${(index % 9) * 0.18}s` }}
-    >
-      <svg viewBox="0 0 36 36" aria-hidden="true">
-        <defs>
-          <linearGradient id={`pile-rim-${kind}-${index}`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={face.rim0} />
-            <stop offset="48%" stopColor={face.rim1} />
-            <stop offset="100%" stopColor={face.rim2} />
-          </linearGradient>
-          <radialGradient id={`pile-face-${kind}-${index}`} cx="34%" cy="30%" r="72%">
-            <stop offset="0%" stopColor={face.face0} />
-            <stop offset="46%" stopColor={face.face1} />
-            <stop offset="100%" stopColor={face.face2} />
-          </radialGradient>
-        </defs>
-        <circle cx="18" cy="18" r="16" fill={`url(#pile-rim-${kind}-${index})`} />
-        <circle cx="18" cy="18" r="12.6" fill={`url(#pile-face-${kind}-${index})`} />
-        <ellipse cx="13" cy="12" rx="4.2" ry="2.2" fill="rgba(255,255,255,0.62)" />
-        {face.mark ? (
-          <text x="18" y="22.4" textAnchor="middle" fontSize="13" fontWeight="700" fontFamily="Georgia, serif" fill={face.ink}>{face.mark}</text>
-        ) : (
-          <circle cx="18" cy="18" r="7.2" fill="none" stroke={face.ink} strokeOpacity="0.35" strokeWidth="0.8" />
-        )}
-      </svg>
-    </span>
+    <svg viewBox="0 0 40 44" aria-hidden="true">
+      <defs>
+        <linearGradient id={`coin-edge-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={metal.mid} />
+          <stop offset="100%" stopColor={metal.edge} />
+        </linearGradient>
+        <radialGradient id={`coin-face-${id}`} cx="36%" cy="32%" r="70%">
+          <stop offset="0%" stopColor={metal.face} />
+          <stop offset="42%" stopColor={metal.faceMid} />
+          <stop offset="100%" stopColor={metal.deep} />
+        </radialGradient>
+        <linearGradient id={`coin-rim-${id}`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={metal.rim} />
+          <stop offset="55%" stopColor={metal.mid} />
+          <stop offset="100%" stopColor={metal.deep} />
+        </linearGradient>
+      </defs>
+      <ellipse cx="20" cy="36.5" rx="11" ry="3.2" fill="rgba(40,30,10,0.28)" />
+      <ellipse cx="20" cy="22.5" rx="15.2" ry="15.2" fill={`url(#coin-edge-${id})`} />
+      <ellipse cx="20" cy="19.2" rx="15.2" ry="15.2" fill={`url(#coin-rim-${id})`} />
+      <circle cx="20" cy="19.2" r="13.6" fill="none" stroke={metal.rim} strokeWidth="0.7" strokeDasharray="1.05 1.15" />
+      <circle cx="20" cy="19.2" r="11.4" fill={`url(#coin-face-${id})`} />
+      <circle cx="20" cy="19.2" r="9.3" fill="none" stroke={metal.ink} strokeOpacity="0.4" strokeWidth="0.55" />
+      <ellipse cx="15.2" cy="13.6" rx="4.4" ry="2.3" fill="rgba(255,255,255,0.72)" />
+      {metal.mark ? (
+        <text x="20" y="23.2" textAnchor="middle" fontSize="11" fontWeight="700" fontFamily="Georgia, serif" fill={metal.ink}>{metal.mark}</text>
+      ) : (
+        <circle cx="20" cy="19.2" r="4.2" fill="none" stroke={metal.ink} strokeOpacity="0.45" strokeWidth="0.7" />
+      )}
+    </svg>
   );
 }
 
-/** Coin pile rises to the progress percentage. Gold, silver, or rupee coins. */
+function coinSeat(index, total) {
+  const row = Math.floor(index / BOX_COLS);
+  const col = index % BOX_COLS;
+  const inRow = Math.min(BOX_COLS, total - row * BOX_COLS);
+  const spread = Math.min(86, 14 * inRow);
+  const left = 50 - spread / 2 + ((col + 0.5) / inRow) * spread;
+  const jitter = ((index * 13) % 7) - 3;
+  return {
+    left: `${left + jitter * 0.35}%`,
+    bottom: `${5 + row * 16}px`,
+    rot: ((index * 19) % 18) - 9,
+    delay: `${0.12 + index * 0.11}s`,
+  };
+}
+
+/** Coins drop into a savings box on load. The count follows the goal progress. */
 export function GoalCoinFill({ pct = 0, kind = 'gold' }) {
   const fill = Math.max(0, Math.min(100, Number(pct) || 0));
-  if (fill <= 0) return null;
   const coinKind = kind === 'silver' || kind === 'cash' ? kind : 'gold';
-  const count = Math.max(1, Math.round((fill / 100) * PILE_COINS));
+  const count = fill <= 0 ? 0 : Math.max(1, Math.round((fill / 100) * BOX_COINS));
   return (
-    <div className={`goal-coin-clip goal-coin-${coinKind}`} aria-hidden="true">
-      <div className="goal-coin-pile">
-        {Array.from({ length: count }, (_, index) => (
-          <PileCoin key={index} kind={coinKind} index={index} />
-        ))}
-      </div>
+    <div className={`savings-box savings-box-${coinKind}`} aria-hidden="true">
+      <span className="savings-slot" />
+      {Array.from({ length: count }, (_, index) => {
+        const seat = coinSeat(index, count);
+        return (
+          <span
+            key={index}
+            className="savings-coin"
+            style={{
+              left: seat.left,
+              bottom: seat.bottom,
+              '--coin-rot': `${seat.rot}deg`,
+              animationDelay: seat.delay,
+            }}
+          >
+            <RealCoin kind={coinKind} index={index} />
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -238,9 +238,8 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
   }
 
   return (
-    <div className="goal-water-card relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col overflow-hidden">
-      <GoalCoinFill pct={pct} kind={thumb || 'cash'} />
-      <div className="goal-on-water flex flex-col flex-1">
+    <div className="relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col">
+      <div className="flex flex-col flex-1">
       <div className="flex justify-between items-start mb-2">
         <div>
           <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
@@ -261,6 +260,7 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
         {currentNote ? <span className="goal-accum-note"> · {currentNote}</span> : null}
       </p>
       <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
+      <GoalCoinFill pct={pct} kind={thumb || 'cash'} />
       </div>
     </div>
   );
