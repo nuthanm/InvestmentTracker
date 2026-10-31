@@ -412,8 +412,17 @@ export default function NewInvestmentClient({
     let initialTransaction = null;
     if (!forLiquidity && isTransactionType) {
       if (isMetalType && acquisitionFlow === 'scheme_monthly') {
+        if (Number(schemeMonths || 0) <= 0 || Number(schemeMonthlyAmount || 0) <= 0) {
+          setError('Enter the scheme months and the monthly amount.');
+          return;
+        }
+        const paidMonths = Number(schemePaidMonths || 0);
+        if (paidMonths < 0 || paidMonths > Number(schemeMonths || 0)) {
+          setError('Paid months must be between 0 and total scheme months.');
+          return;
+        }
         const schemeTrackingError = validateSchemeTracking({
-          schemeStatus,
+          schemeStatus: schemeNeedsTracking(schemeStatus) ? schemeStatus : 'active',
           schemeMonths,
           schemeMonthlyAmount,
           schemePaidMonths,
@@ -584,6 +593,7 @@ export default function NewInvestmentClient({
           documents: docs,
         };
       } else if (isTransactionType) {
+        const metalScheme = isMetalType && acquisitionFlow === 'scheme_monthly';
         body = {
           type_code: typeCode,
           custom_type: typeCode === 'OT' ? customType.trim() : null,
@@ -596,6 +606,17 @@ export default function NewInvestmentClient({
           start_date: startDateInput,
           documents: docs,
           initial_transaction: !isEditing ? initialTransaction : null,
+          ...(metalScheme ? {
+            amount: Number(schemeMonthlyAmount),
+            tenure_months: Math.floor(Number(schemeMonths) || 0),
+            payment_frequency: 'monthly',
+            rate_pct: 0,
+            metal_scheme: {
+              months: Math.floor(Number(schemeMonths) || 0),
+              monthly_amount: Number(schemeMonthlyAmount),
+              paid_months: Math.floor(Number(schemePaidMonths) || 0),
+            },
+          } : {}),
         };
       } else if (isChitType) {
         const prepared = prepareChitForSave({
@@ -847,7 +868,7 @@ export default function NewInvestmentClient({
                       <p className="text-xs text-ink-soft mb-2">How are you adding this?</p>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => setAcquisitionFlow('purchase_now')} className={`chip ${acquisitionFlow === 'purchase_now' ? 'on' : ''}`}>Purchased now</button>
-                        <button type="button" onClick={() => setAcquisitionFlow('scheme_monthly')} className={`chip ${acquisitionFlow === 'scheme_monthly' ? 'on' : ''}`}>Scheme - pay monthly</button>
+                        <button type="button" onClick={() => { setAcquisitionFlow('scheme_monthly'); setSchemeStatus('active'); }} className={`chip ${acquisitionFlow === 'scheme_monthly' ? 'on' : ''}`}>Scheme - pay monthly</button>
                       </div>
 
                       {acquisitionFlow === 'scheme_monthly' && (
@@ -881,8 +902,13 @@ export default function NewInvestmentClient({
                         </div>
                       )}
 
-                      {acquisitionFlow === 'scheme_monthly' && !schemeAllowsPurchaseEntry && (
-                        <p className="text-[11px] text-honey-700 mt-2">Purchase entry will be logged only after scheme months are completed. For early exit, set scheme status to Premature withdrawal in the purchase section below.</p>
+                      {acquisitionFlow === 'scheme_monthly' && (
+                        <p className="text-[11px] text-ink-soft mt-2">
+                          This starts a monthly plan, the same way a recurring deposit works. After you save, mark each month as you pay it.
+                          {schemeAllowsPurchaseEntry
+                            ? ' The scheme months are complete, so you can record the purchase below.'
+                            : ' Record the purchase on the plan when you convert the balance. That step stays available after the scheme finishes, or if you withdraw early.'}
+                        </p>
                       )}
                     </div>
                   )}

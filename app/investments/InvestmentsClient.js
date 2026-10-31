@@ -27,6 +27,40 @@ import {
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
+const CATEGORY_DEFS = [
+  { key: 'LIQUIDITY', label: 'Liquidity' },
+  { key: 'GOLD', label: 'Gold' },
+  { key: 'SILVER', label: 'Silver' },
+  { key: 'FD', label: 'Fixed Deposit' },
+  { key: 'RD', label: 'Recurring Deposit' },
+  { key: 'MF', label: 'Mutual Fund' },
+  { key: 'ETF', label: 'ETF' },
+  { key: 'ST', label: 'Shares' },
+  { key: 'PPF', label: 'PPF' },
+  { key: 'CHIT', label: 'Chit Fund' },
+  { key: 'OT', label: 'Other' },
+];
+
+function categoryKey(investment) {
+  if (isLiquiditySaving(investment)) return 'LIQUIDITY';
+  if (investment.type_code === 'GOLD' || investment.type_code === 'GD') return 'GOLD';
+  if (investment.type_code === 'SILV') return 'SILVER';
+  return investment.type_code || 'OT';
+}
+
+function categoryLabel(key) {
+  return CATEGORY_DEFS.find((item) => item.key === key)?.label || TYPE_META[key]?.label || key;
+}
+
+function LayoutToggle({ value, onChange }) {
+  return (
+    <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
+      <button type="button" onClick={() => onChange('list')} className={`px-2.5 py-1 ${value === 'list' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>List</button>
+      <button type="button" onClick={() => onChange('tiles')} className={`px-2.5 py-1 ${value === 'tiles' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>Tiles</button>
+    </div>
+  );
+}
+
 function daysUntilMaturity(maturityDate) {
   if (!maturityDate) return null;
   const today = new Date();
@@ -57,9 +91,7 @@ function InvestmentRow({ investment, idx, href }) {
   const metalType = isMetalInvestment(investment.type_code);
   const chitType = isChitInvestment(investment.type_code);
   const lumpSum = isLumpSumInvestment(investment);
-  const suffix = chitType ? '' : frequencySuffix(investment.payment_frequency);
   const chitPl = Number(investment.chit_details?.summary?.profit_loss);
-  const chitMonthly = investment.chit_details?.summary?.monthly_rate_pct ?? investment.rate_pct;
   const days = daysUntilMaturity(investment.maturity_date);
   const liquidity = isLiquiditySaving(investment);
   const isMatured = !liquidity && !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
@@ -149,63 +181,56 @@ function InvestmentRow({ investment, idx, href }) {
         </p>
       </div>
       <div className="text-right flex-shrink-0 min-w-[5.5rem] relative z-[1]">
-        {marketType ? (
-          <>
-            <p className="text-sm font-medium">{inr(investment.remaining_cost_basis || 0)}</p>
-            <p className="text-[11px] text-sky-600 mt-0.5">{inr(investment.invested_amount || 0)} invested</p>
-          </>
-        ) : metalType ? (
-          <>
-            <p className="text-sm font-medium">{formatUnits(investment.total_units)} g</p>
-            <p className="text-[11px] text-honey-600 mt-0.5">{inr(investment.remaining_cost_basis || 0)} cost</p>
-          </>
-        ) : liquidity ? (
-          <>
-            <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investment.amount)}</p>
-            <p className="text-[11px] text-sky-600 mt-0.5">{isClosedPlan ? 'closed' : 'available'}</p>
-          </>
-        ) : (
-          <>
-            {isClosedPlan ? (
-              <>
-                <p className="text-sm font-medium">{inr(Number(investment.closure_amount) > 0 ? investment.closure_amount : (investment.maturity_value || investment.amount))}</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">{Number(investment.closure_amount) > 0 ? 'received' : 'maturity value'}{investment.closure_date ? ` · ${fmtDate(investment.closure_date)}` : ''}</p>
-                {progress && <p className="text-[10px] text-ink-mute mt-0.5">{progress.label}</p>}
-              </>
-            ) : lumpSum ? (
-              <>
-                <p className="text-sm font-medium achieved-amount">{inr(investedSoFar)}</p>
-                <p className="text-[11px] text-mint-700 mt-0.5 font-medium">
-                  achieved{progress ? ` · ${progress.label}` : ''}
-                </p>
-                {Number(investment.rate_pct) > 0 && (
-                  <p className="text-[10px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
-                )}
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium">{inr(investment.amount)}{suffix && <span className="text-[11px] text-ink-soft font-normal">{suffix}</span>}</p>
-                <p className="text-[11px] text-mint-700 mt-0.5">
-                  {inr(investedSoFar)} invested{progress ? ` · ${progress.label}` : ''}
-                </p>
-                {chitType ? (
-                  <p className={`text-[11px] mt-0.5 ${Number.isFinite(chitPl) && chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
-                    {Number.isFinite(chitPl) ? `${chitPl >= 0 ? '+' : ''}${inr(chitPl)}` : `${Number(chitMonthly || 0).toFixed(2)}%/mo`}
-                    {investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-mint-600 mt-0.5">{investment.rate_pct}% p.a.</p>
-                )}
-                {isMatured && <p className="text-[10px] text-mint-700 font-medium mt-0.5">✅ {days === 0 ? 'today' : `${Math.abs(days)}d ago`}</p>}
-                {isUrgent && <p className="text-[10px] text-danger font-medium mt-0.5">⚠ {days}d left</p>}
-                {isWarning && <p className="text-[10px] text-honey-600 font-medium mt-0.5">📅 {days}d left</p>}
-              </>
-            )}
-          </>
+        <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investedSoFar)}</p>
+        <p className="text-[11px] text-mint-700 mt-0.5">
+          {isClosedPlan && Number(investment.closure_amount) > 0 ? 'received' : 'saved so far'}
+          {progress && !liquidity ? ` · ${progress.label}` : ''}
+        </p>
+        {metalType && <p className="text-[10px] text-honey-600 mt-0.5">{formatUnits(investment.total_units)} g</p>}
+        {marketType && <p className="text-[10px] text-sky-600 mt-0.5">{formatUnits(investment.total_units)} units</p>}
+        {(chitType || isRecurringFrequency(investment.payment_frequency)) && !isClosedPlan && (
+          <p className="text-[10px] text-ink-mute mt-0.5">{inr(investment.amount)}{chitType ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
+        )}
+        {chitType && Number.isFinite(chitPl) && (
+          <p className={`text-[10px] mt-0.5 ${chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
+            {chitPl >= 0 ? '+' : ''}{inr(chitPl)}{investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
+          </p>
         )}
       </div>
       </Link>
     </div>
+  );
+}
+
+function savedSoFar(investment) {
+  const closedWithReceipt = isClosedInvestment(investment) && Number(investment.closure_amount) > 0;
+  return {
+    amount: closedWithReceipt ? Number(investment.closure_amount) : effectiveInvestedSoFar(investment),
+    label: closedWithReceipt ? 'received' : 'saved so far',
+  };
+}
+
+function InvestmentTile({ investment, href }) {
+  const saved = savedSoFar(investment);
+  const metalType = isMetalInvestment(investment.type_code);
+  const marketType = isMarketInvestment(investment.type_code);
+  const key = categoryKey(investment);
+  const closed = isClosedInvestment(investment);
+
+  return (
+    <Link href={href} className="block bg-paper-card border border-edge rounded-2xl p-3.5 hover:border-mint-600 transition h-full">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium leading-snug min-w-0">{investment.bank} · {investment.plan_name}</p>
+        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{categoryLabel(key)}</span>
+      </div>
+      <p className="text-lg font-medium mt-3">{inr(saved.amount)}</p>
+      <p className="text-[11px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
+      {(isChitInvestment(investment.type_code) || isRecurringFrequency(investment.payment_frequency)) && !closed && (
+        <p className="text-[10px] text-ink-mute mt-1">{inr(investment.amount)}{isChitInvestment(investment.type_code) ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
+      )}
+      {metalType && <p className="text-[10px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
+      {marketType && <p className="text-[10px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
+    </Link>
   );
 }
 
@@ -215,6 +240,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const [loading, setLoading] = useState(!seeded && !readOnly);
   const [filter, setFilter] = useState('ALL');
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
+  const [layout, setLayout] = useState('list');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -222,7 +248,14 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     if (view === 'closed' || view === 'all' || view === 'active') {
       setLifecycleFilter(view);
     }
+    const stored = window.localStorage.getItem('investments-layout');
+    if (stored === 'tiles' || stored === 'list') setLayout(stored);
   }, []);
+
+  const chooseLayout = (next) => {
+    setLayout(next);
+    window.localStorage.setItem('investments-layout', next);
+  };
 
   useEffect(() => {
     if (readOnly && !seeded && process.env.NODE_ENV !== 'production') {
@@ -248,17 +281,31 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
       ? closedInvestments
       : investments;
 
+  const categoryBuckets = new Map();
+  investments.forEach((investment) => {
+    const key = categoryKey(investment);
+    if (!categoryBuckets.has(key)) categoryBuckets.set(key, []);
+    categoryBuckets.get(key).push(investment);
+  });
+  const categories = [
+    ...CATEGORY_DEFS.filter((item) => categoryBuckets.has(item.key)),
+    ...Array.from(categoryBuckets.keys())
+      .filter((key) => !CATEGORY_DEFS.some((item) => item.key === key))
+      .map((key) => ({ key, label: categoryLabel(key) })),
+  ].map((item) => {
+    const plans = categoryBuckets.get(item.key) || [];
+    return {
+      ...item,
+      count: plans.length,
+      saved: plans.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0),
+    };
+  });
+
   const filtered = filter === 'ALL'
     ? lifecycleScoped
-    : filter === 'LIQUIDITY'
-      ? lifecycleScoped.filter((investment) => isLiquiditySaving(investment))
-      : lifecycleScoped.filter((investment) => investment.type_code === filter);
+    : investments.filter((investment) => categoryKey(investment) === filter);
   const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
-  const liquidityTotal = filtered
-    .filter((investment) => isLiquiditySaving(investment))
-    .reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
-  const liquidityCount = lifecycleScoped.filter((investment) => isLiquiditySaving(investment)).length;
-  const types = Array.from(new Set(lifecycleScoped.map((investment) => investment.type_code)));
+  const selectedCategory = categories.find((item) => item.key === filter);
 
   const nearMaturityCount = activeInvestments.filter((investment) => {
     if (isMarketInvestment(investment.type_code) || isLiquiditySaving(investment)) return false;
@@ -283,22 +330,24 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
             <p className="text-sm text-ink-soft mt-1">
-              {filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'}
-              {liquidityTotal > 0
-                ? <> · {inr(total - liquidityTotal)} invested · <span className="font-medium text-ink">{inr(liquidityTotal)}</span> for liquidity</>
-                : readOnly
-                  ? <> · Total invested <span className="font-medium text-ink">{inr(total)}</span></>
-                  : <> · {inr(total)} invested</>}
+              {filter === 'ALL' ? (
+                <>{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+              ) : (
+                <>{selectedCategory?.label || 'Category'} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+              )}
             </p>
           </div>
-          {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <LayoutToggle value={layout} onChange={chooseLayout} />
+            {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap">+ Add</Link>}
+          </div>
         </div>
 
         {!loading && investments.length > 0 && (
           <div className="flex gap-2 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            <button onClick={() => setLifecycleFilter('active')} className={`chip whitespace-nowrap ${lifecycleFilter === 'active' ? 'on' : ''}`}>Active ({activeInvestments.length})</button>
-            <button onClick={() => setLifecycleFilter('closed')} className={`chip whitespace-nowrap ${lifecycleFilter === 'closed' ? 'on' : ''}`}>Closed ({closedCount})</button>
-            <button onClick={() => setLifecycleFilter('all')} className={`chip whitespace-nowrap ${lifecycleFilter === 'all' ? 'on' : ''}`}>All ({investments.length})</button>
+            <button onClick={() => { setLifecycleFilter('active'); setFilter('ALL'); }} className={`chip whitespace-nowrap ${filter === 'ALL' && lifecycleFilter === 'active' ? 'on' : ''}`}>Active ({activeInvestments.length})</button>
+            <button onClick={() => { setLifecycleFilter('closed'); setFilter('ALL'); }} className={`chip whitespace-nowrap ${filter === 'ALL' && lifecycleFilter === 'closed' ? 'on' : ''}`}>Closed ({closedCount})</button>
+            <button onClick={() => { setLifecycleFilter('all'); setFilter('ALL'); }} className={`chip whitespace-nowrap ${filter === 'ALL' && lifecycleFilter === 'all' ? 'on' : ''}`}>All ({investments.length})</button>
           </div>
         )}
 
@@ -339,9 +388,26 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
 
         {investments.length > 0 && (
           <div className="flex gap-2 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth:'none' }}>
-            <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>All</button>
-            {(liquidityCount > 0 || filter === 'LIQUIDITY') && <button onClick={() => setFilter('LIQUIDITY')} className={`chip whitespace-nowrap ${filter === 'LIQUIDITY' ? 'on' : ''}`}>Liquidity ({liquidityCount})</button>}
-            {types.map((t) => <button key={t} onClick={() => setFilter(t)} className={`chip whitespace-nowrap ${filter === t ? 'on' : ''}`}>{TYPE_META[t]?.label || t}</button>)}
+            <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>
+              <span className="block leading-tight">All</span>
+              <span className="block text-[10px] font-medium leading-tight mt-0.5">{inr(lifecycleScoped.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0))}</span>
+            </button>
+            {categories.map((category) => (
+              <button key={category.key} onClick={() => setFilter(category.key)} className={`chip whitespace-nowrap ${filter === category.key ? 'on' : ''}`}>
+                <span className="block leading-tight">{category.label} ({category.count})</span>
+                <span className="block text-[10px] font-medium leading-tight mt-0.5">{inr(category.saved)} saved</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!loading && selectedCategory && (
+          <div className="mb-4 rounded-2xl border border-edge bg-paper-card px-4 py-3 flex items-end justify-between gap-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-wider text-ink-mute">{selectedCategory.label}</p>
+              <p className="text-2xl font-medium">{inr(selectedCategory.saved)}</p>
+            </div>
+            <p className="text-xs text-ink-soft text-right">saved so far · {selectedCategory.count} {selectedCategory.count === 1 ? 'plan' : 'plans'}</p>
           </div>
         )}
 
@@ -356,16 +422,28 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         )}
 
         {!loading && filtered.length > 0 && (
-          <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
-            {filtered.map((investment, idx) => (
-              <InvestmentRow
-                key={investment.id}
-                investment={investment}
-                idx={idx}
-                href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
-              />
-            ))}
-          </div>
+          layout === 'tiles' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {filtered.map((investment) => (
+                <InvestmentTile
+                  key={investment.id}
+                  investment={investment}
+                  href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
+              {filtered.map((investment, idx) => (
+                <InvestmentRow
+                  key={investment.id}
+                  investment={investment}
+                  idx={idx}
+                  href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
   );

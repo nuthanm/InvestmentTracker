@@ -259,6 +259,11 @@ export default function DetailClient({
   const [schemeMonths, setSchemeMonths] = useState('11');
   const [schemeMonthlyAmount, setSchemeMonthlyAmount] = useState('0');
   const [schemePaidMonths, setSchemePaidMonths] = useState('0');
+  const [schemePlanMonths, setSchemePlanMonths] = useState('11');
+  const [schemePlanMonthly, setSchemePlanMonthly] = useState('');
+  const [schemePlanPaid, setSchemePlanPaid] = useState('0');
+  const [savingSchemePlan, setSavingSchemePlan] = useState(false);
+  const [schemePlanError, setSchemePlanError] = useState('');
   const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
   const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
   const [prematurePenaltyPct, setPrematurePenaltyPct] = useState('0');
@@ -273,7 +278,48 @@ export default function DetailClient({
   const [savingClosure, setSavingClosure] = useState(false);
 
   const freq = i.payment_frequency || 'lump_sum';
-  const isRecurring = !isTransactionType && (freq === 'monthly' || freq === 'yearly');
+  const isMetalScheme = metalType && (freq === 'monthly' || freq === 'yearly') && Number(i.tenure_months) > 0 && Number(i.amount) > 0;
+  const isRecurring = (isMetalScheme || !isTransactionType) && (freq === 'monthly' || freq === 'yearly');
+
+  const saveSchemePlan = async (e) => {
+    e.preventDefault();
+    setSchemePlanError('');
+    const months = Math.floor(Number(schemePlanMonths));
+    const monthly = Number(schemePlanMonthly);
+    const paid = Math.floor(Number(schemePlanPaid || 0));
+    if (!(months > 0) || !(monthly > 0)) {
+      setSchemePlanError('Enter the scheme months and the monthly amount.');
+      return;
+    }
+    if (paid < 0 || paid > months) {
+      setSchemePlanError('Paid months must be between 0 and total scheme months.');
+      return;
+    }
+    setSavingSchemePlan(true);
+    try {
+      const res = await fetch(`/api/investments/${i.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type_code: i.type_code,
+          custom_type: i.custom_type,
+          bank: i.bank,
+          plan_name: i.plan_name,
+          nominee: i.nominee,
+          account_holder: i.account_holder,
+          goal_id: i.goal_id,
+          start_date: toDateInput(i.start_date),
+          metal_scheme: { months, monthly_amount: monthly, paid_months: paid },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not start the scheme.');
+      router.refresh();
+    } catch (err) {
+      setSchemePlanError(err.message);
+      setSavingSchemePlan(false);
+    }
+  };
 
   const onDelete = async () => {
     setDeleteError('');
@@ -861,6 +907,26 @@ export default function DetailClient({
               <p className="text-sm text-ink-soft mt-1">{formatUnits(currentSummary.total_units)} units held{currentSummary.is_closed && ' · position closed'}</p>
               <p className="text-sm text-ink-soft mt-1">Invested <span className="font-medium text-ink">{inr(currentSummary.invested_amount || 0)}</span> · Redeemed <span className="font-medium text-ink">{inr(currentSummary.redeemed_amount || 0)}</span></p>
             </>
+          ) : isMetalScheme ? (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">
+                {inr(i.amount)}<span className="text-base text-ink-soft font-normal">{freqSuffix}</span>
+              </p>
+              <p className="text-sm text-ink-soft mt-1">
+                Saved so far <span className="font-medium text-ink">{inr(paymentsLoaded ? stillInvested : 0)}</span>
+                <span className="text-ink-mute"> of {inr(scheduleTotal || totalInvested)}</span>
+              </p>
+              {paymentsLoaded && (
+                <p className="text-sm text-ink-soft mt-0.5">
+                  <span className="font-medium text-ink">{paidCount}</span>
+                  <span className="text-ink-mute">/{schedule.length} months paid</span>
+                </p>
+              )}
+              <p className="text-sm text-ink-soft mt-1">
+                {formatUnits(currentSummary.total_units)} g purchased
+                {Number(currentSummary.remaining_cost_basis) > 0 && <> · cost <span className="font-medium text-ink">{inr(currentSummary.remaining_cost_basis)}</span></>}
+              </p>
+            </>
           ) : metalType ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{formatUnits(currentSummary.total_units)} g</p>
@@ -921,7 +987,7 @@ export default function DetailClient({
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">
           <Row label={metalType ? 'Store / source' : 'Bank / platform'} value={i.bank} />
           <Row label={metalType ? 'Item description' : 'Plan'} value={i.plan_name} />
-          {(!isTransactionType || forLiquidity) && <Row label={amountLabel} value={`${inr(i.amount)}${forLiquidity ? '' : freqSuffix}`} />}
+          {(!isTransactionType || forLiquidity || isMetalScheme) && <Row label={amountLabel} value={`${inr(i.amount)}${forLiquidity ? '' : freqSuffix}`} />}
           {!forLiquidity && !isTransactionType && isRecurring && (
             <>
               <Row
@@ -1137,6 +1203,31 @@ export default function DetailClient({
                   <SummaryCard label="Total cost" value={inr(currentSummary.remaining_cost_basis || 0)} />
                 </div>
               </div>
+            )}
+
+            {metalType && !isMetalScheme && (
+              <form onSubmit={saveSchemePlan} className="bg-paper-card border border-edge rounded-2xl p-4">
+                <p className="text-sm font-medium">Accumulate monthly, like a recurring deposit</p>
+                <p className="text-[11px] text-ink-soft mt-1">Start the scheme now. Each month can be marked paid. The purchase stays here for when you convert the balance.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+                  <div>
+                    <label className="block text-xs text-ink-soft mb-1">Scheme months</label>
+                    <input type="number" min="1" step="1" value={schemePlanMonths} onChange={(e) => setSchemePlanMonths(e.target.value)} className="field-input" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-soft mb-1">Monthly payment (₹)</label>
+                    <input type="number" min="0" step="0.01" value={schemePlanMonthly} onChange={(e) => setSchemePlanMonthly(e.target.value)} className="field-input" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-ink-soft mb-1">Months already paid</label>
+                    <input type="number" min="0" step="1" value={schemePlanPaid} onChange={(e) => setSchemePlanPaid(e.target.value)} className="field-input" />
+                  </div>
+                </div>
+                {schemePlanError && <p className="text-xs text-danger mt-2">{schemePlanError}</p>}
+                <div className="flex justify-end mt-3">
+                  <button type="submit" disabled={savingSchemePlan} className="btn-primary py-2 px-4 rounded-lg text-sm font-medium">{savingSchemePlan ? 'Saving…' : 'Start monthly scheme'}</button>
+                </div>
+              </form>
             )}
 
             <div ref={txFormRef} className={`bg-paper-card border rounded-2xl p-4 scroll-mt-4 ${editingTxId ? 'border-sky-600/40 ring-2 ring-sky-600/10' : 'border-edge'}`}>
@@ -1481,7 +1572,7 @@ export default function DetailClient({
               {historyError && <p role="alert" className="text-[11px] text-danger mb-2">{historyError}</p>}
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                 {transactions.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? 'No purchases yet. Record your first purchase above.' : 'No transactions yet. Add your first buy or SIP above.'}</div>
+                  <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? (isMetalScheme ? 'No purchase yet. Monthly payments are listed below. Record the purchase here when you convert the scheme.' : 'No purchases yet. Record your first purchase above.') : 'No transactions yet. Add your first buy or SIP above.'}</div>
                 ) : transactions.map((tx, idx) => {
                   const unitLabel = metalType ? 'g' : 'units';
                   const isEditing = editingTxId === tx.id;
@@ -1574,7 +1665,7 @@ export default function DetailClient({
         {isRecurring && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Payment history</p>
+              <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalScheme ? 'Monthly payments' : 'Payment history'}</p>
               {paymentsLoaded && (
                 <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
               )}
@@ -1622,7 +1713,7 @@ export default function DetailClient({
           </section>
         )}
 
-        {isRecurring && (
+        {isRecurring && !isMetalScheme && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
@@ -1702,18 +1793,23 @@ export default function DetailClient({
 
         <div className="flex items-center gap-3 pt-3 border-t border-edge flex-wrap">
           <Link href={`/investments/${i.id}/edit`} className="btn-ghost py-2 px-4 rounded-lg text-sm">Edit investment</Link>
-          {confirmDelete ? (
-            <>
-              <span className="text-sm text-ink-soft">Delete this investment? This cannot be undone.</span>
-              <button onClick={onDelete} disabled={deleting} className="text-sm text-danger font-medium px-3 py-1.5 rounded-lg border border-danger hover:bg-danger-soft transition disabled:opacity-60">{deleting ? 'Deleting…' : 'Yes, delete'}</button>
-              <button onClick={() => setConfirmDelete(false)} className="text-sm text-ink-mute px-3 py-1.5 rounded-lg border border-edge hover:bg-paper-tint transition">Cancel</button>
-            </>
-          ) : (
-            <button onClick={() => setConfirmDelete(true)} className="text-sm text-danger px-4 py-2 hover:underline">Delete investment</button>
-          )}
+          <button onClick={() => { setDeleteError(''); setConfirmDelete(true); }} className="text-sm text-danger px-4 py-2 hover:underline">Delete investment</button>
         </div>
-        {deleteError && <p className="text-xs text-danger mt-2">{deleteError}</p>}
       </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => { if (!deleting) setConfirmDelete(false); }}>
+          <div className="bg-paper-card border border-edge rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-medium text-ink mb-2">Delete this investment</h3>
+            <p className="text-sm text-ink-soft mb-6">This cannot be undone. The plan, its payments, and its purchases will be removed.</p>
+            {deleteError && <p className="text-xs text-danger mb-3">{deleteError}</p>}
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} className="px-4 py-2 text-sm rounded-lg border border-edge hover:bg-paper-tint disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={onDelete} disabled={deleting} className="px-4 py-2 text-sm rounded-lg bg-danger text-paper font-medium disabled:opacity-50">{deleting ? 'Deleting…' : 'Yes, delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {viewing && (
         <div className="fixed inset-0 bg-ink/70 z-50 flex flex-col anim-fade" onClick={() => setViewing(null)}>

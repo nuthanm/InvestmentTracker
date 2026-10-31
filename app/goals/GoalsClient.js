@@ -12,6 +12,15 @@ import { isLiquidityGoal } from '@/lib/goals';
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 
+function LayoutToggle({ value, onChange }) {
+  return (
+    <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
+      <button type="button" onClick={() => onChange('list')} className={`px-2.5 py-1 ${value === 'list' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>List</button>
+      <button type="button" onClick={() => onChange('tiles')} className={`px-2.5 py-1 ${value === 'tiles' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>Tiles</button>
+    </div>
+  );
+}
+
 const computeProjectedGoal = (value, inflationPct, targetDate) => {
   const base = Number(value);
   const rate = Number(inflationPct || 0);
@@ -53,6 +62,7 @@ function GoalCard({
   onDelete,
   onConfirmDelete,
   onCancelDelete,
+  layout = 'tiles',
 }) {
   const cur = Number(g.current_amount || 0);
   const liquidity = isLiquidityGoal(g);
@@ -65,14 +75,15 @@ function GoalCard({
   const hasDescription = !!g.description?.trim();
   const savingsPace = getSavingsPace(tgt, g.target_date, cur);
   const { hostRef, originRef } = useCelebrateOnce(`goal-${g.id}`, reached);
+  const compact = layout === 'list' && !isEditing;
 
   return (
     <div
       ref={hostRef}
       onClick={isEditing ? undefined : onToggleExpand}
-      className={`growth-stage goal-water-card bg-paper-card border border-edge rounded-2xl p-4 mb-3 transition ${reached ? 'bg-mint-50/50 border-mint-600/40' : 'overflow-hidden'} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
+      className={`growth-stage bg-paper-card border border-edge transition ${compact ? 'rounded-xl mb-2' : `goal-water-card rounded-2xl p-4 ${layout === 'tiles' ? 'mb-0 h-full' : 'mb-3'}`} ${reached && !compact ? 'bg-mint-50/50 border-mint-600/40' : compact ? '' : 'overflow-hidden'} ${isEditing ? 'border-mint-600' : 'cursor-pointer hover:border-mint-600'}`}
     >
-      {!isEditing ? <GoalWaterFill pct={pct} /> : null}
+      {!isEditing && !compact ? <GoalWaterFill pct={pct} /> : null}
       {isEditing ? (
         <div onClick={(e) => e.stopPropagation()} className="space-y-3 relative z-[1]">
           <p className="text-xs font-medium text-ink-soft uppercase tracking-wider mb-1">Edit goal</p>
@@ -158,7 +169,26 @@ function GoalCard({
           </div>
         </div>
       ) : (
-        <div className="goal-on-water">
+        <div className={compact ? 'px-3 py-2.5' : 'goal-on-water'}>
+          {compact ? (
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate">{g.name}</span>
+                  {liquidity && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium flex-shrink-0">Liquidity</span>}
+                </div>
+                <p className="text-[11px] text-ink-mute mt-0.5 truncate">
+                  {inr(cur)} of {inr(tgt)}
+                  {liquidity ? ' · keep available' : ''}
+                </p>
+              </div>
+              <div className="w-16 h-1.5 bg-paper-tint rounded-full overflow-hidden flex-shrink-0">
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+              </div>
+              <span ref={originRef} className={`text-sm font-medium w-10 text-right flex-shrink-0 ${reached ? 'achieved-amount' : ''}`}>{pct}%</span>
+            </div>
+          ) : (
+            <>
           <div className="flex justify-between items-start mb-2.5">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -180,6 +210,8 @@ function GoalCard({
           <div className="h-2 bg-paper-tint rounded-full overflow-hidden">
             <div className="fill-bar h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
           </div>
+            </>
+          )}
           {isExpanded && (
             <div className="mt-3 pt-3 border-t border-edge space-y-2">
               {hasDescription && (
@@ -262,6 +294,7 @@ function GoalCard({
               )}
             </div>
           )}
+          {(!compact || isExpanded) && (
           <div className="flex justify-end items-center gap-1.5 mt-2">
             <button type="button" onClick={onOpenEdit}
               className="rounded-full border border-edge bg-paper-card px-2.5 py-0.5 text-xs font-medium leading-none text-ink shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none] hover:bg-paper">Edit</button>
@@ -278,6 +311,7 @@ function GoalCard({
                 className="rounded-full border border-danger/30 bg-paper-card px-2.5 py-0.5 text-xs font-medium leading-none text-danger shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none] hover:bg-danger-soft">Delete</button>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
@@ -295,6 +329,7 @@ export default function GoalsClient({ user }) {
   const [editForm, setEditForm] = useState({ name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house', forLiquidity: false, amountAsOf: '', baseAmount: '' });
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [layout, setLayout] = useState('list');
 
   const load = () => {
     setLoadError('');
@@ -318,6 +353,16 @@ export default function GoalsClient({ user }) {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('goals-layout');
+    if (stored === 'tiles' || stored === 'list') setLayout(stored);
+  }, []);
+
+  const chooseLayout = (next) => {
+    setLayout(next);
+    window.localStorage.setItem('goals-layout', next);
+  };
 
   const openEdit = (e, g) => {
     e.stopPropagation();
@@ -392,14 +437,17 @@ export default function GoalsClient({ user }) {
 
   return (
     <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full relative min-h-full">
+      <div className={`px-4 md:px-8 py-5 md:py-6 mx-auto w-full relative min-h-full ${layout === 'tiles' ? 'max-w-5xl' : 'max-w-3xl'}`}>
 
-        <div className="flex justify-between items-end mb-5">
+        <div className="flex justify-between items-end mb-5 gap-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Goals</h1>
             <p className="text-sm text-ink-soft mt-1">tap a goal to view linked investments · crackers fire when a goal is reached</p>
           </div>
-          <Link href="/goals/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium">+ New goal</Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <LayoutToggle value={layout} onChange={chooseLayout} />
+            <Link href="/goals/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap">+ New goal</Link>
+          </div>
         </div>
 
         {loading && <div className="h-20 bg-paper-tint rounded-xl animate-pulse" />}
@@ -414,28 +462,34 @@ export default function GoalsClient({ user }) {
           </div>
         )}
 
-        {!loading && goals.map((g, idx) => (
-          <GoalCard
-            key={g.id}
-            goal={g}
-            idx={idx}
-            investments={investmentsByGoal[g.id] || []}
-            isEditing={editId === g.id}
-            isExpanded={expandedGoalId === g.id}
-            editForm={editForm}
-            setEditForm={setEditForm}
-            editError={editError}
-            editSaving={editSaving}
-            confirmDeleteId={confirmDeleteId}
-            onToggleExpand={() => setExpandedGoalId((prev) => (prev === g.id ? null : g.id))}
-            onOpenEdit={(e) => openEdit(e, g)}
-            onCancelEdit={cancelEdit}
-            onSaveEdit={saveEdit}
-            onDelete={onDelete}
-            onConfirmDelete={(e, id) => { e.stopPropagation(); setConfirmDeleteId(id); }}
-            onCancelDelete={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-          />
-        ))}
+        {!loading && goals.length > 0 && (
+          <div className={layout === 'tiles' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 items-start' : ''}>
+            {goals.map((g, idx) => (
+              <div key={g.id} className={layout === 'tiles' && editId === g.id ? 'sm:col-span-2' : ''}>
+                <GoalCard
+                  goal={g}
+                  idx={idx}
+                  layout={layout}
+                  investments={investmentsByGoal[g.id] || []}
+                  isEditing={editId === g.id}
+                  isExpanded={expandedGoalId === g.id}
+                  editForm={editForm}
+                  setEditForm={setEditForm}
+                  editError={editError}
+                  editSaving={editSaving}
+                  confirmDeleteId={confirmDeleteId}
+                  onToggleExpand={() => setExpandedGoalId((prev) => (prev === g.id ? null : g.id))}
+                  onOpenEdit={(e) => openEdit(e, g)}
+                  onCancelEdit={cancelEdit}
+                  onSaveEdit={saveEdit}
+                  onDelete={onDelete}
+                  onConfirmDelete={(e, id) => { e.stopPropagation(); setConfirmDeleteId(id); }}
+                  onCancelDelete={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
     </Shell>

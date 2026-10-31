@@ -7,6 +7,11 @@ import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 import { documentUploadError } from '@/lib/documents';
 
+function missingPaymentRecordsTable(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('payment_records') && msg.includes('does not exist');
+}
+
 function parseDateInput(value, fallback) {
   const dt = value ? new Date(value) : fallback ? new Date(fallback) : new Date();
   if (Number.isNaN(dt.getTime())) return null;
@@ -177,6 +182,72 @@ export async function PATCH(req, { params }) {
     }
 
     if (transactionBasedInvestment) {
+      const schemeMonths = Math.floor(Number(body.metal_scheme?.months || 0));
+      const schemeMonthly = Number(body.metal_scheme?.monthly_amount || 0);
+      const schemePaid = Math.floor(Number(body.metal_scheme?.paid_months || 0));
+      const keepScheme = metalInvestment
+        && !body.metal_scheme
+        && (current.payment_frequency === 'monthly' || current.payment_frequency === 'yearly')
+        && Number(current.tenure_months) > 0
+        && Number(current.amount) > 0;
+
+      if (metalInvestment && body.metal_scheme) {
+        if (!(schemeMonths > 0) || !(schemeMonthly > 0)) {
+          return NextResponse.json({ error: 'Enter the scheme months and the monthly amount.' }, { status: 400 });
+        }
+        if (schemePaid < 0 || schemePaid > schemeMonths) {
+          return NextResponse.json({ error: 'Paid months must be between 0 and total scheme months.' }, { status: 400 });
+        }
+        const maturityDate = addMonths(startDate, schemeMonths);
+        const maturityValue = schemeMonthly * schemeMonths;
+        const rows = await sql`
+          UPDATE investments
+          SET
+            goal_id = ${body.goal_id},
+            type_code = ${body.type_code},
+            custom_type = ${body.custom_type || null},
+            bank = ${body.bank.trim()},
+            plan_name = ${body.plan_name.trim()},
+            nominee = ${body.nominee.trim()},
+            account_holder = ${body.account_holder || 'Self'},
+            start_date = ${startDate.toISOString().slice(0, 10)},
+            amount = ${schemeMonthly},
+            rate_pct = 0,
+            tenure_months = ${schemeMonths},
+            tenure_days = 0,
+            compounding = 'simple',
+            payment_frequency = 'monthly',
+            maturity_date = ${maturityDate.toISOString().slice(0, 10)},
+            maturity_value = ${maturityValue},
+            auto_renew = FALSE,
+            for_liquidity = FALSE
+          WHERE id = ${params.id} AND user_id = ${me.id}
+          RETURNING *
+        `;
+        if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
+        try {
+          await seedPaymentRecords(sql, { investment: rows[0], userId: me.id });
+          await sql`UPDATE payment_records SET paid = FALSE, paid_at = NULL WHERE investment_id = ${params.id}`;
+          if (schemePaid > 0) {
+            await sql`
+              UPDATE payment_records
+              SET paid = TRUE, paid_at = due_date
+              WHERE investment_id = ${params.id}
+                AND id IN (
+                  SELECT id FROM payment_records
+                  WHERE investment_id = ${params.id}
+                  ORDER BY due_date ASC
+                  LIMIT ${schemePaid}
+                )
+            `;
+          }
+        } catch (err) {
+          if (!missingPaymentRecordsTable(err)) throw err;
+        }
+        await syncDocuments(sql, params.id, body.documents);
+        return NextResponse.json({ investment: rows[0] });
+      }
+
       const rows = await sql`
         UPDATE investments
         SET
@@ -188,12 +259,13 @@ export async function PATCH(req, { params }) {
           nominee = ${body.nominee.trim()},
           account_holder = ${body.account_holder || 'Self'},
           start_date = ${startDate.toISOString().slice(0, 10)},
-          payment_frequency = 'lump_sum',
+          payment_frequency = ${keepScheme ? current.payment_frequency : 'lump_sum'},
           rate_pct = 0,
-          tenure_months = 0,
+          tenure_months = ${keepScheme ? current.tenure_months : 0},
           tenure_days = 0,
-          maturity_date = NULL,
-          maturity_value = NULL,
+          compounding = ${keepScheme ? (current.compounding || 'simple') : 'quarterly'},
+          maturity_date = ${keepScheme ? current.maturity_date : null},
+          maturity_value = ${keepScheme ? current.maturity_value : null},
           auto_renew = FALSE,
           for_liquidity = ${forLiquidity}
         WHERE id = ${params.id} AND user_id = ${me.id}

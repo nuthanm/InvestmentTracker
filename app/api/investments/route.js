@@ -218,6 +218,104 @@ export async function POST(req) {
       return NextResponse.json({ investment });
     }
 
+    const schemeMonths = Math.floor(Number(body.metal_scheme?.months || 0));
+    const schemeMonthly = Number(body.metal_scheme?.monthly_amount || 0);
+    const schemePaid = Math.floor(Number(body.metal_scheme?.paid_months || 0));
+    if (metalInvestment && body.metal_scheme) {
+      if (!(schemeMonths > 0) || !(schemeMonthly > 0)) {
+        return NextResponse.json({ error: 'Enter the scheme months and the monthly amount.' }, { status: 400 });
+      }
+      if (schemePaid < 0 || schemePaid > schemeMonths) {
+        return NextResponse.json({ error: 'Paid months must be between 0 and total scheme months.' }, { status: 400 });
+      }
+
+      const initialTransaction = validateInitialTransaction(body.initial_transaction);
+      if (initialTransaction?.error) {
+        return NextResponse.json({ error: initialTransaction.error }, { status: 400 });
+      }
+
+      const startDate = parseDateInput(initialTransaction?.trade_date || body.start_date);
+      if (!startDate) {
+        return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+      }
+      const maturityDate = addMonths(startDate, schemeMonths);
+      const maturityValue = schemeMonthly * schemeMonths;
+
+      const rows = await sql`
+        INSERT INTO investments (
+          user_id, goal_id, type_code, custom_type, bank, plan_name,
+          amount, rate_pct, tenure_months, tenure_days, compounding,
+          payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+          for_liquidity
+        )
+        VALUES (
+          ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
+          ${body.bank.trim()}, ${body.plan_name.trim()},
+          ${schemeMonthly}, 0, ${schemeMonths}, 0, 'simple',
+          'monthly', ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${maturityValue},
+          ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+          false
+        )
+        RETURNING *
+      `;
+      const investment = rows[0];
+
+      try {
+        await seedPaymentRecords(sql, { investment, userId: me.id });
+        if (schemePaid > 0) {
+          await sql`
+            UPDATE payment_records
+            SET paid = TRUE, paid_at = due_date
+            WHERE investment_id = ${investment.id}
+              AND id IN (
+                SELECT id FROM payment_records
+                WHERE investment_id = ${investment.id}
+                ORDER BY due_date ASC
+                LIMIT ${schemePaid}
+              )
+          `;
+        }
+      } catch (err) {
+        if (!missingPaymentRecordsTable(err)) throw err;
+      }
+
+      if (initialTransaction) {
+        try {
+          await sql`
+            INSERT INTO investment_transactions (
+              investment_id, user_id, transaction_type, trade_date, units, price_per_unit,
+              total_amount, charges, taxes, notes
+            )
+            VALUES (
+              ${investment.id}, ${me.id}, ${initialTransaction.transaction_type}, ${initialTransaction.trade_date}, ${initialTransaction.units},
+              ${initialTransaction.price_per_unit}, ${computeTransactionGross(initialTransaction)}, ${initialTransaction.charges},
+              ${initialTransaction.taxes}, ${initialTransaction.notes}
+            )
+          `;
+        } catch (err) {
+          if (missingTransactionsTable(err)) {
+            return NextResponse.json(
+              { error: 'Market transactions are not available yet. Run db/migrations/2026-06-22-add-market-investment-transactions.sql in Neon SQL Editor.' },
+              { status: 409 }
+            );
+          }
+          throw err;
+        }
+      }
+
+      if (Array.isArray(body.documents)) {
+        for (const doc of body.documents) {
+          if (!doc.filename || !doc.data_url) continue;
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            VALUES (${investment.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          `;
+        }
+      }
+
+      return NextResponse.json({ investment });
+    }
+
     if (transactionBasedInvestment) {
       const initialTransaction = validateInitialTransaction(body.initial_transaction);
       if (initialTransaction?.error) {
