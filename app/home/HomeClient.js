@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveCurrentValue, effectiveInvestedSoFar, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
+import { effectiveCurrentValue, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import {
   getLifecycleLabel,
   isActiveInvestment,
@@ -436,6 +436,9 @@ export default function HomeClient({ user }) {
     0
   );
   const totalInvested = activeInvestments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
+  const liquidityHeld = activeInvestments
+    .filter((inv) => isLiquiditySaving(inv))
+    .reduce((sum, inv) => sum + (isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)), 0);
   const closedReceivedTotal = closedInvestments.reduce((sum, inv) => {
     if (Number(inv.closure_amount) > 0) return sum + Number(inv.closure_amount);
     return sum + effectiveCurrentValue(inv);
@@ -484,6 +487,9 @@ export default function HomeClient({ user }) {
                   <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
                   <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalCurrentPortfolioValue)}</h1>
                   <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
+                  {liquidityHeld > 0 && (
+                    <p className="text-sm text-ink-soft mt-0.5">{inr(totalCurrentPortfolioValue - liquidityHeld)} invested · {inr(liquidityHeld)} kept for liquidity</p>
+                  )}
                 </div>
                 <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
               </div>
@@ -569,7 +575,10 @@ export default function HomeClient({ user }) {
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">{investment.bank} · {investment.plan_name}</p>
+                          <p className="text-xs font-medium truncate">
+                            {investment.bank} · {investment.plan_name}
+                            {isLiquiditySaving(investment) && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
+                          </p>
                           <p className="text-[11px] text-ink-mute mt-0.5">
                             {closedPlan && <span className="text-ink-soft font-medium">{lifecycleLabel} · </span>}
                             {labelFor(investment)}

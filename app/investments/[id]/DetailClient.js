@@ -12,6 +12,7 @@ import {
   METAL_TRANSACTION_TYPES,
   computeTransactionNetAmount,
   getTransactionTypeLabel,
+  isLiquiditySaving,
   isMarketInvestment,
   isMetalInvestment,
   isChitInvestment,
@@ -160,6 +161,30 @@ export default function DetailClient({
   const [goalId, setGoalId] = useState(i.goal_id || '');
   const [savingGoal, setSavingGoal] = useState(false);
   const [goalError, setGoalError] = useState('');
+  const [forLiquidity, setForLiquidity] = useState(isLiquiditySaving(i));
+  const [savingPurpose, setSavingPurpose] = useState(false);
+  const [purposeError, setPurposeError] = useState('');
+
+  const togglePurpose = async () => {
+    const next = !forLiquidity;
+    setSavingPurpose(true);
+    setPurposeError('');
+    try {
+      const res = await fetch(`/api/investments/${i.id}/liquidity`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ for_liquidity: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update purpose.');
+      setForLiquidity(next);
+      router.refresh();
+    } catch (err) {
+      setPurposeError(err.message || 'Could not update purpose.');
+    } finally {
+      setSavingPurpose(false);
+    }
+  };
 
   const saveGoal = async () => {
     setSavingGoal(true);
@@ -820,7 +845,10 @@ export default function DetailClient({
                 />
               </span>
             ) : null}
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(i)}</p>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase">
+              {labelFor(i)}
+              {forLiquidity && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
+            </p>
           </div>
           {marketType ? (
             <>
@@ -964,6 +992,16 @@ export default function DetailClient({
           </div>
           <Row label="Nominee" value={i.nominee} />
           <Row label="Account holder" value={i.account_holder || 'Self'} />
+          <div className="flex justify-between py-2.5 border-b border-dashed border-edge text-sm gap-3 items-start">
+            <span className="text-ink-soft flex-shrink-0">Purpose</span>
+            <span className="text-right">
+              <span className="font-medium">{forLiquidity ? 'Saving for liquidity' : 'Investment'}</span>
+              <button type="button" onClick={togglePurpose} disabled={savingPurpose} className="block ml-auto text-[11px] text-sky-600 hover:underline disabled:opacity-50">
+                {savingPurpose ? 'Saving…' : forLiquidity ? 'Mark as investment' : 'Mark as liquidity'}
+              </button>
+              {purposeError && <span className="block text-[11px] text-danger mt-1">{purposeError}</span>}
+            </span>
+          </div>
           {!isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
           {isTransactionType && !metalType && <Row label="Position" value={currentSummary.is_closed ? 'Closed' : 'Active'} />}
           <Row label="Lifecycle" value={getLifecycleLabel(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE)} />

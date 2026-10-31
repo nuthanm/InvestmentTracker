@@ -11,6 +11,7 @@ import {
   isMarketInvestment,
   isMetalInvestment,
   isTransactionBased,
+  missingLiquidityColumn,
 } from '@/lib/investments';
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
@@ -141,6 +142,7 @@ export async function POST(req) {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   try {
     const body = await req.json();
+    const forLiquidity = body.for_liquidity === true || body.for_liquidity === 'true';
     const marketInvestment = isMarketInvestment(body.type_code);
     const metalInvestment = isMetalInvestment(body.type_code);
     const chitInvestment = isChitInvestment(body.type_code);
@@ -191,14 +193,16 @@ export async function POST(req) {
         INSERT INTO investments (
           user_id, goal_id, type_code, custom_type, bank, plan_name,
           amount, rate_pct, tenure_months, tenure_days, compounding,
-          payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder
+          payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+          for_liquidity
         )
         VALUES (
           ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
           ${body.bank.trim()}, ${body.plan_name.trim()},
           ${startingAmount}, 0, 0, 0, 'quarterly',
           'lump_sum', ${startDate.toISOString().slice(0, 10)}, NULL, NULL,
-          ${body.nominee.trim()}, false, ${body.account_holder || 'Self'}
+          ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+          ${forLiquidity}
         )
         RETURNING *
       `;
@@ -260,7 +264,7 @@ export async function POST(req) {
             user_id, goal_id, type_code, custom_type, bank, plan_name,
             amount, rate_pct, tenure_months, tenure_days, compounding,
             payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
-            chit_details
+            for_liquidity, chit_details
           )
           VALUES (
             ${me.id}, ${body.goal_id}, 'CHIT', NULL,
@@ -269,6 +273,7 @@ export async function POST(req) {
             ${chitWrite.payment_frequency},
             ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${chitWrite.maturity_value},
             ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+            ${forLiquidity},
             ${JSON.stringify(chitWrite.chit_details)}::jsonb
           )
           RETURNING *
@@ -340,7 +345,8 @@ export async function POST(req) {
       INSERT INTO investments (
         user_id, goal_id, type_code, custom_type, bank, plan_name,
         amount, rate_pct, tenure_months, tenure_days, compounding,
-        payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder
+        payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+        for_liquidity
       )
       VALUES (
         ${me.id}, ${body.goal_id}, ${body.type_code}, ${body.custom_type || null},
@@ -348,7 +354,8 @@ export async function POST(req) {
         ${body.amount}, ${body.rate_pct}, ${body.tenure_months}, ${body.tenure_days || 0}, ${body.compounding || 'quarterly'},
         ${paymentFrequency},
         ${startDate.toISOString().slice(0, 10)}, ${maturityDate.toISOString().slice(0, 10)}, ${maturityValue},
-        ${body.nominee.trim()}, ${!!body.auto_renew}, ${body.account_holder || 'Self'}
+        ${body.nominee.trim()}, ${!!body.auto_renew}, ${body.account_holder || 'Self'},
+        ${forLiquidity}
       )
       RETURNING *
     `;
@@ -372,6 +379,12 @@ export async function POST(req) {
     }
     if (err?.code === '23503') {
       return NextResponse.json({ error: 'Selected goal does not exist.' }, { status: 400 });
+    }
+    if (missingLiquidityColumn(err)) {
+      return NextResponse.json(
+        { error: 'Database schema is out of date. Run db/migrations/2026-10-31-add-for-liquidity.sql in Neon SQL Editor, then try again.' },
+        { status: 409 }
+      );
     }
     if (err?.code === '42703') {
       return NextResponse.json(

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
-import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
 import { emptyCustomMonths, isChitInvestment, normalizeChitDetails, prepareChitForSave } from '@/lib/chit';
 import ChitFundFields from './ChitFundFields';
 import {
@@ -149,6 +149,7 @@ export default function NewInvestmentClient({
   const [nominee, setNominee] = useState(initialInvestment?.nominee || '');
   const [accountHolder, setAccountHolder] = useState(initialInvestment?.account_holder || 'Self');
   const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
+  const [forLiquidity, setForLiquidity] = useState(isLiquiditySaving(initialInvestment));
   const [docs, setDocs] = useState(initialDocuments.map((doc) => ({ ...doc, size_bytes: Number(doc.size_bytes || 0), page_count: Number(doc.page_count || 1) })));
   const [chitMode, setChitMode] = useState(initialChit.mode);
   const [chitValue, setChitValue] = useState(initialChit.chitValue);
@@ -570,6 +571,7 @@ export default function NewInvestmentClient({
           goal_id: goalId,
           nominee: nominee.trim(),
           account_holder: accountHolder.trim() || 'Self',
+          for_liquidity: forLiquidity,
           start_date: startDateInput,
           documents: docs,
           initial_transaction: !isEditing ? initialTransaction : null,
@@ -602,6 +604,7 @@ export default function NewInvestmentClient({
           goal_id: goalId,
           nominee: nominee.trim(),
           account_holder: accountHolder.trim() || 'Self',
+          for_liquidity: forLiquidity,
           auto_renew: false,
           start_date: startDateInput,
           documents: docs,
@@ -621,6 +624,7 @@ export default function NewInvestmentClient({
             goal_id: goalId,
             nominee: nominee.trim(),
             account_holder: accountHolder.trim() || 'Self',
+            for_liquidity: forLiquidity,
             auto_renew: autoRenew,
             start_date: startDateInput,
             documents: docs,
@@ -679,6 +683,28 @@ export default function NewInvestmentClient({
                 </div>
               </div>
             )}
+          </section>
+
+          <section>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForLiquidity(false)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
+              >
+                <p className="text-sm font-medium">Investment</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Money held to grow.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForLiquidity(true)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
+              >
+                <p className="text-sm font-medium">Saving for liquidity</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Cash you keep available. Shown apart from growth holdings.</p>
+              </button>
+            </div>
           </section>
 
           {(typeCode === 'RD' || typeCode === 'PPF') && (

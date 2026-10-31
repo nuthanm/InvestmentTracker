@@ -8,6 +8,7 @@ import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/l
 import {
   effectiveInvestedSoFar,
   hasGrowthDeduction,
+  isLiquiditySaving,
   isLumpSumInvestment,
   isMarketInvestment,
   isMetalInvestment,
@@ -107,7 +108,10 @@ function InvestmentRow({ investment, idx, href }) {
           />
         </div>
       <div className="flex-1 min-w-0 relative z-[1]">
-        <p className="text-sm font-medium truncate">{investment.bank} · {investment.plan_name}</p>
+        <p className="text-sm font-medium truncate">
+          {investment.bank} · {investment.plan_name}
+          {isLiquiditySaving(investment) && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
+        </p>
         <p className="text-[11px] text-ink-mute mt-0.5 truncate">
           {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
           {labelFor(investment)}
@@ -237,8 +241,14 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
 
   const filtered = filter === 'ALL'
     ? lifecycleScoped
-    : lifecycleScoped.filter((investment) => investment.type_code === filter);
+    : filter === 'LIQUIDITY'
+      ? lifecycleScoped.filter((investment) => isLiquiditySaving(investment))
+      : lifecycleScoped.filter((investment) => investment.type_code === filter);
   const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
+  const liquidityTotal = filtered
+    .filter((investment) => isLiquiditySaving(investment))
+    .reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
+  const liquidityCount = lifecycleScoped.filter((investment) => isLiquiditySaving(investment)).length;
   const types = Array.from(new Set(lifecycleScoped.map((investment) => investment.type_code)));
 
   const nearMaturityCount = activeInvestments.filter((investment) => {
@@ -265,9 +275,11 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
             <p className="text-sm text-ink-soft mt-1">
               {filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'}
-              {readOnly
-                ? <> · Total invested <span className="font-medium text-ink">{inr(total)}</span></>
-                : <> · {inr(total)} invested</>}
+              {liquidityTotal > 0
+                ? <> · {inr(total - liquidityTotal)} invested · <span className="font-medium text-ink">{inr(liquidityTotal)}</span> for liquidity</>
+                : readOnly
+                  ? <> · Total invested <span className="font-medium text-ink">{inr(total)}</span></>
+                  : <> · {inr(total)} invested</>}
             </p>
           </div>
           {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap flex-shrink-0">+ Add</Link>}
@@ -319,6 +331,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         {investments.length > 0 && (
           <div className="flex gap-2 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth:'none' }}>
             <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>All</button>
+            {(liquidityCount > 0 || filter === 'LIQUIDITY') && <button onClick={() => setFilter('LIQUIDITY')} className={`chip whitespace-nowrap ${filter === 'LIQUIDITY' ? 'on' : ''}`}>Liquidity ({liquidityCount})</button>}
             {types.map((t) => <button key={t} onClick={() => setFilter(t)} className={`chip whitespace-nowrap ${filter === t ? 'on' : ''}`}>{TYPE_META[t]?.label || t}</button>)}
           </div>
         )}

@@ -8,6 +8,7 @@ import {
   computeTransactionNetAmount,
   getTransactionTypeLabel,
   isChitInvestment,
+  isLiquiditySaving,
   isMarketInvestment,
   isMetalInvestment,
   tenureProgress,
@@ -99,7 +100,10 @@ export default async function ViewInvestmentPage({ params }) {
         )}
 
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase">{labelFor(investment)}</p>
+          <p className="text-[11px] tracking-wider text-ink-mute uppercase">
+            {labelFor(investment)}
+            {isLiquiditySaving(investment) && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
+          </p>
           {marketType ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(investment.remaining_cost_basis || 0)}</p>
@@ -163,6 +167,7 @@ export default async function ViewInvestmentPage({ params }) {
           <Row label="Goal" value={investment.goal_name || '—'} />
           <Row label="Nominee" value={investment.nominee || '—'} />
           <Row label="Account holder" value={investment.account_holder || 'Self'} />
+          <Row label="Purpose" value={isLiquiditySaving(investment) ? 'Saving for liquidity' : 'Investment'} />
           {!transactionType && <Row label="Auto-renew" value={investment.auto_renew ? 'On' : 'Off'} />}
           <Row label="Lifecycle" value={getLifecycleLabel(investment.lifecycle_status || 'active')} />
           {investment.closure_notes ? <Row label="Closure notes" value={investment.closure_notes} /> : null}

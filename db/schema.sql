@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS investments (
   nominee TEXT NOT NULL,
   auto_renew BOOLEAN DEFAULT FALSE,
   account_holder TEXT DEFAULT 'Self',    -- who owns this investment (e.g. Self, Wife, Father)
+  for_liquidity BOOLEAN NOT NULL DEFAULT FALSE, -- cash kept available, not a growth investment
   lifecycle_status TEXT NOT NULL DEFAULT 'active', -- active | matured | closed | premature_withdrawal
   closure_date DATE,
   closure_amount NUMERIC(14,2),

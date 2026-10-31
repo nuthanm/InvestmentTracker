@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/format';
-import { isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { isMarketInvestment, isMetalInvestment, missingLiquidityColumn } from '@/lib/investments';
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 import { documentUploadError } from '@/lib/documents';
@@ -100,6 +100,7 @@ export async function PATCH(req, { params }) {
 
     const current = currentRows[0];
     const body = await req.json();
+    const forLiquidity = body.for_liquidity === true || body.for_liquidity === 'true';
     const marketInvestment = isMarketInvestment(body.type_code);
     const metalInvestment = isMetalInvestment(body.type_code);
     const chitInvestment = isChitInvestment(body.type_code);
@@ -157,7 +158,8 @@ export async function PATCH(req, { params }) {
           tenure_days = 0,
           maturity_date = NULL,
           maturity_value = NULL,
-          auto_renew = FALSE
+          auto_renew = FALSE,
+          for_liquidity = ${forLiquidity}
         WHERE id = ${params.id} AND user_id = ${me.id}
         RETURNING *
       `;
@@ -196,6 +198,7 @@ export async function PATCH(req, { params }) {
             nominee = ${body.nominee.trim()},
             auto_renew = FALSE,
             account_holder = ${body.account_holder || 'Self'},
+            for_liquidity = ${forLiquidity},
             chit_details = ${JSON.stringify(chitWrite.chit_details)}::jsonb
           WHERE id = ${params.id} AND user_id = ${me.id}
           RETURNING *
@@ -273,7 +276,8 @@ export async function PATCH(req, { params }) {
         maturity_value = ${maturityValue},
         nominee = ${body.nominee.trim()},
         auto_renew = ${!!body.auto_renew},
-        account_holder = ${body.account_holder || 'Self'}
+        account_holder = ${body.account_holder || 'Self'},
+        for_liquidity = ${forLiquidity}
       WHERE id = ${params.id} AND user_id = ${me.id}
       RETURNING *
     `;
@@ -289,6 +293,12 @@ export async function PATCH(req, { params }) {
     }
     if (err?.code === '23503') {
       return NextResponse.json({ error: 'Selected goal does not exist.' }, { status: 400 });
+    }
+    if (missingLiquidityColumn(err)) {
+      return NextResponse.json(
+        { error: 'Database schema is out of date. Run db/migrations/2026-10-31-add-for-liquidity.sql in Neon SQL Editor, then try again.' },
+        { status: 409 }
+      );
     }
     if (err?.code === '42703' || missingChitDetailsColumn(err)) {
       return NextResponse.json(
