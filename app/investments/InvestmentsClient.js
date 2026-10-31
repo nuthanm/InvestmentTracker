@@ -75,6 +75,16 @@ function formatUnits(value) {
   return n.toFixed(n % 1 === 0 ? 0 : 3);
 }
 
+function planDateLine(investment) {
+  const start = investment.start_date ? fmtDate(investment.start_date) : null;
+  const maturity = investment.maturity_date ? fmtDate(investment.maturity_date) : null;
+  if (isLiquiditySaving(investment)) return start ? `As of ${start}` : null;
+  const parts = [];
+  if (start) parts.push(start);
+  if (maturity) parts.push(`matures ${maturity}`);
+  return parts.length ? parts.join(' · ') : null;
+}
+
 function growthKindFor(investment, { isClosedPlan, isPremature, progress, deducted }) {
   if (isLiquiditySaving(investment)) return 'savings';
   const recurring = isRecurringFrequency(investment.payment_frequency) || isChitInvestment(investment.type_code);
@@ -108,6 +118,7 @@ function InvestmentRow({ investment, idx, href }) {
   const { hostRef, originRef } = useCelebrateOnce(`inv-${investment.id}`, celebrate);
   const avatarTone = lumpSum && !isClosedPlan && !isPremature ? 'mint' : tone;
   const showBubblesOnRow = kind === 'bubbles' || kind === 'achieved';
+  const dates = planDateLine(investment);
   const rowTone = isClosedPlan
     ? 'bg-paper-tint/80 opacity-90'
     : isPremature
@@ -170,7 +181,6 @@ function InvestmentRow({ investment, idx, href }) {
             <>
               {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
               {progress && <> · {progress.label}</>}
-              {investment.maturity_date && <> · matures {fmtDate(investment.maturity_date)}</>}
               {isPrematureWithdrawalStatus(investment.lifecycle_status) && <> · premature withdrawal</>}
               {investment.lifecycle_status === 'closed' && <> · closed</>}
               {investment.lifecycle_status === 'matured' && <> · matured</>}
@@ -179,6 +189,9 @@ function InvestmentRow({ investment, idx, href }) {
           )}
           {!metalType && investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
         </p>
+        {dates && (
+          <p className="text-[11px] text-ink-soft mt-0.5">{dates}</p>
+        )}
       </div>
       <div className="text-right flex-shrink-0 min-w-[5.5rem] relative z-[1]">
         <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investedSoFar)}</p>
@@ -212,24 +225,51 @@ function savedSoFar(investment) {
 
 function InvestmentTile({ investment, href }) {
   const saved = savedSoFar(investment);
+  const tone = toneFor(investment.type_code);
   const metalType = isMetalInvestment(investment.type_code);
   const marketType = isMarketInvestment(investment.type_code);
+  const lumpSum = isLumpSumInvestment(investment);
+  const liquidity = isLiquiditySaving(investment);
   const key = categoryKey(investment);
   const closed = isClosedInvestment(investment);
+  const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
+  const progress = tenureProgress(investment);
+  const kind = growthKindFor(investment, {
+    isClosedPlan: closed,
+    isPremature,
+    progress,
+    deducted: hasGrowthDeduction(investment) || isPremature,
+  });
+  const dates = planDateLine(investment);
 
   return (
-    <Link href={href} className="block bg-paper-card border border-edge rounded-2xl p-3.5 hover:border-mint-600 transition h-full">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-medium leading-snug min-w-0">{investment.bank} · {investment.plan_name}</p>
-        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{categoryLabel(key)}</span>
+    <Link href={href} className="flex gap-3 bg-paper-card border border-edge rounded-2xl p-3.5 hover:border-mint-600 transition h-full">
+      <div className="flex-shrink-0">
+        <GrowthAvatar
+          kind={kind}
+          ratio={progress ? progress.ratio : null}
+          typeShort={TYPE_META[investment.type_code]?.short || 'OT'}
+          typeCode={investment.type_code}
+          customType={investment.custom_type}
+          planName={investment.plan_name}
+          toneClass={TONE_BG[lumpSum && !closed && !isPremature ? 'mint' : tone]}
+          celebrate={false}
+        />
       </div>
-      <p className="text-lg font-medium mt-3">{inr(saved.amount)}</p>
-      <p className="text-[11px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
-      {(isChitInvestment(investment.type_code) || isRecurringFrequency(investment.payment_frequency)) && !closed && (
-        <p className="text-[10px] text-ink-mute mt-1">{inr(investment.amount)}{isChitInvestment(investment.type_code) ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
-      )}
-      {metalType && <p className="text-[10px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
-      {marketType && <p className="text-[10px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium leading-snug min-w-0">{investment.bank} · {investment.plan_name}</p>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{liquidity ? 'Liquidity' : categoryLabel(key)}</span>
+        </div>
+        {dates && <p className="text-[11px] text-ink-soft mt-1">{dates}</p>}
+        <p className="text-lg font-medium mt-2">{inr(saved.amount)}</p>
+        <p className="text-[11px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
+        {(isChitInvestment(investment.type_code) || isRecurringFrequency(investment.payment_frequency)) && !closed && (
+          <p className="text-[10px] text-ink-mute mt-1">{inr(investment.amount)}{isChitInvestment(investment.type_code) ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
+        )}
+        {metalType && <p className="text-[10px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
+        {marketType && <p className="text-[10px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
+      </div>
     </Link>
   );
 }
@@ -387,7 +427,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         )}
 
         {investments.length > 0 && (
-          <div className="flex gap-2 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth:'none' }}>
+          <div className="flex flex-wrap gap-2 mb-4">
             <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>
               <span className="block leading-tight">All</span>
               <span className="block text-[10px] font-medium leading-tight mt-0.5">{inr(lifecycleScoped.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0))}</span>

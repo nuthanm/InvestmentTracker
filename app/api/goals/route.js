@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
-import { attachInvestmentSummaries, attachPartialWithdrawals, attachRecurringPaymentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
+import { applyMetalSchemeGrams, attachInvestmentSummaries, attachPartialWithdrawals, attachRecurringPaymentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
 import { isActiveInvestment } from '@/lib/investment-lifecycle';
 import { goalTargetAmount } from '@/lib/goals';
 
@@ -44,12 +44,23 @@ export async function GET() {
     .map((investment) => investment.id);
   if (recurringIds.length > 0) {
     try {
-      const paymentRecords = await sql`
-        SELECT investment_id, period_label, due_date, amount, paid, paid_at
-        FROM payment_records
-        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
-      `;
-      investments = attachRecurringPaymentSummaries(investments, paymentRecords);
+      let paymentRecords;
+      try {
+        paymentRecords = await sql`
+          SELECT investment_id, period_label, due_date, amount, paid, paid_at, rate_per_gram, grams
+          FROM payment_records
+          WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        `;
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (!(msg.includes('rate_per_gram') || msg.includes('grams'))) throw err;
+        paymentRecords = await sql`
+          SELECT investment_id, period_label, due_date, amount, paid, paid_at
+          FROM payment_records
+          WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+        `;
+      }
+      investments = applyMetalSchemeGrams(attachRecurringPaymentSummaries(investments, paymentRecords));
     } catch (err) {
       if (!missingPaymentRecordsTable(err)) throw err;
     }

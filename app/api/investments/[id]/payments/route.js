@@ -12,6 +12,11 @@ function missingNotesColumn(err) {
   return msg.includes('column') && msg.includes('notes') && msg.includes('does not exist');
 }
 
+function missingGramColumns(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('rate_per_gram') || (msg.includes('grams') && msg.includes('does not exist'));
+}
+
 // GET /api/investments/[id]/payments — list all payment records for this investment
 export async function GET(req, { params }) {
   const me = await getCurrentUser();
@@ -27,14 +32,21 @@ export async function GET(req, { params }) {
     let records;
     try {
       records = await sql`
-        SELECT id, period_label, due_date, amount, paid, paid_at, notes
+        SELECT id, period_label, due_date, amount, rate_per_gram, grams, grams_manual, paid, paid_at, notes
         FROM payment_records
         WHERE investment_id = ${params.id}
         ORDER BY due_date ASC
       `;
     } catch (err) {
-      if (!missingNotesColumn(err)) throw err;
-      records = await sql`
+      if (missingGramColumns(err)) {
+        records = await sql`
+          SELECT id, period_label, due_date, amount, NULL::numeric AS rate_per_gram, NULL::numeric AS grams, FALSE AS grams_manual, paid, paid_at, notes
+          FROM payment_records
+          WHERE investment_id = ${params.id}
+          ORDER BY due_date ASC
+        `;
+      } else if (!missingNotesColumn(err)) throw err;
+      else records = await sql`
         SELECT id, period_label, due_date, amount, paid, paid_at, NULL::text AS notes
         FROM payment_records
         WHERE investment_id = ${params.id}
@@ -69,7 +81,7 @@ export async function POST(req, { params }) {
 
   try {
     const body = await req.json();
-    const { period_label, due_date, amount, paid, notes, paid_at } = body;
+    const { period_label, due_date, amount, paid, notes, paid_at, rate_per_gram, grams, grams_manual } = body;
     if (!period_label || !due_date || amount === undefined) {
       return NextResponse.json({ error: 'period_label, due_date, and amount are required.' }, { status: 400 });
     }
@@ -119,24 +131,38 @@ export async function POST(req, { params }) {
       if (!paidAt) paidAt = new Date().toISOString();
     }
 
+    const rateValue = Number(rate_per_gram);
+    const gramsValue = Number(grams);
+    const ratePerGram = Number.isFinite(rateValue) && rateValue > 0 ? rateValue : null;
+    const gramsHeld = Number.isFinite(gramsValue) && gramsValue > 0 ? gramsValue : null;
+    const gramsManual = grams_manual === true || grams_manual === 'true';
+
     let rows;
     try {
       rows = await sql`
-        INSERT INTO payment_records (investment_id, user_id, period_label, due_date, amount, paid, paid_at, notes)
+        INSERT INTO payment_records (investment_id, user_id, period_label, due_date, amount, rate_per_gram, grams, grams_manual, paid, paid_at, notes)
         VALUES (
           ${params.id}, ${me.id}, ${period_label}, ${due_date},
-          ${Number(amount)}, ${paidBool}, ${paidAt}, ${notes || null}
+          ${Number(amount)}, ${ratePerGram}, ${gramsHeld}, ${gramsManual}, ${paidBool}, ${paidAt}, ${notes || null}
         )
         ON CONFLICT (investment_id, period_label)
         DO UPDATE SET
+          amount = EXCLUDED.amount,
+          rate_per_gram = EXCLUDED.rate_per_gram,
+          grams = EXCLUDED.grams,
+          grams_manual = EXCLUDED.grams_manual,
           paid = EXCLUDED.paid,
-          -- Keep the original paid_at timestamp (first time it was marked paid)
-          -- rather than overwriting it each time the user toggles the record.
           paid_at = CASE WHEN EXCLUDED.paid THEN COALESCE(payment_records.paid_at, EXCLUDED.paid_at) ELSE NULL END,
           notes = COALESCE(EXCLUDED.notes, payment_records.notes)
         RETURNING *
       `;
     } catch (err) {
+      if (missingGramColumns(err)) {
+        return NextResponse.json(
+          { error: 'Gold scheme grams are not available yet. Run db/migrations/2026-11-01-payment-scheme-grams.sql in Neon SQL Editor.' },
+          { status: 409 }
+        );
+      }
       if (!missingNotesColumn(err)) throw err;
       rows = await sql`
         INSERT INTO payment_records (investment_id, user_id, period_label, due_date, amount, paid, paid_at)

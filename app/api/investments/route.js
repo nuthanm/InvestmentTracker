@@ -5,6 +5,7 @@ import { computeMaturity, computeRecurringMaturity, addMonths } from '@/lib/form
 import {
   attachInvestmentSummaries,
   attachPartialWithdrawals,
+  applyMetalSchemeGrams,
   attachRecurringPaymentSummaries,
   computeTransactionGross,
   computeTransactionNetAmount,
@@ -109,13 +110,25 @@ export async function GET() {
 
   if (recurringIds.length > 0) {
     try {
-      const paymentRecords = await sql`
-        SELECT investment_id, period_label, due_date, amount, paid, paid_at, notes
-        FROM payment_records
-        WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
-        ORDER BY due_date ASC
-      `;
-      withSummaries = attachRecurringPaymentSummaries(withSummaries, paymentRecords);
+      let paymentRecords;
+      try {
+        paymentRecords = await sql`
+          SELECT investment_id, period_label, due_date, amount, paid, paid_at, notes, rate_per_gram, grams, grams_manual
+          FROM payment_records
+          WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+          ORDER BY due_date ASC
+        `;
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (!(msg.includes('rate_per_gram') || msg.includes('grams'))) throw err;
+        paymentRecords = await sql`
+          SELECT investment_id, period_label, due_date, amount, paid, paid_at, notes
+          FROM payment_records
+          WHERE user_id = ${me.id} AND investment_id = ANY(${recurringIds})
+          ORDER BY due_date ASC
+        `;
+      }
+      withSummaries = applyMetalSchemeGrams(attachRecurringPaymentSummaries(withSummaries, paymentRecords));
     } catch (err) {
       if (!missingPaymentRecordsTable(err)) throw err;
     }

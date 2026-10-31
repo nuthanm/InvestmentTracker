@@ -66,6 +66,13 @@ function formatUnits(value) {
   return n.toFixed(n % 1 === 0 ? 0 : 3);
 }
 
+function calculatedGrams(amount, rate) {
+  const paidAmount = Number(amount);
+  const price = Number(rate);
+  if (!(paidAmount > 0) || !(price > 0)) return '';
+  return (Math.round((paidAmount / price) * 1000) / 1000).toFixed(3);
+}
+
 function toDateInput(value) {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const dt = new Date(value);
@@ -154,6 +161,7 @@ export default function DetailClient({
   const router = useRouter();
   const [viewing, setViewing] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showSchemePurchase, setShowSchemePurchase] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
 
@@ -207,6 +215,7 @@ export default function DetailClient({
   };
 
   const [paymentRecords, setPaymentRecords] = useState({});
+  const [metalDrafts, setMetalDrafts] = useState({});
   const [togglingPeriod, setTogglingPeriod] = useState(null);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [paymentsWritable, setPaymentsWritable] = useState(true);
@@ -369,26 +378,44 @@ export default function DetailClient({
       .catch((err) => setWithdrawalError(err.message || 'Could not load withdrawals.'));
   }, [i.id, isRecurring]);
 
-  const togglePayment = async (slot) => {
+  const savePayment = async (slot, { paid, draft }) => {
     setPaymentsError('');
     setTogglingPeriod(slot.period_label);
-    const current = paymentRecords[slot.period_label];
-    const newPaid = !(current?.paid);
     const selectedDate = manualPaidDate[slot.period_label] || slot.due_date;
+    const amount = draft?.amount != null && draft.amount !== '' ? Number(draft.amount) : Number(slot.amount);
     try {
       const res = await fetch(`/api/investments/${i.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...slot, paid: newPaid, paid_at: newPaid ? selectedDate : null }),
+        body: JSON.stringify({
+          ...slot,
+          amount,
+          rate_per_gram: draft?.rate,
+          grams: draft?.grams,
+          grams_manual: !!draft?.manual,
+          paid,
+          paid_at: paid ? selectedDate : null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update payment record.');
       setPaymentRecords((prev) => ({ ...prev, [slot.period_label]: data.record }));
+      setMetalDrafts((prev) => {
+        const next = { ...prev };
+        delete next[slot.period_label];
+        return next;
+      });
+      if (isMetalScheme) router.refresh();
     } catch (err) {
       setPaymentsError(err.message || 'Could not update payment record.');
     } finally {
       setTogglingPeriod(null);
     }
+  };
+
+  const togglePayment = async (slot, draft) => {
+    const current = paymentRecords[slot.period_label];
+    await savePayment(slot, { paid: !(current?.paid), draft });
   };
 
   const recordWithdrawal = async (e) => {
@@ -673,6 +700,11 @@ export default function DetailClient({
 
   const schedule = isRecurring ? buildSchedule(i) : [];
   const paidCount = schedule.filter((s) => paymentRecords[s.period_label]?.paid).length;
+  const schemeGramsHeld = schedule.reduce((sum, slot) => {
+    const record = paymentRecords[slot.period_label];
+    if (!record?.paid) return sum;
+    return sum + Number(record.grams || 0);
+  }, 0);
   const totalPaid = schedule.reduce((sum, s) => {
     if (!paymentRecords[s.period_label]?.paid) return sum;
     return sum + Number(paymentRecords[s.period_label]?.amount ?? s.amount ?? 0);
@@ -923,7 +955,7 @@ export default function DetailClient({
                 </p>
               )}
               <p className="text-sm text-ink-soft mt-1">
-                {formatUnits(currentSummary.total_units)} g purchased
+                {formatUnits(schemeGramsHeld || currentSummary.total_units)} g accumulated
                 {Number(currentSummary.remaining_cost_basis) > 0 && <> · cost <span className="font-medium text-ink">{inr(currentSummary.remaining_cost_basis)}</span></>}
               </p>
             </>
@@ -1230,6 +1262,7 @@ export default function DetailClient({
               </form>
             )}
 
+            {(!isMetalScheme || lifecycleClosed || editingTxId || showSchemePurchase) ? (
             <div ref={txFormRef} className={`bg-paper-card border rounded-2xl p-4 scroll-mt-4 ${editingTxId ? 'border-sky-600/40 ring-2 ring-sky-600/10' : 'border-edge'}`}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium">{editingTxId ? 'Edit transaction' : (metalType ? 'Add purchase / sale' : 'Add transaction')}</p>
@@ -1563,6 +1596,19 @@ export default function DetailClient({
                 </div>
               </form>
             </div>
+            ) : (
+              <div className="bg-paper-card border border-edge rounded-2xl p-4">
+                <p className="text-sm font-medium">Scheme is still active</p>
+                <p className="text-[11px] text-ink-soft mt-1">Keep marking the monthly payments. The purchase invoice appears when you redeem, close the scheme, or withdraw early.</p>
+                <button
+                  type="button"
+                  onClick={() => { setShowSchemePurchase(true); setPurchaseMode('scheme'); setSchemeStatus('closed'); }}
+                  className="btn-primary mt-3 py-2 px-4 rounded-lg text-sm font-medium"
+                >
+                  Redeem, close, or withdraw early
+                </button>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -1572,7 +1618,7 @@ export default function DetailClient({
               {historyError && <p role="alert" className="text-[11px] text-danger mb-2">{historyError}</p>}
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                 {transactions.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? (isMetalScheme ? 'No purchase yet. Monthly payments are listed below. Record the purchase here when you convert the scheme.' : 'No purchases yet. Record your first purchase above.') : 'No transactions yet. Add your first buy or SIP above.'}</div>
+                  <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? (isMetalScheme && !lifecycleClosed && !showSchemePurchase ? 'No purchase yet. Monthly payments are listed below.' : 'No purchases yet. Record your first purchase above.') : 'No transactions yet. Add your first buy or SIP above.'}</div>
                 ) : transactions.map((tx, idx) => {
                   const unitLabel = metalType ? 'g' : 'units';
                   const isEditing = editingTxId === tx.id;
@@ -1667,7 +1713,7 @@ export default function DetailClient({
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalScheme ? 'Monthly payments' : 'Payment history'}</p>
               {paymentsLoaded && (
-                <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
+                <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{isMetalScheme && schemeGramsHeld > 0 ? ` · ${formatUnits(schemeGramsHeld)} g` : ''}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
               )}
             </div>
             {paymentsError && <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{paymentsError}</p>}
@@ -1683,9 +1729,15 @@ export default function DetailClient({
                   const isDue = new Date(slot.due_date) <= today;
                   const isToggling = togglingPeriod === slot.period_label;
                   const selectedPaidDate = manualPaidDate[slot.period_label] || slot.due_date;
+                  const storedAmount = record?.amount != null ? String(record.amount) : String(slot.amount);
+                  const storedRate = record?.rate_per_gram != null && Number(record.rate_per_gram) > 0 ? String(record.rate_per_gram) : '';
+                  const storedManual = record?.grams_manual === true || record?.grams_manual === 't';
+                  const storedGrams = record?.grams != null && Number(record.grams) > 0 ? String(Number(record.grams)) : calculatedGrams(storedAmount, storedRate);
+                  const draft = metalDrafts[slot.period_label] || { amount: storedAmount, rate: storedRate, grams: storedGrams, manual: storedManual };
+                  const setDraft = (patch) => setMetalDrafts((prev) => ({ ...prev, [slot.period_label]: { ...draft, ...patch } }));
                   return (
-                    <div key={slot.period_label} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
-                      <button onClick={() => togglePayment(slot)} disabled={isToggling || !paymentsWritable} className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'} ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`} title={paid ? 'Mark unpaid' : 'Mark paid'}>
+                    <div key={slot.period_label} className={`flex items-start gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
+                      <button onClick={() => togglePayment(slot, isMetalScheme ? draft : null)} disabled={isToggling || !paymentsWritable} className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'} ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`} title={paid ? 'Mark unpaid' : 'Mark paid'}>
                         {paid && <span className="text-white text-[10px] font-bold">✓</span>}
                         {isToggling && <span className="text-ink-mute text-[9px]">…</span>}
                       </button>
@@ -1700,11 +1752,49 @@ export default function DetailClient({
                             </div>
                           </>
                         )}
+                        {isMetalScheme && (
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-ink-mute mb-1">Amount (₹)</label>
+                              <input type="number" min="0" step="0.01" value={draft.amount} disabled={!paymentsWritable || isToggling} onChange={(e) => {
+                                const amount = e.target.value;
+                                setDraft({ amount, grams: draft.manual ? draft.grams : calculatedGrams(amount, draft.rate) });
+                              }} className="field-input text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-ink-mute mb-1">Rate / gram (₹)</label>
+                              <input type="number" min="0" step="0.01" value={draft.rate} disabled={!paymentsWritable || isToggling} onChange={(e) => {
+                                const rate = e.target.value;
+                                setDraft({ rate, grams: draft.manual ? draft.grams : calculatedGrams(draft.amount, rate) });
+                              }} className="field-input text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-ink-mute mb-1">Grams {draft.manual ? '(edited)' : '(calculated)'}</label>
+                              <input type="number" min="0" step="0.001" value={draft.grams} disabled={!paymentsWritable || isToggling} onChange={(e) => setDraft({ grams: e.target.value, manual: true })} className="field-input text-sm" />
+                              {draft.manual && (
+                                <button type="button" className="mt-1 text-[10px] text-sky-600 hover:underline" onClick={() => setDraft({ grams: calculatedGrams(draft.amount, draft.rate), manual: false })}>Use calculated</button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {isMetalScheme && paid && (
+                          <div className="mt-2 flex justify-end">
+                            <button type="button" disabled={isToggling || !paymentsWritable} onClick={() => savePayment(slot, { paid: true, draft })} className="text-[11px] text-mint-700 font-medium hover:underline">Save this month</button>
+                          </div>
+                        )}
                       </div>
+                      {!isMetalScheme && (
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-medium">{inr(slot.amount)}</p>
                         {paid ? <p className="text-[11px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[11px] text-danger">Overdue</p> : <p className="text-[11px] text-ink-mute">Upcoming</p>}
                       </div>
+                      )}
+                      {isMetalScheme && (
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-sm font-medium">{draft.grams ? `${draft.grams} g` : inr(draft.amount || slot.amount)}</p>
+                          {paid ? <p className="text-[11px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[11px] text-danger">Overdue</p> : <p className="text-[11px] text-ink-mute">Upcoming</p>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
