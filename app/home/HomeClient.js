@@ -94,7 +94,7 @@ function buildUpcomingEvents(investments) {
   const events = [];
 
   for (const inv of investments) {
-    if (isMarketInvestment(inv.type_code) || !isActiveInvestment(inv)) continue;
+    if (isMarketInvestment(inv.type_code) || isLiquiditySaving(inv) || !isActiveInvestment(inv)) continue;
 
     const typeLabel = labelFor(inv);
     const shortType = TYPE_META[inv.type_code]?.short || 'OT';
@@ -445,7 +445,7 @@ export default function HomeClient({ user }) {
   }, 0);
 
   const maturingSoon = activeInvestments.filter((inv) => {
-    if (isMarketInvestment(inv.type_code) || !inv.maturity_date) return false;
+    if (isMarketInvestment(inv.type_code) || isLiquiditySaving(inv) || !inv.maturity_date) return false;
     const days = (new Date(inv.maturity_date) - new Date()) / (1000 * 60 * 60 * 24);
     return days > 0 && days <= 30;
   }).length;
@@ -534,7 +534,7 @@ export default function HomeClient({ user }) {
               {/* ── Portfolio projection chart ── */}
               <div className="mb-5">
                 <PortfolioChart
-                  investments={activeInvestments}
+                  investments={activeInvestments.filter((inv) => !isLiquiditySaving(inv))}
                   goalAmount={portfolioGoal?.amount ?? null}
                   goalDate={portfolioGoal?.date ?? null}
                 />
@@ -583,7 +583,7 @@ export default function HomeClient({ user }) {
                             {closedPlan && <span className="text-ink-soft font-medium">{lifecycleLabel} · </span>}
                             {labelFor(investment)}
                             {progress && <> · {progress.label}</>}
-                            {metalType ? ` · ${formatUnits(investment.total_units)} g accumulated` : marketType ? ` · ${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? ` · closed ${fmtDate(investment.closure_date)}` : ` · matures ${fmtDate(investment.maturity_date)}`}
+                            {isLiquiditySaving(investment) ? ' · available' : metalType ? ` · ${formatUnits(investment.total_units)} g accumulated` : marketType ? ` · ${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? ` · closed ${fmtDate(investment.closure_date)}` : ` · matures ${fmtDate(investment.maturity_date)}`}
                           </p>
                         </div>
                       </div>
@@ -597,6 +597,11 @@ export default function HomeClient({ user }) {
                           <>
                             <p className="text-xs font-medium">{inrShort(investment.remaining_cost_basis)}</p>
                             <p className="text-[10px] mt-0.5 text-sky-600">{inrShort(investment.invested_amount)} invested</p>
+                          </>
+                        ) : isLiquiditySaving(investment) ? (
+                          <>
+                            <p className="text-xs font-medium">{inrShort(investment.amount)}</p>
+                            <p className="text-[10px] mt-0.5 text-sky-600">available</p>
                           </>
                         ) : lumpSum ? (
                           <>

@@ -105,18 +105,20 @@ export async function PATCH(req, { params }) {
     const metalInvestment = isMetalInvestment(body.type_code);
     const chitInvestment = isChitInvestment(body.type_code);
     const transactionBasedInvestment = marketInvestment || metalInvestment;
-    const required = transactionBasedInvestment
-      ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
-      : chitInvestment
-        ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
-        : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+    const required = forLiquidity
+      ? ['bank', 'plan_name', 'amount', 'nominee', 'goal_id']
+      : transactionBasedInvestment
+        ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
+        : chitInvestment
+          ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
+          : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
         return NextResponse.json({ error: `${field.replace(/_/g, ' ')} is required.` }, { status: 400 });
       }
     }
-    if (body.type_code === 'OT' && !body.custom_type) {
+    if (!forLiquidity && body.type_code === 'OT' && !body.custom_type) {
       return NextResponse.json({ error: 'Please name your custom investment type.' }, { status: 400 });
     }
 
@@ -138,6 +140,40 @@ export async function PATCH(req, { params }) {
     const startDate = parseDateInput(body.start_date, current.start_date);
     if (!startDate) {
       return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+    }
+
+    if (forLiquidity) {
+      if (Number(body.amount) <= 0) {
+        return NextResponse.json({ error: 'Balance must be greater than zero.' }, { status: 400 });
+      }
+      const balance = Number(body.amount);
+      const rows = await sql`
+        UPDATE investments
+        SET
+          goal_id = ${body.goal_id},
+          type_code = 'OT',
+          custom_type = 'Savings',
+          bank = ${body.bank.trim()},
+          plan_name = ${body.plan_name.trim()},
+          amount = ${balance},
+          rate_pct = 0,
+          tenure_months = 0,
+          tenure_days = 0,
+          compounding = 'simple',
+          payment_frequency = 'lump_sum',
+          start_date = ${startDate.toISOString().slice(0, 10)},
+          maturity_date = NULL,
+          maturity_value = ${balance},
+          nominee = ${body.nominee.trim()},
+          auto_renew = FALSE,
+          account_holder = ${body.account_holder || 'Self'},
+          for_liquidity = TRUE
+        WHERE id = ${params.id} AND user_id = ${me.id}
+        RETURNING *
+      `;
+      if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
+      await syncDocuments(sql, params.id, body.documents);
+      return NextResponse.json({ investment: rows[0] });
     }
 
     if (transactionBasedInvestment) {

@@ -147,18 +147,20 @@ export async function POST(req) {
     const metalInvestment = isMetalInvestment(body.type_code);
     const chitInvestment = isChitInvestment(body.type_code);
     const transactionBasedInvestment = marketInvestment || metalInvestment;
-    const required = transactionBasedInvestment
-      ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
-      : chitInvestment
-        ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
-        : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
+    const required = forLiquidity
+      ? ['bank', 'plan_name', 'amount', 'nominee', 'goal_id']
+      : transactionBasedInvestment
+        ? ['type_code', 'bank', 'plan_name', 'nominee', 'goal_id']
+        : chitInvestment
+          ? ['type_code', 'bank', 'plan_name', 'tenure_months', 'nominee', 'goal_id']
+          : ['type_code', 'bank', 'plan_name', 'amount', 'rate_pct', 'tenure_months', 'nominee', 'goal_id'];
 
     for (const field of required) {
       if (body[field] === undefined || body[field] === null || body[field] === '') {
         return NextResponse.json({ error: `${field.replace(/_/g, ' ')} is required.` }, { status: 400 });
       }
     }
-    if (body.type_code === 'OT' && !body.custom_type) {
+    if (!forLiquidity && body.type_code === 'OT' && !body.custom_type) {
       return NextResponse.json({ error: 'Please name your custom investment type.' }, { status: 400 });
     }
 
@@ -175,6 +177,45 @@ export async function POST(req) {
     const documentError = documentUploadError(body.documents);
     if (documentError) {
       return NextResponse.json({ error: documentError }, { status: 400 });
+    }
+
+    if (forLiquidity) {
+      if (Number(body.amount) <= 0) {
+        return NextResponse.json({ error: 'Balance must be greater than zero.' }, { status: 400 });
+      }
+      const startDate = parseDateInput(body.start_date);
+      if (!startDate) {
+        return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
+      }
+      const balance = Number(body.amount);
+      const rows = await sql`
+        INSERT INTO investments (
+          user_id, goal_id, type_code, custom_type, bank, plan_name,
+          amount, rate_pct, tenure_months, tenure_days, compounding,
+          payment_frequency, start_date, maturity_date, maturity_value, nominee, auto_renew, account_holder,
+          for_liquidity
+        )
+        VALUES (
+          ${me.id}, ${body.goal_id}, 'OT', 'Savings',
+          ${body.bank.trim()}, ${body.plan_name.trim()},
+          ${balance}, 0, 0, 0, 'simple',
+          'lump_sum', ${startDate.toISOString().slice(0, 10)}, NULL, ${balance},
+          ${body.nominee.trim()}, false, ${body.account_holder || 'Self'},
+          true
+        )
+        RETURNING *
+      `;
+      const investment = rows[0];
+      if (Array.isArray(body.documents)) {
+        for (const doc of body.documents) {
+          if (!doc.filename || !doc.data_url) continue;
+          await sql`
+            INSERT INTO documents (investment_id, filename, size_bytes, page_count, data_url)
+            VALUES (${investment.id}, ${doc.filename}, ${doc.size_bytes || 0}, ${doc.page_count || 1}, ${doc.data_url})
+          `;
+        }
+      }
+      return NextResponse.json({ investment });
     }
 
     if (transactionBasedInvestment) {

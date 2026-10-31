@@ -617,7 +617,7 @@ export default function DetailClient({
   else if (freq === 'monthly' && i.tenure_months) totalInvested = Number(i.amount) * Number(i.tenure_months);
   else if (freq === 'yearly' && i.tenure_months) totalInvested = Number(i.amount) * Math.floor(Number(i.tenure_months) / 12);
 
-  const amountLabel = chitType ? 'Chit value' : freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
+  const amountLabel = forLiquidity ? 'Balance' : chitType ? 'Chit value' : freq === 'monthly' ? 'Monthly contribution' : freq === 'yearly' ? 'Yearly contribution' : 'Amount';
   const freqSuffix = chitType ? '' : freq === 'monthly' ? '/mo' : freq === 'yearly' ? '/yr' : '';
 
   const daysLeft = daysUntilMaturity(i.maturity_date);
@@ -801,7 +801,7 @@ export default function DetailClient({
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full">
         <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Back</button>
 
-        {!lifecycleClosed && !marketType && (maturityMatured || maturityUrgent || maturityWarning) && (
+        {!forLiquidity && !lifecycleClosed && !marketType && (maturityMatured || maturityUrgent || maturityWarning) && (
           <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityMatured ? 'bg-mint-50 border border-mint-600/30' : maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
             <span className="text-xl leading-none">{maturityMatured ? '✅' : maturityUrgent ? '🔔' : '📅'}</span>
             <div>
@@ -850,7 +850,12 @@ export default function DetailClient({
               {forLiquidity && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
             </p>
           </div>
-          {marketType ? (
+          {forLiquidity ? (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(i.amount)}</p>
+              <p className="text-sm text-ink-soft mt-1">Available in the bank</p>
+            </>
+          ) : marketType ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(currentSummary.remaining_cost_basis || 0)}</p>
               <p className="text-sm text-ink-soft mt-1">{formatUnits(currentSummary.total_units)} units held{currentSummary.is_closed && ' · position closed'}</p>
@@ -916,8 +921,8 @@ export default function DetailClient({
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">
           <Row label={metalType ? 'Store / source' : 'Bank / platform'} value={i.bank} />
           <Row label={metalType ? 'Item description' : 'Plan'} value={i.plan_name} />
-          {!isTransactionType && <Row label={amountLabel} value={`${inr(i.amount)}${freqSuffix}`} />}
-          {!isTransactionType && isRecurring && (
+          {(!isTransactionType || forLiquidity) && <Row label={amountLabel} value={`${inr(i.amount)}${forLiquidity ? '' : freqSuffix}`} />}
+          {!forLiquidity && !isTransactionType && isRecurring && (
             <>
               <Row
                 label="Still invested"
@@ -931,7 +936,7 @@ export default function DetailClient({
               )}
             </>
           )}
-          {chitType && chitSummary && (
+          {!forLiquidity && chitType && chitSummary && (
             <>
               <Row label="Pick month" value={`Month ${chitSummary.pick_month}`} />
               <Row label="Prize received" value={inr(chitSummary.prize)} />
@@ -953,10 +958,10 @@ export default function DetailClient({
               />
             </>
           )}
-          {!isTransactionType && !chitType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
-          {!isTransactionType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
-          {!isTransactionType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
-          {!isTransactionType && <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />}
+          {!forLiquidity && !isTransactionType && !chitType && <Row label="Rate" value={`${i.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
+          {!forLiquidity && !isTransactionType && !isRecurring && <Row label="Monthly interest" value={<span className="text-mint-600">{inr(monthlyInt)}</span>} />}
+          {!forLiquidity && !isTransactionType && <Row label="Payment frequency" value={frequencyLabel(freq)} />}
+          {!forLiquidity && !isTransactionType && <Row label="Tenure" value={`${i.tenure_months} months${i.tenure_days ? ` ${i.tenure_days} days` : ''}`} />}
           {marketType && <Row label="Units held" value={formatUnits(currentSummary.total_units)} />}
           {marketType && <Row label="Average buy price" value={inr(currentSummary.average_buy_price || 0)} />}
           {marketType && <Row label="Invested amount" value={inr(currentSummary.invested_amount || 0)} />}
@@ -966,7 +971,7 @@ export default function DetailClient({
           {metalType && <Row label="Weight held" value={`${formatUnits(currentSummary.total_units)} g`} />}
           {metalType && <Row label="Avg purchase price" value={`${inr(currentSummary.average_buy_price || 0)} / g`} />}
           {metalType && <Row label="Total cost (incl. charges)" value={inr(currentSummary.remaining_cost_basis || 0)} />}
-          <Row label="Started" value={fmtDate(i.start_date)} />
+          <Row label={forLiquidity ? 'As of' : 'Started'} value={fmtDate(i.start_date)} />
           <div className="flex justify-between py-2.5 border-b border-dashed border-edge text-sm gap-3 items-center">
             <span className="text-ink-soft flex-shrink-0">Goal</span>
             {editingGoal ? (
@@ -996,13 +1001,17 @@ export default function DetailClient({
             <span className="text-ink-soft flex-shrink-0">Purpose</span>
             <span className="text-right">
               <span className="font-medium">{forLiquidity ? 'Saving for liquidity' : 'Investment'}</span>
-              <button type="button" onClick={togglePurpose} disabled={savingPurpose} className="block ml-auto text-[11px] text-sky-600 hover:underline disabled:opacity-50">
-                {savingPurpose ? 'Saving…' : forLiquidity ? 'Mark as investment' : 'Mark as liquidity'}
-              </button>
+              {forLiquidity ? (
+                <Link href={`/investments/${i.id}/edit`} className="block ml-auto text-[11px] text-sky-600 hover:underline">Change to an investment</Link>
+              ) : (
+                <button type="button" onClick={togglePurpose} disabled={savingPurpose} className="block ml-auto text-[11px] text-sky-600 hover:underline disabled:opacity-50">
+                  {savingPurpose ? 'Saving…' : 'Save as bank balance'}
+                </button>
+              )}
               {purposeError && <span className="block text-[11px] text-danger mt-1">{purposeError}</span>}
             </span>
           </div>
-          {!isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
+          {!forLiquidity && !isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
           {isTransactionType && !metalType && <Row label="Position" value={currentSummary.is_closed ? 'Closed' : 'Active'} />}
           <Row label="Lifecycle" value={getLifecycleLabel(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE)} />
         </div>

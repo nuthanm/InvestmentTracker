@@ -42,6 +42,7 @@ function formatUnits(value) {
 }
 
 function growthKindFor(investment, { isClosedPlan, isPremature, progress, deducted }) {
+  if (isLiquiditySaving(investment)) return 'savings';
   const recurring = isRecurringFrequency(investment.payment_frequency) || isChitInvestment(investment.type_code);
   if (isPremature) return recurring ? 'wilted' : 'bubbles';
   if (isClosedPlan || progress?.complete) return recurring ? 'complete' : 'achieved';
@@ -60,9 +61,10 @@ function InvestmentRow({ investment, idx, href }) {
   const chitPl = Number(investment.chit_details?.summary?.profit_loss);
   const chitMonthly = investment.chit_details?.summary?.monthly_rate_pct ?? investment.rate_pct;
   const days = daysUntilMaturity(investment.maturity_date);
-  const isMatured = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
-  const isUrgent = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
-  const isWarning = !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
+  const liquidity = isLiquiditySaving(investment);
+  const isMatured = !liquidity && !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days <= 0;
+  const isUrgent = !liquidity && !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 30;
+  const isWarning = !liquidity && !marketType && !isClosedLifecycleStatus(investment.lifecycle_status) && days !== null && days >= 0 && days <= 90 && !isUrgent;
   const isPremature = isPrematureWithdrawalStatus(investment.lifecycle_status);
   const isClosedPlan = isClosedInvestment(investment);
   const lifecycleLabelText = getLifecycleLabel(resolveLifecycleStatus(investment));
@@ -110,7 +112,7 @@ function InvestmentRow({ investment, idx, href }) {
       <div className="flex-1 min-w-0 relative z-[1]">
         <p className="text-sm font-medium truncate">
           {investment.bank} · {investment.plan_name}
-          {isLiquiditySaving(investment) && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
+          {liquidity && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
         </p>
         <p className="text-[11px] text-ink-mute mt-0.5 truncate">
           {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
@@ -130,6 +132,8 @@ function InvestmentRow({ investment, idx, href }) {
               {investment.lifecycle_status === 'closed' && <> · closed</>}
               {investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
             </>
+          ) : liquidity ? (
+            <> · available</>
           ) : (
             <>
               {investment.tenure_months > 0 && <> · {investment.tenure_months >= 12 ? `${Math.round(investment.tenure_months / 12)} yr` : `${investment.tenure_months} mo`}</>}
@@ -154,6 +158,11 @@ function InvestmentRow({ investment, idx, href }) {
           <>
             <p className="text-sm font-medium">{formatUnits(investment.total_units)} g</p>
             <p className="text-[11px] text-honey-600 mt-0.5">{inr(investment.remaining_cost_basis || 0)} cost</p>
+          </>
+        ) : liquidity ? (
+          <>
+            <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investment.amount)}</p>
+            <p className="text-[11px] text-sky-600 mt-0.5">{isClosedPlan ? 'closed' : 'available'}</p>
           </>
         ) : (
           <>
@@ -252,13 +261,13 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const types = Array.from(new Set(lifecycleScoped.map((investment) => investment.type_code)));
 
   const nearMaturityCount = activeInvestments.filter((investment) => {
-    if (isMarketInvestment(investment.type_code)) return false;
+    if (isMarketInvestment(investment.type_code) || isLiquiditySaving(investment)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d >= 0 && d <= 90;
   }).length;
 
   const maturedCount = activeInvestments.filter((investment) => {
-    if (isMarketInvestment(investment.type_code)) return false;
+    if (isMarketInvestment(investment.type_code) || isLiquiditySaving(investment)) return false;
     const d = daysUntilMaturity(investment.maturity_date);
     return d !== null && d <= 0;
   }).length;

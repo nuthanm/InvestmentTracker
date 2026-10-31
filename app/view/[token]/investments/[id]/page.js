@@ -53,6 +53,7 @@ export default async function ViewInvestmentPage({ params }) {
   if (!detail) notFound();
 
   const investment = detail.investment;
+  const liquidity = isLiquiditySaving(investment);
   const marketType = isMarketInvestment(investment.type_code);
   const metalType = isMetalInvestment(investment.type_code);
   const chitType = isChitInvestment(investment.type_code);
@@ -102,9 +103,14 @@ export default async function ViewInvestmentPage({ params }) {
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
           <p className="text-[11px] tracking-wider text-ink-mute uppercase">
             {labelFor(investment)}
-            {isLiquiditySaving(investment) && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
+            {liquidity && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
           </p>
-          {marketType ? (
+          {liquidity ? (
+            <>
+              <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(investment.amount)}</p>
+              <p className="text-sm text-ink-soft mt-1">Available in the bank</p>
+            </>
+          ) : marketType ? (
             <>
               <p className="text-2xl md:text-3xl font-medium tracking-tight mt-1">{inr(investment.remaining_cost_basis || 0)}</p>
               <p className="text-sm text-ink-soft mt-1">{formatUnits(investment.total_units)} units held</p>
@@ -139,18 +145,18 @@ export default async function ViewInvestmentPage({ params }) {
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">
           <Row label={metalType ? 'Store / source' : 'Bank / platform'} value={investment.bank} />
           <Row label={metalType ? 'Item description' : 'Plan'} value={investment.plan_name} />
-          {!transactionType && <Row label={recurring ? 'Contribution' : 'Amount'} value={`${inr(investment.amount)}${suffix}`} />}
-          {chitSummary && (
+          {(!transactionType || liquidity) && <Row label={liquidity ? 'Balance' : (recurring ? 'Contribution' : 'Amount')} value={`${inr(investment.amount)}${liquidity ? '' : suffix}`} />}
+          {!liquidity && chitSummary && (
             <>
               <Row label="Pick month" value={`Month ${chitSummary.pick_month}`} />
               <Row label="Prize received" value={inr(chitSummary.prize)} />
               <Row label="Profit / loss" value={`${Number(chitSummary.profit_loss) >= 0 ? '+' : ''}${inr(chitSummary.profit_loss)}`} />
             </>
           )}
-          {!transactionType && !chitType && <Row label="Rate" value={`${investment.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
-          {!transactionType && !recurring && <Row label="Monthly interest" value={inr(monthlyInterest)} />}
-          {!transactionType && <Row label="Payment frequency" value={frequencyLabel(frequency)} />}
-          {!transactionType && (
+          {!liquidity && !transactionType && !chitType && <Row label="Rate" value={`${investment.rate_pct}% p.a. (≈ ${monthlyPct}%/mo)`} />}
+          {!liquidity && !transactionType && !recurring && <Row label="Monthly interest" value={inr(monthlyInterest)} />}
+          {!liquidity && !transactionType && <Row label="Payment frequency" value={frequencyLabel(frequency)} />}
+          {!liquidity && !transactionType && (
             <Row
               label="Tenure"
               value={`${investment.tenure_months} months${investment.tenure_days ? ` ${investment.tenure_days} days` : ''}`}
@@ -163,12 +169,12 @@ export default async function ViewInvestmentPage({ params }) {
           {marketType && <Row label="Realized gain / loss" value={inr(investment.realized_gain_loss || 0)} />}
           {metalType && <Row label="Weight held" value={`${formatUnits(investment.total_units)} g`} />}
           {metalType && <Row label="Avg purchase price" value={`${inr(investment.average_buy_price || 0)} / g`} />}
-          <Row label="Started" value={fmtDate(investment.start_date)} />
+          <Row label={liquidity ? 'As of' : 'Started'} value={fmtDate(investment.start_date)} />
           <Row label="Goal" value={investment.goal_name || '—'} />
           <Row label="Nominee" value={investment.nominee || '—'} />
           <Row label="Account holder" value={investment.account_holder || 'Self'} />
-          <Row label="Purpose" value={isLiquiditySaving(investment) ? 'Saving for liquidity' : 'Investment'} />
-          {!transactionType && <Row label="Auto-renew" value={investment.auto_renew ? 'On' : 'Off'} />}
+          <Row label="Purpose" value={liquidity ? 'Saving for liquidity' : 'Investment'} />
+          {!liquidity && !transactionType && <Row label="Auto-renew" value={investment.auto_renew ? 'On' : 'Off'} />}
           <Row label="Lifecycle" value={getLifecycleLabel(investment.lifecycle_status || 'active')} />
           {investment.closure_notes ? <Row label="Closure notes" value={investment.closure_notes} /> : null}
           {detail.documentCount > 0 && (

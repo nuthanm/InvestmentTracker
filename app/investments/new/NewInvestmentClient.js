@@ -402,14 +402,15 @@ export default function NewInvestmentClient({
     e.preventDefault();
     setError('');
 
-    if (typeCode === 'OT' && !customType.trim()) { setError('Name your custom investment type.'); return; }
-    if (!bank.trim()) { setError('Bank or platform is required.'); return; }
-    if (!planName.trim()) { setError('Plan name is required.'); return; }
+    if (!forLiquidity && typeCode === 'OT' && !customType.trim()) { setError('Name your custom investment type.'); return; }
+    if (!bank.trim()) { setError(forLiquidity ? 'Bank is required.' : 'Bank or platform is required.'); return; }
+    if (!planName.trim()) { setError(forLiquidity ? 'Account name is required.' : 'Plan name is required.'); return; }
     if (!goalId) { setError('Link this investment to a goal. Create one first if you have none.'); return; }
     if (!nominee.trim()) { setError('Nominee is required.'); return; }
+    if (forLiquidity && (!amount || Number(amount) <= 0)) { setError('Balance must be greater than zero.'); return; }
 
     let initialTransaction = null;
-    if (isTransactionType) {
+    if (!forLiquidity && isTransactionType) {
       if (isMetalType && acquisitionFlow === 'scheme_monthly') {
         const schemeTrackingError = validateSchemeTracking({
           schemeStatus,
@@ -538,7 +539,7 @@ export default function NewInvestmentClient({
           notes: notesLines.length ? notesLines.join('\n') : null,
         };
       }
-    } else if (isChitType) {
+    } else if (!forLiquidity && isChitType) {
       if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
       const prepared = prepareChitForSave({
         mode: chitMode,
@@ -553,7 +554,7 @@ export default function NewInvestmentClient({
         pick_month: Number(chitPickMonth) || 1,
       }, Math.floor(totalMonths));
       if (prepared.error) { setError(prepared.error); return; }
-    } else {
+    } else if (!forLiquidity) {
       if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
       if (!amount || Number(amount) <= 0) { setError('Amount must be greater than zero.'); return; }
       if (!ratePct || Number(ratePct) <= 0) { setError('Interest rate is required.'); return; }
@@ -562,7 +563,27 @@ export default function NewInvestmentClient({
     setSaving(true);
     try {
       let body;
-      if (isTransactionType) {
+      if (forLiquidity) {
+        body = {
+          type_code: 'OT',
+          custom_type: 'Savings',
+          bank: bank.trim(),
+          plan_name: planName.trim(),
+          amount: Number(amount),
+          rate_pct: 0,
+          tenure_months: 0,
+          tenure_days: 0,
+          compounding: 'simple',
+          payment_frequency: 'lump_sum',
+          goal_id: goalId,
+          nominee: nominee.trim(),
+          account_holder: accountHolder.trim() || 'Self',
+          for_liquidity: true,
+          auto_renew: false,
+          start_date: startDateInput,
+          documents: docs,
+        };
+      } else if (isTransactionType) {
         body = {
           type_code: typeCode,
           custom_type: typeCode === 'OT' ? customType.trim() : null,
@@ -658,6 +679,29 @@ export default function NewInvestmentClient({
 
         <form onSubmit={submit} className="space-y-5">
           <section>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForLiquidity(false)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
+              >
+                <p className="text-sm font-medium">Investment</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Money held to grow. Tenure, rate, and maturity apply.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForLiquidity(true)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
+              >
+                <p className="text-sm font-medium">Saving for liquidity</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Bank balance you can use. No tenure, rate, or maturity.</p>
+              </button>
+            </div>
+          </section>
+
+          {!forLiquidity && (
+          <section>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Type<span className="text-danger ml-0.5">*</span></p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((t) => (
@@ -684,30 +728,9 @@ export default function NewInvestmentClient({
               </div>
             )}
           </section>
+          )}
 
-          <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setForLiquidity(false)}
-                className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
-              >
-                <p className="text-sm font-medium">Investment</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Money held to grow.</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => setForLiquidity(true)}
-                className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
-              >
-                <p className="text-sm font-medium">Saving for liquidity</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Cash you keep available. Shown apart from growth holdings.</p>
-              </button>
-            </div>
-          </section>
-
-          {(typeCode === 'RD' || typeCode === 'PPF') && (
+          {!forLiquidity && (typeCode === 'RD' || typeCode === 'PPF') && (
             <div className="flex items-start gap-2.5 p-3 bg-paper-tint rounded-xl text-sm">
               <span className="text-lg leading-none mt-0.5">{typeCode === 'RD' ? '🔁' : '📅'}</span>
               <div>
@@ -721,7 +744,7 @@ export default function NewInvestmentClient({
             </div>
           )}
 
-          {isMarketType && (
+          {!forLiquidity && isMarketType && (
             <div className="rounded-xl border border-edge bg-paper-tint p-3.5 text-sm">
               <p className="font-medium">Transaction-based holding</p>
               <p className="text-[11px] text-ink-soft mt-1">
@@ -732,7 +755,7 @@ export default function NewInvestmentClient({
             </div>
           )}
 
-          {isMetalType && (
+          {!forLiquidity && isMetalType && (
             <div className="rounded-xl border border-honey-600/30 bg-honey-50 p-3.5 text-sm">
               <p className="font-medium text-honey-700">{typeCode === 'GOLD' ? '🥇 Physical Gold accumulation' : '🥈 Physical Silver accumulation'}</p>
               <p className="text-[11px] text-honey-700/80 mt-1">
@@ -742,7 +765,7 @@ export default function NewInvestmentClient({
             </div>
           )}
 
-          {isChitType && (
+          {!forLiquidity && isChitType && (
             <div className="rounded-xl border border-plum-600/20 bg-plum-50 p-3.5 text-sm">
               <p className="font-medium text-plum-600">Chit fund</p>
               <p className="text-[11px] text-ink-soft mt-1">
@@ -752,20 +775,20 @@ export default function NewInvestmentClient({
           )}
 
           <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Plan details</p>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">{forLiquidity ? 'Account' : 'Plan details'}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Store / jeweller / source' : (isChitType ? 'Organizer / company' : 'Bank / platform')}<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder={isMetalType ? 'e.g. Tanishq, Malabar, Family' : (isChitType ? 'e.g. Local chit, ABC Finance…' : 'HDFC Bank, Groww, Zerodha…')} value={bank} onChange={(e) => setBank(e.target.value)} className="field-input" />
+                <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'Bank' : (isMetalType ? 'Store / jeweller / source' : (isChitType ? 'Organizer / company' : 'Bank / platform'))}<span className="text-danger ml-0.5">*</span></label>
+                <input type="text" placeholder={forLiquidity ? 'HDFC Bank, SBI…' : (isMetalType ? 'e.g. Tanishq, Malabar, Family' : (isChitType ? 'e.g. Local chit, ABC Finance…' : 'HDFC Bank, Groww, Zerodha…'))} value={bank} onChange={(e) => setBank(e.target.value)} className="field-input" />
               </div>
               <div>
-                <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Item description' : 'Plan name'}<span className="text-danger ml-0.5">*</span></label>
-                <input type="text" placeholder={isMetalType ? (typeCode === 'GOLD' ? '22K Gold Bangle, Gold Coin 10g…' : 'Silver Bar 100g, Silver Anklets…') : (isMarketType ? 'Nifty ETF / SIP folio / Company name' : typeCode === 'RD' ? 'Monthly RD - 2Y' : typeCode === 'PPF' ? 'PPF Account 2024' : typeCode === 'CHIT' ? '2.5L Chit - 12 months' : 'Senior FD - 5Y')} value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input" />
+                <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'Account name' : (isMetalType ? 'Item description' : 'Plan name')}<span className="text-danger ml-0.5">*</span></label>
+                <input type="text" placeholder={forLiquidity ? 'Salary savings, Emergency fund…' : (isMetalType ? (typeCode === 'GOLD' ? '22K Gold Bangle, Gold Coin 10g…' : 'Silver Bar 100g, Silver Anklets…') : (isMarketType ? 'Nifty ETF / SIP folio / Company name' : typeCode === 'RD' ? 'Monthly RD - 2Y' : typeCode === 'PPF' ? 'PPF Account 2024' : typeCode === 'CHIT' ? '2.5L Chit - 12 months' : 'Senior FD - 5Y'))} value={planName} onChange={(e) => setPlanName(e.target.value)} className="field-input" />
               </div>
             </div>
           </section>
 
-          {!isTransactionType && (
+          {!forLiquidity && !isTransactionType && (
             <section>
               <label className="block text-xs text-ink-soft mb-2">Tenure<span className="text-danger ml-0.5">*</span></label>
               <div className="flex flex-wrap gap-2">
@@ -797,13 +820,19 @@ export default function NewInvestmentClient({
 
           <section className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-ink-soft mb-1.5">{isMetalType ? 'Date of purchase' : (isMarketType ? 'Holding start / first trade date' : 'Start / debit date')}<span className="text-danger ml-0.5">*</span></label>
+              <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'As of' : (isMetalType ? 'Date of purchase' : (isMarketType ? 'Holding start / first trade date' : 'Start / debit date'))}<span className="text-danger ml-0.5">*</span></label>
               <input type="date" value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className="field-input" />
-              <p className="text-[11px] text-ink-mute mt-1">{isMetalType ? 'Date of the first purchase (add more later).' : (isMarketType ? 'Used as the opening date for this holding and the default date for the first buy.' : 'For monthly/yearly plans, this date sets the recurring debit day anchor.')}</p>
+              <p className="text-[11px] text-ink-mute mt-1">{forLiquidity ? 'Date this balance is true.' : (isMetalType ? 'Date of the first purchase (add more later).' : (isMarketType ? 'Used as the opening date for this holding and the default date for the first buy.' : 'For monthly/yearly plans, this date sets the recurring debit day anchor.'))}</p>
             </div>
           </section>
 
-          {isTransactionType ? (
+          {forLiquidity ? (
+            <section>
+              <label className="block text-xs text-ink-soft mb-1.5">Balance (₹)<span className="text-danger ml-0.5">*</span></label>
+              <input type="number" inputMode="numeric" placeholder="50000" value={amount} onChange={(e) => setAmount(e.target.value)} className="field-input max-w-xs" />
+              <p className="text-[11px] text-ink-mute mt-1">The cash sitting in this account. It stays available, so there is no tenure or interest to enter.</p>
+            </section>
+          ) : isTransactionType ? (
             <section className="space-y-3">
               <div>
                 <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalType ? 'Initial purchase now' : 'Initial buy now'} <span className="text-[10px] normal-case ml-1">optional</span></p>
@@ -1264,7 +1293,7 @@ export default function NewInvestmentClient({
             </div>
           </section>
 
-          {!isTransactionType && !isChitType && (
+          {!forLiquidity && !isTransactionType && !isChitType && (
             <section>
               <div className="flex items-center justify-between p-3 bg-paper-tint rounded-xl">
                 <div>
