@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { CoinGlyph, GoalCoinFill, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
+import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import {
@@ -260,7 +260,6 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
         {currentNote ? <span className="goal-accum-note"> · {currentNote}</span> : null}
       </p>
       <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
-      <GoalCoinFill pct={pct} kind={thumb || 'cash'} />
       </div>
     </div>
   );
