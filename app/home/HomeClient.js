@@ -631,7 +631,7 @@ export default function HomeClient({ user }) {
                   <Link href="/goals/new" className="block text-center py-4 text-sm text-ink-mute border border-dashed border-edge rounded-xl hover:bg-paper-tint">+ Add your first goal</Link>
                 ) : goals.slice(0, 3).map((g) => {
                   const cur = Number(g.current_amount || 0);
-                  const tgt = Number(g.target_amount || 1);
+                  const tgt = Number(g.required_amount || g.target_amount || 1);
                   const pct = Math.min(100, Math.round((cur / tgt) * 100));
                   return (
                     <Link key={g.id} href="/goals" className="growth-stage goal-water-card block bg-paper-tint rounded-xl p-3 mb-2 hover:bg-paper-card hover:border hover:border-edge transition overflow-hidden">

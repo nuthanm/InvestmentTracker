@@ -80,8 +80,10 @@ CREATE TABLE IF NOT EXISTS goals (
   name TEXT NOT NULL,
   description TEXT,
   target_amount NUMERIC(14,2) NOT NULL,
-  target_date DATE NOT NULL,
+  target_date DATE,                      -- null for a liquidity buffer, which has no deadline
   inflation_pct NUMERIC(6,3) DEFAULT 0,
+  for_liquidity BOOLEAN NOT NULL DEFAULT FALSE,
+  amount_as_of DATE,                     -- day the liquidity amount was set, for inflation growth
   icon TEXT DEFAULT 'house',
   created_at TIMESTAMPTZ DEFAULT now()
 );

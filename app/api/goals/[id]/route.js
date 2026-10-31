@@ -6,18 +6,30 @@ export async function PATCH(req, { params }) {
   const me = await getCurrentUser();
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
   try {
-    const { name, description, target_amount, target_date, inflation_pct, icon } = await req.json();
+    const { name, description, target_amount, target_date, inflation_pct, icon, for_liquidity, amount_as_of } = await req.json();
+    const forLiquidity = for_liquidity === true || for_liquidity === 'true';
     if (!name || !target_amount) return NextResponse.json({ error: 'Name and target amount are required.' }, { status: 400 });
-    if (!target_date) return NextResponse.json({ error: 'Target date is required.' }, { status: 400 });
+    if (!forLiquidity && !target_date) return NextResponse.json({ error: 'Target date is required.' }, { status: 400 });
     if (Number(target_amount) <= 0) return NextResponse.json({ error: 'Target amount must be greater than zero.' }, { status: 400 });
     const infl = Number(inflation_pct || 0);
     if (Number.isNaN(infl) || infl < 0) return NextResponse.json({ error: 'Inflation percentage must be zero or more.' }, { status: 400 });
 
     let rows;
     try {
+      const asOf = forLiquidity
+        ? (String(amount_as_of || '').match(/^\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0, 10))
+        : null;
       rows = await sql`
         UPDATE goals
-        SET name = ${name.trim()}, description = ${description?.trim() || null}, target_amount = ${target_amount}, target_date = ${target_date}, inflation_pct = ${infl}, icon = ${icon || 'house'}
+        SET
+          name = ${name.trim()},
+          description = ${description?.trim() || null},
+          target_amount = ${target_amount},
+          target_date = ${forLiquidity ? null : target_date},
+          inflation_pct = ${infl},
+          icon = ${icon || 'house'},
+          for_liquidity = ${forLiquidity},
+          amount_as_of = ${asOf}
         WHERE id = ${params.id} AND user_id = ${me.id}
         RETURNING *
       `;

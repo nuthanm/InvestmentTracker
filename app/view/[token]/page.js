@@ -5,6 +5,7 @@ import InvestmentsClient from '@/app/investments/InvestmentsClient';
 import ViewUnlockClient from './ViewUnlockClient';
 import { inr, fmtDate } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment } from '@/lib/investments';
+import { goalTargetAmount, isLiquidityGoal } from '@/lib/goals';
 import { isActiveInvestment } from '@/lib/investment-lifecycle';
 
 export const dynamic = 'force-dynamic';
@@ -71,10 +72,14 @@ export default async function ViewPortfolioPage({ params }) {
                     {goal.description ? <p className="text-[11px] text-ink-soft mt-1 line-clamp-2">{goal.description}</p> : null}
                     <div className="mt-2.5 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                       <div className="min-w-0">
-                        <p className="text-[10px] tracking-wider uppercase text-ink-mute">Target</p>
-                        <p className="text-base font-medium leading-snug">{inr(goal.target_amount)}</p>
+                        <p className="text-[10px] tracking-wider uppercase text-ink-mute">{isLiquidityGoal(goal) ? 'Keep available' : 'Target'}</p>
+                        <p className="text-base font-medium leading-snug">{inr(goalTargetAmount(goal))}</p>
                       </div>
-                      <p className="shrink-0 text-[11px] text-ink-soft pb-0.5">By {fmtDate(goal.target_date)}</p>
+                      <p className="shrink-0 text-[11px] text-ink-soft pb-0.5">
+                        {isLiquidityGoal(goal)
+                          ? (Number(goal.inflation_pct) > 0 ? `${Number(goal.inflation_pct)}% inflation` : 'No end date')
+                          : `By ${fmtDate(goal.target_date)}`}
+                      </p>
                     </div>
                     <div className="mt-2 pt-2 border-t border-dashed border-edge">
                       <p className="text-[10px] tracking-wider uppercase text-ink-mute">Invested</p>

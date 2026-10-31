@@ -35,6 +35,7 @@ export default function NewGoalClient({ user }) {
   const [amount, setAmount] = useState('');
   const [inflationPct, setInflationPct] = useState('6');
   const [date, setDate] = useState('');
+  const [forLiquidity, setForLiquidity] = useState(false);
   const [icon, setIcon] = useState('house');
   const [otherLabel, setOtherLabel] = useState('');
   const [error, setError] = useState('');
@@ -48,7 +49,7 @@ export default function NewGoalClient({ user }) {
     setError('');
     if (!name.trim()) { setError('Tell us what you are saving for.'); return; }
     if (!amount || Number(amount) <= 0) { setError('Enter a value greater than zero.'); return; }
-    if (!date) { setError('Target date is required.'); return; }
+    if (!forLiquidity && !date) { setError('Target date is required.'); return; }
     if (Number(inflationPct) < 0) { setError('Inflation percentage must be zero or more.'); return; }
 
     setSaving(true);
@@ -59,9 +60,11 @@ export default function NewGoalClient({ user }) {
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim(),
-          target_amount: Number(projectedGoalAmount.toFixed(2)),
-          target_date: date,
+          target_amount: Number((forLiquidity ? Number(amount) : projectedGoalAmount).toFixed(2)),
+          target_date: forLiquidity ? null : date,
           inflation_pct: Number(inflationPct) || 0,
+          for_liquidity: forLiquidity,
+          amount_as_of: forLiquidity ? new Date().toISOString().slice(0, 10) : null,
           icon,
         }),
       });
@@ -84,8 +87,30 @@ export default function NewGoalClient({ user }) {
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="block text-xs text-ink-soft mb-1.5">What are you saving for?<span className="text-danger ml-0.5">*</span></label>
-            <input type="text" autoFocus placeholder="e.g. Car, Wedding, Vacation"
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForLiquidity(false)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
+              >
+                <p className="text-sm font-medium">Goal with a date</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">A target you want to reach by a chosen day.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForLiquidity(true)}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
+              >
+                <p className="text-sm font-medium">Liquidity savings</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Cash to keep available. Inflation applies. No end date.</p>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'What is this buffer for?' : 'What are you saving for?'}<span className="text-danger ml-0.5">*</span></label>
+            <input type="text" autoFocus placeholder={forLiquidity ? 'e.g. Emergency fund' : 'e.g. Car, Wedding, Vacation'}
               value={name} onChange={(e) => setName(e.target.value)} className="field-input"/>
           </div>
 
@@ -96,7 +121,7 @@ export default function NewGoalClient({ user }) {
           </div>
 
           <div>
-            <label className="block text-xs text-ink-soft mb-1.5">Value today (₹)<span className="text-danger ml-0.5">*</span></label>
+            <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'Amount to keep available (₹)' : 'Value today (₹)'}<span className="text-danger ml-0.5">*</span></label>
             <input type="number" inputMode="numeric" placeholder="500000"
               value={amount} onChange={(e) => setAmount(e.target.value)} className="field-input"/>
           </div>
@@ -107,15 +132,29 @@ export default function NewGoalClient({ user }) {
               value={inflationPct} onChange={(e) => setInflationPct(e.target.value)} className="field-input"/>
           </div>
 
-          <div>
-            <label className="block text-xs text-ink-soft mb-1.5">
-              Target date <span className="text-danger ml-0.5">*</span>
-            </label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field-input"/>
-            <p className="text-[11px] text-ink-mute mt-1">This date is used to project the future goal amount.</p>
-          </div>
+          {!forLiquidity && (
+            <div>
+              <label className="block text-xs text-ink-soft mb-1.5">
+                Target date <span className="text-danger ml-0.5">*</span>
+              </label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field-input"/>
+              <p className="text-[11px] text-ink-mute mt-1">This date is used to project the future goal amount.</p>
+            </div>
+          )}
 
-          {Number(amount) > 0 && date && (
+          {forLiquidity && Number(amount) > 0 && (
+            <div className="rounded-xl border border-sky-600/30 bg-sky-50 px-3 py-2">
+              <p className="text-[10px] uppercase tracking-wider text-sky-600 mb-1">Buffer to keep available</p>
+              <p className="text-lg font-medium text-ink">₹{Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+              <p className="text-[11px] text-ink-soft mt-1">
+                {Number(inflationPct) > 0
+                  ? `At ${Number(inflationPct)}% inflation this is about ₹${Number(Number(amount) * Math.pow(1 + Number(inflationPct) / 100, 1)).toLocaleString('en-IN', { maximumFractionDigits: 0 })} in one year. There is no end date.`
+                  : 'This stays at the amount you enter. There is no end date.'}
+              </p>
+            </div>
+          )}
+
+          {!forLiquidity && Number(amount) > 0 && date && (
             <div className="rounded-xl border border-mint-200 bg-mint-50 px-3 py-2 space-y-2">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>

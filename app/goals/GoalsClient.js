@@ -7,6 +7,7 @@ import { GoalWaterFill, TypeThumbnail, investmentThumbKind, useCelebrateOnce } f
 import { inr, fmtDate, labelFor } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
+import { isLiquidityGoal } from '@/lib/goals';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
@@ -54,7 +55,8 @@ function GoalCard({
   onCancelDelete,
 }) {
   const cur = Number(g.current_amount || 0);
-  const tgt = Number(g.target_amount || 1);
+  const liquidity = isLiquidityGoal(g);
+  const tgt = Number((liquidity ? g.required_amount : g.target_amount) || 1);
   const progressRatio = tgt > 0 ? cur / tgt : 0;
   const pct = Math.min(100, Math.floor(progressRatio * 100));
   const reached = progressRatio >= 1;
@@ -87,9 +89,20 @@ function GoalCard({
               placeholder="Add any important details, milestones, or notes for this goal."
               className="field-input resize-none" />
           </div>
+          <div>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Purpose</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button type="button" onClick={() => setEditForm((f) => ({ ...f, forLiquidity: false }))} className={`text-left rounded-xl border px-3 py-2 transition ${!editForm.forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}>
+                <p className="text-sm font-medium">Goal with a date</p>
+              </button>
+              <button type="button" onClick={() => setEditForm((f) => ({ ...f, forLiquidity: true }))} className={`text-left rounded-xl border px-3 py-2 transition ${editForm.forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge'}`}>
+                <p className="text-sm font-medium">Liquidity savings</p>
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-ink-soft mb-1">Value today (₹)<span className="text-danger ml-0.5">*</span></label>
+              <label className="block text-xs text-ink-soft mb-1">{editForm.forLiquidity ? 'Amount to keep available (₹)' : 'Value today (₹)'}<span className="text-danger ml-0.5">*</span></label>
               <input type="number" inputMode="numeric" value={editForm.amount}
                 onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))}
                 className="field-input"/>
@@ -101,13 +114,18 @@ function GoalCard({
                 className="field-input"/>
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-danger ml-0.5">*</span></label>
-            <input type="date" value={editForm.date}
-              onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))}
-              className="field-input"/>
-          </div>
-          {Number(editForm.amount) > 0 && editForm.date && (
+          {!editForm.forLiquidity && (
+            <div>
+              <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-danger ml-0.5">*</span></label>
+              <input type="date" value={editForm.date}
+                onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))}
+                className="field-input"/>
+            </div>
+          )}
+          {editForm.forLiquidity && Number(editForm.amount) > 0 && (
+            <p className="text-[11px] text-ink-soft">Inflation raises this buffer over time. There is no end date, so no daily or monthly pace.</p>
+          )}
+          {!editForm.forLiquidity && Number(editForm.amount) > 0 && editForm.date && (
             <div className="rounded-xl border border-mint-200 bg-mint-50 px-3 py-2 space-y-2">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
@@ -145,12 +163,13 @@ function GoalCard({
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">{g.name}</span>
+                {liquidity && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium">Liquidity</span>}
                 {nearGoal && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
                 {reached && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached! 👏</span>}
               </div>
               <p className="text-xs text-ink-soft mt-1">
                 {inr(cur)} of {inr(tgt)}
-                {g.target_date && <> · target {fmtDate(g.target_date)}</>}
+                {liquidity ? <> · keep available</> : g.target_date && <> · target {fmtDate(g.target_date)}</>}
                 <> · {g.investment_count} {g.investment_count == 1 ? 'investment' : 'investments'}</>
               </p>
             </div>
@@ -169,7 +188,18 @@ function GoalCard({
                   <p className="text-xs text-ink">{g.description}</p>
                 </div>
               )}
-              {g.target_date && (
+              {liquidity && (
+                <div className="rounded-lg border border-sky-600/30 bg-sky-50 px-2.5 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-sky-600 mb-1">Liquidity buffer</p>
+                  <p className="text-[11px] text-ink-soft">
+                    Set at {inr(g.target_amount)}
+                    {Number(g.inflation_pct) > 0 ? ` · ${Number(g.inflation_pct)}% inflation` : ''}
+                    {Number(g.required_amount) > Number(g.target_amount) ? ` · now ${inr(g.required_amount)}` : ''}
+                    . No end date.
+                  </p>
+                </div>
+              )}
+              {!liquidity && g.target_date && (
                 <div className="rounded-lg border border-mint-200 bg-mint-50 px-2.5 py-2">
                   <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Need to save</p>
                   <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
@@ -262,7 +292,7 @@ export default function GoalsClient({ user }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house' });
+  const [editForm, setEditForm] = useState({ name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house', forLiquidity: false, amountAsOf: '', baseAmount: '' });
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
 
@@ -297,8 +327,11 @@ export default function GoalsClient({ user }) {
       description: g.description || '',
       amount: String(g.target_amount),
       inflationPct: String(g.inflation_pct ?? 0),
-      date: g.target_date ? g.target_date.slice(0, 10) : '',
+      date: g.target_date ? String(g.target_date).slice(0, 10) : '',
       icon: g.icon || 'house',
+      forLiquidity: isLiquidityGoal(g),
+      amountAsOf: g.amount_as_of ? String(g.amount_as_of).slice(0, 10) : '',
+      baseAmount: String(g.target_amount),
     });
     setEditError('');
   };
@@ -314,9 +347,15 @@ export default function GoalsClient({ user }) {
     setEditError('');
     if (!editForm.name.trim()) { setEditError('Name is required.'); return; }
     if (!editForm.amount || Number(editForm.amount) <= 0) { setEditError('Enter a valid value.'); return; }
-    if (!editForm.date) { setEditError('Target date is required.'); return; }
+    if (!editForm.forLiquidity && !editForm.date) { setEditError('Target date is required.'); return; }
     if (Number(editForm.inflationPct) < 0) { setEditError('Inflation percentage must be zero or more.'); return; }
-    const projectedAmount = computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date);
+    const projectedAmount = editForm.forLiquidity
+      ? Number(editForm.amount)
+      : computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date);
+    const amountUnchanged = Math.abs(Number(editForm.amount) - Number(editForm.baseAmount)) < 0.01;
+    const amountAsOf = editForm.forLiquidity
+      ? (amountUnchanged && editForm.amountAsOf ? editForm.amountAsOf : new Date().toISOString().slice(0, 10))
+      : null;
     setEditSaving(true);
     try {
       const res = await fetch(`/api/goals/${id}`, {
@@ -326,8 +365,10 @@ export default function GoalsClient({ user }) {
           name: editForm.name.trim(),
           description: editForm.description.trim(),
           target_amount: Number(projectedAmount.toFixed(2)),
-          target_date: editForm.date,
+          target_date: editForm.forLiquidity ? null : editForm.date,
           inflation_pct: Number(editForm.inflationPct) || 0,
+          for_liquidity: editForm.forLiquidity,
+          amount_as_of: amountAsOf,
           icon: editForm.icon,
         }),
       });
