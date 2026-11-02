@@ -6,6 +6,8 @@ import { isMarketInvestment, isMetalInvestment, missingLiquidityColumn } from '@
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 import { documentUploadError } from '@/lib/documents';
+import { readOptionalTagNames } from '@/lib/tags';
+import { attachInvestmentTags, replaceInvestmentTags } from '@/lib/tag-store';
 
 function missingPaymentRecordsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -87,7 +89,8 @@ export async function GET(req, { params }) {
     FROM documents WHERE investment_id = ${params.id}
     ORDER BY created_at ASC
   `;
-  return NextResponse.json({ investment: rows[0], documents });
+  const [investment] = await attachInvestmentTags(rows);
+  return NextResponse.json({ investment, documents });
 }
 
 export async function PATCH(req, { params }) {
@@ -142,6 +145,18 @@ export async function PATCH(req, { params }) {
       return NextResponse.json({ error: documentError }, { status: 400 });
     }
 
+    let tagNames;
+    try {
+      tagNames = readOptionalTagNames(body);
+    } catch (err) {
+      return NextResponse.json({ error: err.message || 'Tags are invalid.' }, { status: 400 });
+    }
+    const investmentResponse = async (investment) => {
+      if (tagNames === undefined) return NextResponse.json({ investment });
+      const tags = await replaceInvestmentTags(me.id, investment.id, tagNames);
+      return NextResponse.json({ investment: { ...investment, tags } });
+    };
+
     const startDate = parseDateInput(body.start_date, current.start_date);
     if (!startDate) {
       return NextResponse.json({ error: 'Start date is invalid.' }, { status: 400 });
@@ -178,7 +193,7 @@ export async function PATCH(req, { params }) {
       `;
       if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
       await syncDocuments(sql, params.id, body.documents);
-      return NextResponse.json({ investment: rows[0] });
+      return investmentResponse(rows[0]);
     }
 
     if (transactionBasedInvestment) {
@@ -245,7 +260,7 @@ export async function PATCH(req, { params }) {
           if (!missingPaymentRecordsTable(err)) throw err;
         }
         await syncDocuments(sql, params.id, body.documents);
-        return NextResponse.json({ investment: rows[0] });
+        return investmentResponse(rows[0]);
       }
 
       const rows = await sql`
@@ -274,7 +289,7 @@ export async function PATCH(req, { params }) {
       if (rows.length === 0) return NextResponse.json({ error: 'Investment not found.' }, { status: 404 });
 
       await syncDocuments(sql, params.id, body.documents);
-      return NextResponse.json({ investment: rows[0] });
+      return investmentResponse(rows[0]);
     }
 
     if (chitInvestment) {
@@ -331,7 +346,7 @@ export async function PATCH(req, { params }) {
       }
 
       await syncDocuments(sql, params.id, body.documents);
-      return NextResponse.json({ investment });
+      return investmentResponse(investment);
     }
 
     if (Number(body.amount) <= 0) {
@@ -393,9 +408,12 @@ export async function PATCH(req, { params }) {
 
     await syncDocuments(sql, params.id, body.documents);
 
-    return NextResponse.json({ investment: rows[0] });
+    return investmentResponse(rows[0]);
   } catch (err) {
     console.error('update investment error', err);
+    if (err?.status === 400 && err?.message) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err?.code === '22P02') {
       return NextResponse.json({ error: 'Invalid ID format in request.' }, { status: 400 });
     }

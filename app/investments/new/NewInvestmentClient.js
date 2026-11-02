@@ -7,6 +7,8 @@ import Shell from '@/components/Shell';
 import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
 import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
+import { investmentTags } from '@/lib/tags';
+import TagField from '@/components/TagField';
 import { emptyCustomMonths, isChitInvestment, normalizeChitDetails, prepareChitForSave } from '@/lib/chit';
 import ChitFundFields from './ChitFundFields';
 import {
@@ -150,6 +152,8 @@ export default function NewInvestmentClient({
   const [accountHolder, setAccountHolder] = useState(initialInvestment?.account_holder || 'Self');
   const [autoRenew, setAutoRenew] = useState(initialInvestment ? !!initialInvestment.auto_renew : true);
   const [forLiquidity, setForLiquidity] = useState(isLiquiditySaving(initialInvestment));
+  const [tags, setTags] = useState(() => investmentTags(initialInvestment).map((tag) => tag.name));
+  const [knownTags, setKnownTags] = useState([]);
   const [docs, setDocs] = useState(initialDocuments.map((doc) => ({ ...doc, size_bytes: Number(doc.size_bytes || 0), page_count: Number(doc.page_count || 1) })));
   const [chitMode, setChitMode] = useState(initialChit.mode);
   const [chitValue, setChitValue] = useState(initialChit.chitValue);
@@ -192,6 +196,17 @@ export default function NewInvestmentClient({
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
   const dragDepth = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tags')
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setKnownTags(Array.isArray(data.tags) ? data.tags : []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const isMarketType = isMarketInvestment(typeCode);
   const isMetalType = isMetalInvestment(typeCode);
@@ -672,6 +687,8 @@ export default function NewInvestmentClient({
             documents: docs,
           };
       }
+
+      body.tags = tags;
 
       const res = await fetch(isEditing ? `/api/investments/${initialInvestment.id}` : '/api/investments', {
         method: isEditing ? 'PATCH' : 'POST',
@@ -1316,6 +1333,9 @@ export default function NewInvestmentClient({
               <label className="block text-xs text-ink-soft mb-1.5">Account holder</label>
               <input type="text" placeholder="Self, Wife, Father…" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} className="field-input" />
               <p className="text-[11px] text-ink-mute mt-1">Whose account / name this investment is in</p>
+            </div>
+            <div className="md:col-span-2">
+              <TagField value={tags} onChange={setTags} suggestions={knownTags} />
             </div>
           </section>
 

@@ -17,6 +17,8 @@ import {
 import { isChitInvestment } from '@/lib/chit';
 import { missingChitDetailsColumn, resolveChitWrite, seedPaymentRecords } from '@/lib/chit-api';
 import { documentUploadError } from '@/lib/documents';
+import { readOptionalTagNames } from '@/lib/tags';
+import { attachInvestmentTags, replaceInvestmentTags } from '@/lib/tag-store';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -147,7 +149,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ investments: withSummaries });
+  return NextResponse.json({ investments: await attachInvestmentTags(withSummaries) });
 }
 
 export async function POST(req) {
@@ -192,6 +194,18 @@ export async function POST(req) {
       return NextResponse.json({ error: documentError }, { status: 400 });
     }
 
+    let tagNames;
+    try {
+      tagNames = readOptionalTagNames(body);
+    } catch (err) {
+      return NextResponse.json({ error: err.message || 'Tags are invalid.' }, { status: 400 });
+    }
+    const investmentResponse = async (investment) => {
+      if (tagNames === undefined) return NextResponse.json({ investment });
+      const tags = await replaceInvestmentTags(me.id, investment.id, tagNames);
+      return NextResponse.json({ investment: { ...investment, tags } });
+    };
+
     if (forLiquidity) {
       if (Number(body.amount) <= 0) {
         return NextResponse.json({ error: 'Balance must be greater than zero.' }, { status: 400 });
@@ -228,7 +242,7 @@ export async function POST(req) {
           `;
         }
       }
-      return NextResponse.json({ investment });
+      return investmentResponse(investment);
     }
 
     const schemeMonths = Math.floor(Number(body.metal_scheme?.months || 0));
@@ -326,7 +340,7 @@ export async function POST(req) {
         }
       }
 
-      return NextResponse.json({ investment });
+      return investmentResponse(investment);
     }
 
     if (transactionBasedInvestment) {
@@ -394,7 +408,7 @@ export async function POST(req) {
         }
       }
 
-      return NextResponse.json({ investment });
+      return investmentResponse(investment);
     }
 
     if (chitInvestment) {
@@ -457,7 +471,7 @@ export async function POST(req) {
         }
       }
 
-      return NextResponse.json({ investment });
+      return investmentResponse(investment);
     }
 
     if (Number(body.amount) <= 0) {
@@ -523,9 +537,12 @@ export async function POST(req) {
       }
     }
 
-    return NextResponse.json({ investment });
+    return investmentResponse(investment);
   } catch (err) {
     console.error('create investment error', err);
+    if (err?.status === 400 && err?.message) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err?.code === '22P02') {
       return NextResponse.json({ error: 'Invalid ID format in request.' }, { status: 400 });
     }

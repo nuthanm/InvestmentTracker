@@ -24,6 +24,8 @@ import {
   isPrematureWithdrawalStatus,
   resolveLifecycleStatus,
 } from '@/lib/investment-lifecycle';
+import { groupInvestmentsByTag, hasTag, summarizeTags, tagKey } from '@/lib/tags';
+import TagList from '@/components/TagList';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -227,6 +229,7 @@ function InvestmentRow({ investment, idx, href, onDragStart }) {
         {dates && (
           <p className="text-[11px] text-ink-soft mt-0.5">{dates}</p>
         )}
+        <TagList tags={investment.tags} className="mt-1.5" />
       </div>
       <div className="text-right flex-shrink-0 min-w-[5.5rem] relative z-[1]">
         <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investedSoFar)}</p>
@@ -248,6 +251,15 @@ function InvestmentRow({ investment, idx, href, onDragStart }) {
       </Link>
     </div>
   );
+}
+
+function savedSplit(items) {
+  return items.reduce((totals, investment) => {
+    const amount = effectiveInvestedSoFar(investment);
+    if (isLiquiditySaving(investment)) totals.liquidity += amount;
+    else totals.invested += amount;
+    return totals;
+  }, { invested: 0, liquidity: 0 });
 }
 
 function savedSoFar(investment) {
@@ -301,6 +313,7 @@ function InvestmentTile({ investment, href, onDragStart }) {
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{liquidity ? 'Liquidity' : categoryLabel(key)}</span>
         </div>
         {dates && <p className="text-[11px] text-ink-soft mt-1">{dates}</p>}
+        <TagList tags={investment.tags} className="mt-1.5" />
         <p className="text-lg font-medium mt-2">{inr(saved.amount)}</p>
         <p className="text-[11px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
         {(isChitInvestment(investment.type_code) || isRecurringFrequency(investment.payment_frequency)) && !closed && (
@@ -314,11 +327,56 @@ function InvestmentTile({ investment, href, onDragStart }) {
   );
 }
 
+function Plans({ items, layout, readOnly, linkBase, draggingId, dragEnabled, keyPrefix = '', onDragStart, onDrop }) {
+  const hrefFor = (investment) => (readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`);
+  if (layout === 'tiles') {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((investment) => (
+          <div
+            key={`${keyPrefix}${investment.id}`}
+            onDragOver={(e) => { if (dragEnabled) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+            onDrop={(e) => onDrop(e, investment.id)}
+            className={draggingId === investment.id ? 'opacity-60' : ''}
+          >
+            <InvestmentTile
+              investment={investment}
+              href={hrefFor(investment)}
+              onDragStart={dragEnabled ? (e) => onDragStart(e, investment.id) : null}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
+      {items.map((investment, idx) => (
+        <div
+          key={`${keyPrefix}${investment.id}`}
+          onDragOver={(e) => { if (dragEnabled) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
+          onDrop={(e) => onDrop(e, investment.id)}
+          className={draggingId === investment.id ? 'opacity-60' : ''}
+        >
+          <InvestmentRow
+            investment={investment}
+            idx={idx}
+            href={hrefFor(investment)}
+            onDragStart={dragEnabled ? (e) => onDragStart(e, investment.id) : null}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function InvestmentsClient({ user, initialInvestments = null, readOnly = false, linkBase = '/investments' }) {
   const seeded = Array.isArray(initialInvestments);
   const [investments, setInvestments] = useState(seeded ? initialInvestments : []);
   const [loading, setLoading] = useState(!seeded && !readOnly);
   const [filter, setFilter] = useState('ALL');
+  const [tagFilter, setTagFilter] = useState('');
+  const [groupByTag, setGroupByTag] = useState(false);
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
   const [layout, setLayout] = useState('list');
   const [draggingId, setDraggingId] = useState(null);
@@ -330,13 +388,30 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     if (view === 'closed' || view === 'all' || view === 'active') {
       setLifecycleFilter(view);
     }
+    const tag = params.get('tag');
+    if (tag) setTagFilter(tag);
     const stored = window.localStorage.getItem('investments-layout');
     if (stored === 'tiles' || stored === 'list') setLayout(stored);
+    if (window.localStorage.getItem('investments-group-by-tag') === '1') setGroupByTag(true);
   }, []);
 
   const chooseLayout = (next) => {
     setLayout(next);
     window.localStorage.setItem('investments-layout', next);
+  };
+
+  const chooseTag = (name) => {
+    setTagFilter(name);
+    const params = new URLSearchParams(window.location.search);
+    if (name) params.set('tag', name);
+    else params.delete('tag');
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `${window.location.pathname}?${query}` : window.location.pathname);
+  };
+
+  const chooseGroup = (next) => {
+    setGroupByTag(next);
+    window.localStorage.setItem('investments-group-by-tag', next ? '1' : '0');
   };
 
   const onInvestmentDragStart = (e, id) => {
@@ -410,11 +485,29 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     };
   });
 
-  const filtered = filter === 'ALL'
+  const categoryFiltered = filter === 'ALL'
     ? lifecycleScoped
     : investments.filter((investment) => categoryKey(investment) === filter);
+  const filtered = tagFilter
+    ? categoryFiltered.filter((investment) => hasTag(investment, tagFilter))
+    : categoryFiltered;
   const total = filtered.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
+  const filteredSplit = savedSplit(filtered);
   const selectedCategory = categories.find((item) => item.key === filter);
+  const tagStats = summarizeTags(categoryFiltered, {
+    amountOf: effectiveInvestedSoFar,
+    isLiquidity: isLiquiditySaving,
+  });
+  const selectedTagName = tagFilter
+    ? (tagStats.find((tag) => tag.key === tagKey(tagFilter))?.name || tagFilter)
+    : '';
+  const grouping = groupByTag && tagStats.length > 0;
+  const sections = grouping
+    ? (tagFilter
+      ? [{ key: tagKey(tagFilter) || 'tag', name: selectedTagName || 'Tag', items: filtered }]
+      : groupInvestmentsByTag(filtered))
+    : [];
+  const filterLabel = [selectedCategory?.label, selectedTagName].filter(Boolean).join(' · ');
 
   const nearMaturityCount = activeInvestments.filter((investment) => {
     if (isMarketInvestment(investment.type_code) || isLiquiditySaving(investment)) return false;
@@ -439,10 +532,10 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
             <p className="text-sm text-ink-soft mt-1">
-              {filter === 'ALL' ? (
-                <>{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+              {filterLabel ? (
+                <>{filterLabel} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
               ) : (
-                <>{selectedCategory?.label || 'Category'} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+                <>{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
               )}
             </p>
           </div>
@@ -495,6 +588,27 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
+        {tagStats.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button type="button" onClick={() => chooseGroup(!groupByTag)} className={`chip whitespace-nowrap ${groupByTag ? 'on' : ''}`}>
+              {groupByTag ? 'Grouped by tag' : 'Group by tag'}
+            </button>
+            <button type="button" onClick={() => chooseTag('')} className={`chip whitespace-nowrap ${tagFilter ? '' : 'on'}`}>All tags</button>
+            {tagStats.map((tag) => (
+              <button key={tag.key} type="button" onClick={() => chooseTag(tag.name)} className={`chip whitespace-nowrap ${tagKey(tagFilter) === tag.key ? 'on' : ''}`}>
+                <span className="block leading-tight">{tag.name} ({tag.count})</span>
+                <span className="block text-[10px] font-medium leading-tight mt-0.5">
+                  {tag.invested > 0 && tag.liquidity > 0
+                    ? <>{inr(tag.invested)} invested · {inr(tag.liquidity)} liquidity</>
+                    : tag.liquidity > 0
+                      ? <>{inr(tag.liquidity)} liquidity</>
+                      : <>{inr(tag.invested)} saved</>}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {investments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>
@@ -510,13 +624,18 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
-        {!loading && selectedCategory && (
+        {!loading && (selectedCategory || tagFilter) && (
           <div className="mb-4 rounded-2xl border border-edge bg-paper-card px-4 py-3 flex items-end justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-ink-mute">{selectedCategory.label}</p>
-              <p className="text-2xl font-medium">{inr(selectedCategory.saved)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-ink-mute">{filterLabel}</p>
+              <p className="text-2xl font-medium">{inr(total)}</p>
             </div>
-            <p className="text-xs text-ink-soft text-right">saved so far · {selectedCategory.count} {selectedCategory.count === 1 ? 'plan' : 'plans'}</p>
+            <div className="text-xs text-ink-soft text-right">
+              <p>saved so far · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'}</p>
+              {filteredSplit.invested > 0 && filteredSplit.liquidity > 0 && (
+                <p className="mt-1">{inr(filteredSplit.invested)} invested · {inr(filteredSplit.liquidity)} liquidity</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -530,46 +649,62 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
+        {!loading && investments.length > 0 && filtered.length === 0 && (
+          <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-xl">
+            <p className="text-sm font-medium">Nothing matches this filter</p>
+            <button type="button" onClick={() => { setFilter('ALL'); chooseTag(''); }} className="text-sm text-sky-600 mt-2">Clear filters</button>
+          </div>
+        )}
+
         {orderError && <p className="text-sm text-danger mb-3">{orderError}</p>}
-        {!loading && !readOnly && filtered.length > 1 && (
+        {!loading && !readOnly && !grouping && filtered.length > 1 && (
           <p className="text-[11px] text-ink-mute mb-2">Drag the handle to set which plan comes first.</p>
         )}
+        {!loading && grouping && filtered.some((investment) => (investment.tags || []).length > 1) && !tagFilter && (
+          <p className="text-[11px] text-ink-mute mb-2">A plan with more than one tag is listed under each tag.</p>
+        )}
         {!loading && filtered.length > 0 && (
-          layout === 'tiles' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {filtered.map((investment) => (
-                <div
-                  key={investment.id}
-                  onDragOver={(e) => { if (!readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
-                  onDrop={(e) => onInvestmentDrop(e, investment.id)}
-                  className={draggingId === investment.id ? 'opacity-60' : ''}
-                >
-                  <InvestmentTile
-                    investment={investment}
-                    href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
-                    onDragStart={readOnly ? null : (e) => onInvestmentDragStart(e, investment.id)}
-                  />
-                </div>
-              ))}
+          grouping ? (
+            <div className="space-y-5">
+              {sections.map((section) => {
+                const split = savedSplit(section.items);
+                return (
+                  <section key={section.key}>
+                    <div className="flex items-end justify-between gap-3 mb-2">
+                      <h2 className="text-sm font-medium">{section.name}</h2>
+                      <p className="text-[11px] text-ink-soft text-right">
+                        {section.items.length} {section.items.length === 1 ? 'plan' : 'plans'}
+                        {split.invested > 0 && split.liquidity > 0
+                          ? ` · ${inr(split.invested)} invested · ${inr(split.liquidity)} liquidity`
+                          : ` · ${inr(split.invested + split.liquidity)}`}
+                      </p>
+                    </div>
+                    <Plans
+                      items={section.items}
+                      layout={layout}
+                      readOnly={readOnly}
+                      linkBase={linkBase}
+                      draggingId={draggingId}
+                      dragEnabled={false}
+                      keyPrefix={`${section.key}-`}
+                      onDragStart={onInvestmentDragStart}
+                      onDrop={onInvestmentDrop}
+                    />
+                  </section>
+                );
+              })}
             </div>
           ) : (
-            <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
-              {filtered.map((investment, idx) => (
-                <div
-                  key={investment.id}
-                  onDragOver={(e) => { if (!readOnly) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
-                  onDrop={(e) => onInvestmentDrop(e, investment.id)}
-                  className={draggingId === investment.id ? 'opacity-60' : ''}
-                >
-                  <InvestmentRow
-                    investment={investment}
-                    idx={idx}
-                    href={readOnly ? `${linkBase}/investments/${investment.id}` : `/investments/${investment.id}`}
-                    onDragStart={readOnly ? null : (e) => onInvestmentDragStart(e, investment.id)}
-                  />
-                </div>
-              ))}
-            </div>
+            <Plans
+              items={filtered}
+              layout={layout}
+              readOnly={readOnly}
+              linkBase={linkBase}
+              draggingId={draggingId}
+              dragEnabled={!readOnly}
+              onDragStart={onInvestmentDragStart}
+              onDrop={onInvestmentDrop}
+            />
           )
         )}
       </div>

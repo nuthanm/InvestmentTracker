@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import NewInvestmentClient from '../../new/NewInvestmentClient';
+import { attachInvestmentTags } from '@/lib/tag-store';
 
 export default async function EditInvestmentPage({ params }) {
   const user = await getCurrentUser();
@@ -25,13 +26,14 @@ export default async function EditInvestmentPage({ params }) {
   ]);
 
   if (investmentRows.length === 0) notFound();
+  const [investment] = await attachInvestmentTags(investmentRows);
 
   return (
     <NewInvestmentClient
       user={user}
       goals={goals}
       mode="edit"
-      initialInvestment={investmentRows[0]}
+      initialInvestment={investment}
       initialDocuments={documents}
     />
   );

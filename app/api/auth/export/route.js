@@ -40,6 +40,28 @@ export async function GET(req) {
       if (!(msg.includes('partial_withdrawals') && msg.includes('does not exist'))) throw err;
     }
 
+    try {
+      const tagRows = await sql`
+        SELECT it.investment_id, t.name
+        FROM investment_tags it
+        JOIN tags t ON t.id = it.tag_id
+        WHERE t.user_id = ${me.id}
+        ORDER BY t.name ASC
+      `;
+      const namesByInvestment = new Map();
+      for (const row of tagRows) {
+        const list = namesByInvestment.get(row.investment_id) || [];
+        list.push(row.name);
+        namesByInvestment.set(row.investment_id, list);
+      }
+      for (const investment of investments) {
+        investment.tags = (namesByInvestment.get(investment.id) || []).join('; ');
+      }
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      if (!((msg.includes('tags') || msg.includes('investment_tags')) && msg.includes('does not exist'))) throw err;
+    }
+
     // Build CSV content
     const csvSections = [];
     

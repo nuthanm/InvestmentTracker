@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { sql } from '@/lib/db';
 import DetailClient from './DetailClient';
 import { isMarketInvestment, isMetalInvestment, summarizeMarketTransactions } from '@/lib/investments';
+import { attachInvestmentTags } from '@/lib/tag-store';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -20,6 +21,7 @@ export default async function InvestmentDetailPage({ params }) {
     LIMIT 1
   `;
   if (rows.length === 0) notFound();
+  const [investment] = await attachInvestmentTags(rows);
 
   const documents = await sql`
     SELECT id, filename, size_bytes, page_count, data_url
@@ -49,5 +51,5 @@ export default async function InvestmentDetailPage({ params }) {
 
   const goals = await sql`SELECT id, name FROM goals WHERE user_id = ${user.id} ORDER BY created_at DESC`;
 
-  return <DetailClient user={user} investment={rows[0]} documents={documents} marketTransactions={marketTransactions} marketSummary={marketSummary} marketWarning={marketWarning} goals={goals} />;
+  return <DetailClient user={user} investment={investment} documents={documents} marketTransactions={marketTransactions} marketSummary={marketSummary} marketWarning={marketWarning} goals={goals} />;
 }

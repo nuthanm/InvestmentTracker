@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
+import TagList from '@/components/TagList';
 import { inr, inrPaise, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
 import {
@@ -1014,6 +1015,7 @@ export default function DetailClient({
               <p className="text-sm text-ink-soft mt-2">Matures to <span className="text-mint-600 font-medium">{inr(i.maturity_value || i.amount)}</span>{i.maturity_date && <> on {fmtDate(i.maturity_date)}</>}</p>
             </>
           )}
+          <TagList tags={i.tags} hrefFor={(name) => `/investments?tag=${encodeURIComponent(name)}`} className="mt-3" />
         </div>
 
         <div className="grid md:grid-cols-2 gap-x-8 mb-5">

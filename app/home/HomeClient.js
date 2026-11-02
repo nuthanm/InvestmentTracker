@@ -6,6 +6,8 @@ import Shell from '@/components/Shell';
 import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
+import { summarizeTags } from '@/lib/tags';
+import TagList from '@/components/TagList';
 import {
   getLifecycleLabel,
   isActiveInvestment,
@@ -487,6 +489,10 @@ export default function HomeClient({ user }) {
   }).length;
 
   const upcomingEvents = buildUpcomingEvents(activeInvestments);
+  const tagStats = summarizeTags(activeInvestments, {
+    amountOf: effectiveInvestedSoFar,
+    isLiquidity: isLiquiditySaving,
+  });
 
   const empty = !loading && goals.length === 0 && investments.length === 0;
 
@@ -589,6 +595,31 @@ export default function HomeClient({ user }) {
                 />
               </div>
 
+              {/* ── By tag ── */}
+              {tagStats.length > 0 && (
+                <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
+                  <div className="flex justify-between items-baseline mb-3">
+                    <h2 className="text-sm font-medium">By tag</h2>
+                    <Link href="/investments" className="text-xs text-sky-600">filter plans</Link>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {tagStats.map((tag) => (
+                      <Link key={tag.key} href={`/investments?tag=${encodeURIComponent(tag.name)}`} className="block rounded-xl border border-edge px-3 py-2.5 hover:border-plum-600 transition">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium truncate">{tag.name}</span>
+                          <span className="text-[11px] text-ink-mute">{tag.count} {tag.count === 1 ? 'plan' : 'plans'}</span>
+                        </div>
+                        <p className="text-[11px] text-ink-soft mt-1">
+                          {tag.invested > 0 && <span>{inrShort(tag.invested)} invested</span>}
+                          {tag.invested > 0 && tag.liquidity > 0 && ' · '}
+                          {tag.liquidity > 0 && <span>{inrShort(tag.liquidity)} liquidity</span>}
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
               {/* ── Recent investments ── */}
               <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5">
                 <div className="flex justify-between items-baseline mb-3">
@@ -634,6 +665,7 @@ export default function HomeClient({ user }) {
                             {progress && <> · {progress.label}</>}
                             {isLiquiditySaving(investment) ? ' · available' : metalType ? ` · ${formatUnits(investment.total_units)} g accumulated` : marketType ? ` · ${formatUnits(investment.total_units)} units held` : closedPlan && investment.closure_date ? ` · closed ${fmtDate(investment.closure_date)}` : ` · matures ${fmtDate(investment.maturity_date)}`}
                           </p>
+                          <TagList tags={investment.tags} className="mt-1" />
                         </div>
                       </div>
                       <div className="text-right ml-2 flex-shrink-0">

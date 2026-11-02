@@ -14,6 +14,8 @@ import {
   tenureProgress,
 } from '@/lib/investments';
 import { getLifecycleLabel, isClosedLifecycleStatus, isPrematureWithdrawalStatus } from '@/lib/investment-lifecycle';
+import { investmentTags } from '@/lib/tags';
+import TagList from '@/components/TagList';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -173,6 +175,15 @@ export default async function ViewInvestmentPage({ params }) {
           <Row label="Goal" value={investment.goal_name || '—'} />
           <Row label="Nominee" value={investment.nominee || '—'} />
           <Row label="Account holder" value={investment.account_holder || 'Self'} />
+          {investmentTags(investment).length > 0 && (
+            <div className="flex justify-between py-2.5 border-b border-dashed border-edge text-sm gap-3 items-start">
+              <span className="text-ink-soft">Tags</span>
+              <TagList
+                tags={investment.tags}
+                hrefFor={(name) => `/view/${params.token}?tag=${encodeURIComponent(name)}`}
+              />
+            </div>
+          )}
           <Row label="Purpose" value={liquidity ? 'Saving for liquidity' : 'Investment'} />
           {!liquidity && !transactionType && <Row label="Auto-renew" value={investment.auto_renew ? 'On' : 'Off'} />}
           <Row label="Lifecycle" value={getLifecycleLabel(investment.lifecycle_status || 'active')} />
