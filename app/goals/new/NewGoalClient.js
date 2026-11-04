@@ -1,10 +1,13 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
+import TagField from '@/components/TagField';
 
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR - 5 + i);
 
 const computeProjectedGoal = (value, inflationPct, targetDate) => {
   const base = Number(value);
@@ -36,6 +39,11 @@ export default function NewGoalClient({ user }) {
   const [inflationPct, setInflationPct] = useState('6');
   const [date, setDate] = useState('');
   const [forLiquidity, setForLiquidity] = useState(false);
+  const [scope, setScope] = useState('common');
+  const [goalYear, setGoalYear] = useState(CURRENT_YEAR);
+  const [recurringYearly, setRecurringYearly] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [knownTags, setKnownTags] = useState([]);
   const [icon, setIcon] = useState('house');
   const [otherLabel, setOtherLabel] = useState('');
   const [error, setError] = useState('');
@@ -43,6 +51,17 @@ export default function NewGoalClient({ user }) {
 
   const projectedGoalAmount = computeProjectedGoal(amount, inflationPct, date);
   const savingsPace = computeSavingsPace(projectedGoalAmount, date);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setKnownTags(Array.isArray(data.tags) ? data.tags : []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -66,6 +85,9 @@ export default function NewGoalClient({ user }) {
           for_liquidity: forLiquidity,
           amount_as_of: forLiquidity ? new Date().toISOString().slice(0, 10) : null,
           icon,
+          goal_year: scope === 'year' ? Number(goalYear) : null,
+          recurring_yearly: scope === 'year' ? recurringYearly : false,
+          tags,
         }),
       });
       const data = await res.json();
@@ -86,6 +108,52 @@ export default function NewGoalClient({ user }) {
         <p className="text-sm text-ink-soft mb-6">Required fields marked with *</p>
 
         <form onSubmit={submit} className="space-y-4">
+          <div>
+            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Scope</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { setScope('common'); setRecurringYearly(false); }}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${scope === 'common' ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
+              >
+                <p className="text-sm font-medium">Life goal</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Ongoing goals that are not tied to a year.</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope('year')}
+                className={`text-left rounded-xl border px-3 py-2.5 transition ${scope === 'year' ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
+              >
+                <p className="text-sm font-medium">Year goal</p>
+                <p className="text-[11px] text-ink-soft mt-0.5">Counts toward a specific calendar year.</p>
+              </button>
+            </div>
+            {scope === 'year' && (
+              <div className="mt-3 space-y-2">
+                <div>
+                  <label className="block text-xs text-ink-soft mb-1.5">Year</label>
+                  <select value={goalYear} onChange={(e) => setGoalYear(Number(e.target.value))} className="field-input">
+                    {YEAR_OPTIONS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <label className="flex items-start gap-2 rounded-xl border border-edge bg-paper-card px-3 py-2.5 cursor-pointer hover:border-mint-600">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={recurringYearly}
+                    onChange={(e) => setRecurringYearly(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">Repeats every year</span>
+                    <span className="block text-[11px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+
           <div>
             <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -119,6 +187,8 @@ export default function NewGoalClient({ user }) {
             <textarea rows={3} placeholder="Add important details like venue, budget notes, or milestones."
               value={description} onChange={(e) => setDescription(e.target.value)} className="field-input resize-none" />
           </div>
+
+          <TagField value={tags} onChange={setTags} suggestions={knownTags} />
 
           <div>
             <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'Amount to keep available (₹)' : 'Value today (₹)'}<span className="text-danger ml-0.5">*</span></label>

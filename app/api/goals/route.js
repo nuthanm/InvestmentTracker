@@ -3,7 +3,9 @@ import { sql } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 import { applyMetalSchemeGrams, attachInvestmentSummaries, attachPartialWithdrawals, attachRecurringPaymentSummaries, effectiveInvestedSoFar, isMetalInvestment, isTransactionBased } from '@/lib/investments';
 import { isActiveInvestment } from '@/lib/investment-lifecycle';
-import { goalTargetAmount } from '@/lib/goals';
+import { goalTargetAmount, parseGoalYear } from '@/lib/goals';
+import { readOptionalTagNames } from '@/lib/tags';
+import { attachGoalTags, replaceGoalTags } from '@/lib/tag-store';
 
 function missingTransactionsTable(err) {
   const msg = String(err?.message || '').toLowerCase();
@@ -89,12 +91,12 @@ export async function GET() {
     }
   }
 
-  const hydratedGoals = goals.map((goal) => ({
+  const hydratedGoals = await attachGoalTags(goals.map((goal) => ({
     ...goal,
     current_amount: totals.get(goal.id) || 0,
     investment_count: counts.get(goal.id) || 0,
     required_amount: goalTargetAmount(goal),
-  }));
+  })));
 
   return NextResponse.json({ goals: hydratedGoals });
 }
@@ -104,7 +106,8 @@ export async function POST(req) {
   if (!me) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
 
   try {
-    const { name, description, target_amount, target_date, inflation_pct, icon, for_liquidity, amount_as_of } = await req.json();
+    const body = await req.json();
+    const { name, description, target_amount, target_date, inflation_pct, icon, for_liquidity, amount_as_of, goal_year, recurring_yearly } = body;
     const forLiquidity = for_liquidity === true || for_liquidity === 'true';
     if (!name || !target_amount) {
       return NextResponse.json({ error: 'Name and target amount are required.' }, { status: 400 });
@@ -119,6 +122,17 @@ export async function POST(req) {
     if (Number.isNaN(infl) || infl < 0) {
       return NextResponse.json({ error: 'Inflation percentage must be zero or more.' }, { status: 400 });
     }
+    const goalYear = parseGoalYear(goal_year);
+    if (goalYear === undefined) {
+      return NextResponse.json({ error: 'Choose Life goal or a valid calendar year.' }, { status: 400 });
+    }
+    const recurringYearly = goalYear != null && (recurring_yearly === true || recurring_yearly === 'true');
+    let tagNames;
+    try {
+      tagNames = readOptionalTagNames(body);
+    } catch (err) {
+      return NextResponse.json({ error: err.message || 'Invalid tags.' }, { status: err.status || 400 });
+    }
 
     let rows;
     try {
@@ -126,17 +140,30 @@ export async function POST(req) {
         ? (String(amount_as_of || '').match(/^\d{4}-\d{2}-\d{2}/)?.[0] || new Date().toISOString().slice(0, 10))
         : null;
       rows = await sql`
-        INSERT INTO goals (user_id, name, description, target_amount, target_date, inflation_pct, icon, for_liquidity, amount_as_of)
+        INSERT INTO goals (user_id, name, description, target_amount, target_date, inflation_pct, icon, for_liquidity, amount_as_of, goal_year, recurring_yearly)
         VALUES (
           ${me.id}, ${name.trim()}, ${description?.trim() || null}, ${target_amount},
           ${forLiquidity ? null : target_date}, ${infl}, ${icon || 'house'},
-          ${forLiquidity}, ${asOf}
+          ${forLiquidity}, ${asOf}, ${goalYear}, ${recurringYearly}
         )
         RETURNING *
       `;
     } catch (err) {
-      const isMissingInflationColumn = err?.code === '42703' || /inflation_pct/i.test(String(err?.message || ''));
-      if (!isMissingInflationColumn) throw err;
+      const msg = String(err?.message || '');
+      const isMissingColumn = err?.code === '42703' || /does not exist/i.test(msg);
+      if (!isMissingColumn) throw err;
+      if (/recurring_yearly/i.test(msg)) {
+        return NextResponse.json(
+          { error: 'Recurring year goals are not available yet. Run db/migrations/2026-11-04-goal-recurring-yearly.sql in Neon SQL Editor.' },
+          { status: 409 }
+        );
+      }
+      if (/goal_year/i.test(msg)) {
+        return NextResponse.json(
+          { error: 'Year goals are not available yet. Run db/migrations/2026-11-04-goal-year.sql in Neon SQL Editor.' },
+          { status: 409 }
+        );
+      }
       rows = await sql`
         INSERT INTO goals (user_id, name, description, target_amount, target_date, icon)
         VALUES (${me.id}, ${name.trim()}, ${description?.trim() || null}, ${target_amount}, ${target_date}, ${icon || 'house'})
@@ -144,7 +171,21 @@ export async function POST(req) {
       `;
     }
 
-    return NextResponse.json({ goal: rows[0] });
+    const goal = rows[0];
+    if (tagNames !== undefined) {
+      try {
+        const tags = await replaceGoalTags(me.id, goal.id, tagNames);
+        return NextResponse.json({ goal: { ...goal, tags } });
+      } catch (err) {
+        if (!/goal_tags/i.test(String(err?.message || ''))) throw err;
+        return NextResponse.json(
+          { error: 'Goal tags are not available yet. Run db/migrations/2026-11-05-goal-tags.sql in Neon SQL Editor.' },
+          { status: 409 }
+        );
+      }
+    }
+
+    return NextResponse.json({ goal: { ...goal, tags: [] } });
   } catch (err) {
     console.error('create goal error', err);
     return NextResponse.json({ error: 'Could not create goal.' }, { status: 500 });

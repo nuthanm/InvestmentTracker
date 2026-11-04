@@ -83,7 +83,7 @@ export default function TagField({ value, onChange, suggestions = [] }) {
           className="flex-1 min-w-[8rem] bg-transparent outline-none text-sm py-0.5 disabled:cursor-not-allowed"
         />
       </div>
-      <p className="text-[11px] text-ink-mute mt-1">Filter or group investments and liquidity later. Press Enter after each tag.</p>
+      <p className="text-[11px] text-ink-mute mt-1">Shared labels across goals and investments. Press Enter after each tag.</p>
       {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
       {matches.length > 0 && !atLimit && (
         <div className="flex flex-wrap gap-1.5 mt-2">

@@ -1,16 +1,144 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Shell from '@/components/Shell';
+import TagField from '@/components/TagField';
+import TagList from '@/components/TagList';
 import { GoalWaterFill, TypeThumbnail, investmentThumbKind, useCelebrateOnce } from '@/components/GrowthVisual';
 import { inr, fmtDate, labelFor } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
-import { isLiquidityGoal } from '@/lib/goals';
+import { goalOutcomeStatus, goalScopeYear, isCommonGoal, isLiquidityGoal, isRecurringYearlyGoal } from '@/lib/goals';
+import { investmentTags } from '@/lib/tags';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 8 }, (_, i) => CURRENT_YEAR - 5 + i);
+
+function ScopeFields({ scope, year, recurringYearly, onScopeChange, onYearChange, onRecurringChange }) {
+  const years = YEAR_OPTIONS.includes(year) ? YEAR_OPTIONS : [...YEAR_OPTIONS, year].sort((a, b) => a - b);
+  return (
+    <div>
+      <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Scope</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => onScopeChange('common')}
+          className={`text-left rounded-xl border px-3 py-2 transition ${scope === 'common' ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}
+        >
+          <p className="text-sm font-medium">Life goal</p>
+          <p className="text-[11px] text-ink-soft mt-0.5">Ongoing, not tied to a year</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => onScopeChange('year')}
+          className={`text-left rounded-xl border px-3 py-2 transition ${scope === 'year' ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}
+        >
+          <p className="text-sm font-medium">Year goal</p>
+          <p className="text-[11px] text-ink-soft mt-0.5">Counts toward a calendar year</p>
+        </button>
+      </div>
+      {scope === 'year' && (
+        <div className="mt-2 space-y-2">
+          <div>
+            <label className="block text-xs text-ink-soft mb-1">Year</label>
+            <select
+              value={year}
+              onChange={(e) => onYearChange(Number(e.target.value))}
+              className="field-input"
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <label className="flex items-start gap-2 rounded-xl border border-edge px-3 py-2 cursor-pointer hover:border-mint-600">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={!!recurringYearly}
+              onChange={(e) => onRecurringChange(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium">Repeats every year</span>
+              <span className="block text-[11px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function YearStatsChart({ title, rows }) {
+  if (!rows.length) return null;
+  const maxTotal = Math.max(...rows.map((row) => row.total), 1);
+
+  return (
+    <section className="mt-8 pt-6 border-t border-edge">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+        <h2 className="text-lg font-medium tracking-tight">{title}</h2>
+        <div className="flex flex-wrap gap-3 text-[11px] text-ink-mute">
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-mint-600" /> Completed</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#185FA5]" /> Pending</span>
+          <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-danger" /> Not yet</span>
+        </div>
+      </div>
+      <div className="space-y-3">
+        {rows.map((row) => {
+          const completedPct = (row.completed / maxTotal) * 100;
+          const pendingPct = (row.pending / maxTotal) * 100;
+          const notYetPct = (row.not_yet / maxTotal) * 100;
+          const parts = [
+            row.completed > 0 ? `${row.completed} completed` : null,
+            row.pending > 0 ? `${row.pending} pending` : null,
+            row.not_yet > 0 ? `${row.not_yet} not yet` : null,
+          ].filter(Boolean);
+          return (
+            <div key={row.year} className="flex items-center gap-3 sm:gap-4">
+              <p className="w-12 flex-shrink-0 text-sm font-medium tabular-nums">{row.year}</p>
+              <div className="min-w-0 flex-1">
+                <div className="h-2.5 rounded-full bg-paper-tint overflow-hidden flex">
+                  {row.completed > 0 && (
+                    <div className="h-full bg-mint-600" style={{ width: `${completedPct}%` }} title={`${row.completed} completed`} />
+                  )}
+                  {row.pending > 0 && (
+                    <div className="h-full bg-[#185FA5]" style={{ width: `${pendingPct}%` }} title={`${row.pending} pending`} />
+                  )}
+                  {row.not_yet > 0 && (
+                    <div className="h-full bg-danger" style={{ width: `${notYetPct}%` }} title={`${row.not_yet} not yet`} />
+                  )}
+                </div>
+                {parts.length > 0 && (
+                  <p className="mt-1 text-[11px] text-ink-mute truncate">{parts.join(' · ')}</p>
+                )}
+              </div>
+              <p className="flex-shrink-0 text-[11px] text-ink-mute tabular-nums w-14 text-right">
+                {row.total}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function GoalAttrTag({ children }) {
+  return (
+    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium flex-shrink-0">
+      {children}
+    </span>
+  );
+}
+
+function goalTargetLabel(goal, liquidity) {
+  if (liquidity) return 'No end date — keep this buffer available';
+  if (goal?.target_date) return `Target ${fmtDate(goal.target_date)}`;
+  return 'No target date for this goal';
+}
 
 function DragHandle({ onDragStart }) {
   if (!onDragStart) return null;
@@ -82,6 +210,7 @@ function GoalCard({
   isExpanded,
   editForm,
   setEditForm,
+  knownTags,
   editError,
   editSaving,
   confirmDeleteId,
@@ -97,6 +226,7 @@ function GoalCard({
 }) {
   const cur = Number(g.current_amount || 0);
   const liquidity = isLiquidityGoal(g);
+  const recurring = isRecurringYearlyGoal(g);
   const tgt = Number((liquidity ? g.required_amount : g.target_amount) || 1);
   const progressRatio = tgt > 0 ? cur / tgt : 0;
   const pct = Math.min(100, Math.floor(progressRatio * 100));
@@ -142,6 +272,24 @@ function GoalCard({
               </button>
             </div>
           </div>
+          <ScopeFields
+            scope={editForm.scope}
+            year={editForm.goalYear}
+            recurringYearly={editForm.recurringYearly}
+            onScopeChange={(scope) => setEditForm((f) => ({
+              ...f,
+              scope,
+              goalYear: scope === 'year' ? (f.goalYear || CURRENT_YEAR) : f.goalYear,
+              recurringYearly: scope === 'year' ? f.recurringYearly : false,
+            }))}
+            onYearChange={(goalYear) => setEditForm((f) => ({ ...f, goalYear }))}
+            onRecurringChange={(recurringYearly) => setEditForm((f) => ({ ...f, recurringYearly }))}
+          />
+          <TagField
+            value={editForm.tags || []}
+            onChange={(tags) => setEditForm((f) => ({ ...f, tags }))}
+            suggestions={knownTags}
+          />
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs text-ink-soft mb-1">{editForm.forLiquidity ? 'Amount to keep available (₹)' : 'Value today (₹)'}<span className="text-danger ml-0.5">*</span></label>
@@ -205,14 +353,16 @@ function GoalCard({
             <div className="flex items-center gap-3">
               <DragHandle onDragStart={onDragStart} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-sm font-medium truncate">{g.name}</span>
-                  {liquidity && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium flex-shrink-0">Liquidity</span>}
+                  {liquidity ? <GoalAttrTag>Liquidity</GoalAttrTag> : null}
+                  {recurring ? <GoalAttrTag>Yearly</GoalAttrTag> : null}
                 </div>
                 <p className="text-[11px] text-ink-mute mt-0.5 truncate">
                   {inr(cur)} of {inr(tgt)}
-                  {liquidity ? ' · keep available' : ''}
                 </p>
+                <p className="text-[11px] text-ink-mute mt-0.5 truncate">{goalTargetLabel(g, liquidity)}</p>
+                <TagList tags={g.tags} className="mt-1.5" />
               </div>
               <div className="w-16 h-1.5 bg-paper-tint rounded-full overflow-hidden flex-shrink-0">
                 <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
@@ -226,15 +376,17 @@ function GoalCard({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium">{g.name}</span>
-                {liquidity && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium">Liquidity</span>}
+                {liquidity ? <GoalAttrTag>Liquidity</GoalAttrTag> : null}
+                {recurring ? <GoalAttrTag>Yearly</GoalAttrTag> : null}
                 {nearGoal && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
                 {reached && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached! 👏</span>}
               </div>
               <p className="text-xs text-ink-soft mt-1">
                 {inr(cur)} of {inr(tgt)}
-                {liquidity ? <> · keep available</> : g.target_date && <> · target {fmtDate(g.target_date)}</>}
                 <> · {g.investment_count} {g.investment_count == 1 ? 'investment' : 'investments'}</>
               </p>
+              <p className="text-[11px] text-ink-mute mt-1">{goalTargetLabel(g, liquidity)}</p>
+              <TagList tags={g.tags} className="mt-1.5" />
             </div>
             <div ref={originRef} className="text-right ml-3 flex-shrink-0">
               <span className={`text-sm font-medium ${reached ? 'achieved-amount' : ''}`}>{pct}%</span>
@@ -359,12 +511,61 @@ export default function GoalsClient({ user }) {
   const [expandedGoalId, setExpandedGoalId] = useState(null);
   const [editId, setEditId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house', forLiquidity: false, amountAsOf: '', baseAmount: '' });
+  const [editForm, setEditForm] = useState({
+    name: '', description: '', amount: '', inflationPct: '0', date: '', icon: 'house',
+    forLiquidity: false, amountAsOf: '', baseAmount: '', scope: 'common', goalYear: CURRENT_YEAR,
+    recurringYearly: false, tags: [],
+  });
+  const [knownTags, setKnownTags] = useState([]);
   const [editError, setEditError] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [layout, setLayout] = useState('list');
   const [draggingId, setDraggingId] = useState(null);
+  const [draggingSection, setDraggingSection] = useState(null);
   const [orderError, setOrderError] = useState('');
+
+  const { commonGoals, currentYearGoals, pastYearStats, futureGoalGroups } = useMemo(() => {
+    const common = [];
+    const current = [];
+    const pastByYear = new Map();
+    const futureGoalsByYear = new Map();
+
+    const bump = (map, year, status) => {
+      if (!map.has(year)) {
+        map.set(year, { year, completed: 0, pending: 0, not_yet: 0, total: 0 });
+      }
+      const bucket = map.get(year);
+      bucket[status] += 1;
+      bucket.total += 1;
+    };
+
+    for (const goal of goals) {
+      const year = goalScopeYear(goal);
+      if (isCommonGoal(goal)) {
+        common.push(goal);
+        continue;
+      }
+      if (year === CURRENT_YEAR) {
+        current.push(goal);
+        continue;
+      }
+      if (year != null && year < CURRENT_YEAR) {
+        bump(pastByYear, year, goalOutcomeStatus(goal));
+      } else if (year != null && year > CURRENT_YEAR) {
+        if (!futureGoalsByYear.has(year)) futureGoalsByYear.set(year, []);
+        futureGoalsByYear.get(year).push(goal);
+      }
+    }
+
+    return {
+      commonGoals: common,
+      currentYearGoals: current,
+      pastYearStats: Array.from(pastByYear.values()).sort((a, b) => b.year - a.year),
+      futureGoalGroups: Array.from(futureGoalsByYear.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, items]) => ({ year, goals: items })),
+    };
+  }, [goals]);
 
   const load = () => {
     setLoadError('');
@@ -390,6 +591,17 @@ export default function GoalsClient({ user }) {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    fetch('/api/tags')
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setKnownTags(Array.isArray(data.tags) ? data.tags : []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     const stored = window.localStorage.getItem('goals-layout');
     if (stored === 'tiles' || stored === 'list') setLayout(stored);
   }, []);
@@ -401,6 +613,7 @@ export default function GoalsClient({ user }) {
 
   const openEdit = (e, g) => {
     e.stopPropagation();
+    const year = goalScopeYear(g);
     setEditId(g.id);
     setEditForm({
       name: g.name,
@@ -412,6 +625,10 @@ export default function GoalsClient({ user }) {
       forLiquidity: isLiquidityGoal(g),
       amountAsOf: g.amount_as_of ? String(g.amount_as_of).slice(0, 10) : '',
       baseAmount: String(g.target_amount),
+      scope: year == null ? 'common' : 'year',
+      goalYear: year || CURRENT_YEAR,
+      recurringYearly: year != null && isRecurringYearlyGoal(g),
+      tags: investmentTags(g).map((tag) => tag.name),
     });
     setEditError('');
   };
@@ -450,6 +667,9 @@ export default function GoalsClient({ user }) {
           for_liquidity: editForm.forLiquidity,
           amount_as_of: amountAsOf,
           icon: editForm.icon,
+          goal_year: editForm.scope === 'year' ? Number(editForm.goalYear) : null,
+          recurring_yearly: editForm.scope === 'year' ? !!editForm.recurringYearly : false,
+          tags: editForm.tags || [],
         }),
       });
       const data = await res.json();
@@ -463,18 +683,7 @@ export default function GoalsClient({ user }) {
     }
   };
 
-  const onGoalDragStart = (e, id) => {
-    e.dataTransfer.setData('text/plain', id);
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggingId(id);
-  };
-
-  const onGoalDrop = async (e, targetId) => {
-    e.preventDefault();
-    const sourceId = e.dataTransfer.getData('text/plain') || draggingId;
-    setDraggingId(null);
-    if (!sourceId || sourceId === targetId) return;
-    const next = moveItem(goals, sourceId, targetId);
+  const persistGoalOrder = async (next) => {
     setGoals(next);
     setOrderError('');
     try {
@@ -491,6 +700,122 @@ export default function GoalsClient({ user }) {
     }
   };
 
+  const onGoalDragStart = (e, id, section) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.setData('application/x-goal-section', section);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingId(id);
+    setDraggingSection(section);
+  };
+
+  const onGoalDrop = async (e, targetId, section, sectionGoals) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggingId;
+    const sourceSection = e.dataTransfer.getData('application/x-goal-section') || draggingSection;
+    setDraggingId(null);
+    setDraggingSection(null);
+    if (!sourceId || sourceId === targetId) return;
+    if (sourceSection !== section) return;
+
+    const nextSection = moveItem(sectionGoals, sourceId, targetId);
+    const sectionKey = String(section);
+    let next;
+
+    if (sectionKey === 'common') {
+      next = [
+        ...nextSection,
+        ...currentYearGoals,
+        ...goals.filter((goal) => {
+          const year = goalScopeYear(goal);
+          return year != null && year !== CURRENT_YEAR;
+        }),
+      ];
+    } else if (sectionKey === 'current') {
+      next = [
+        ...commonGoals,
+        ...nextSection,
+        ...goals.filter((goal) => {
+          const year = goalScopeYear(goal);
+          return year != null && year !== CURRENT_YEAR;
+        }),
+      ];
+    } else if (sectionKey.startsWith('future-')) {
+      const year = Number(sectionKey.slice('future-'.length));
+      next = [];
+      let inserted = false;
+      for (const goal of goals) {
+        if (goalScopeYear(goal) === year) {
+          if (!inserted) {
+            next.push(...nextSection);
+            inserted = true;
+          }
+          continue;
+        }
+        next.push(goal);
+      }
+      if (!inserted) next.push(...nextSection);
+    } else {
+      return;
+    }
+
+    await persistGoalOrder(next);
+  };
+
+  const renderGoalList = (sectionGoals, section) => {
+    if (sectionGoals.length === 0) {
+      return (
+        <div className="rounded-2xl border border-dashed border-edge bg-paper-tint/60 px-4 py-8 text-center">
+          <p className="text-sm text-ink-soft">
+            {section === 'common'
+              ? 'No life goals yet.'
+              : section === 'current'
+                ? `No ${CURRENT_YEAR} goals yet.`
+                : 'No goals in this year yet.'}
+          </p>
+          <Link href="/goals/new" className="inline-block mt-3 text-xs font-medium text-mint-700 hover:underline">
+            + Add one
+          </Link>
+        </div>
+      );
+    }
+
+    return (
+      <div className={layout === 'tiles' ? 'grid grid-cols-1 gap-3 items-start' : ''}>
+        {sectionGoals.map((g, idx) => (
+          <div
+            key={g.id}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+            onDrop={(e) => onGoalDrop(e, g.id, section, sectionGoals)}
+            className={`${draggingId === g.id ? 'opacity-60' : ''}`}
+          >
+            <GoalCard
+              goal={g}
+              idx={idx}
+              layout={layout}
+              onDragStart={(e) => onGoalDragStart(e, g.id, section)}
+              investments={investmentsByGoal[g.id] || []}
+              isEditing={editId === g.id}
+              isExpanded={expandedGoalId === g.id}
+              editForm={editForm}
+              setEditForm={setEditForm}
+              knownTags={knownTags}
+              editError={editError}
+              editSaving={editSaving}
+              confirmDeleteId={confirmDeleteId}
+              onToggleExpand={() => setExpandedGoalId((prev) => (prev === g.id ? null : g.id))}
+              onOpenEdit={(e) => openEdit(e, g)}
+              onCancelEdit={cancelEdit}
+              onSaveEdit={saveEdit}
+              onDelete={onDelete}
+              onConfirmDelete={(e, id) => { e.stopPropagation(); setConfirmDeleteId(id); }}
+              onCancelDelete={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const onDelete = async (e, id) => {
     e.stopPropagation();
     await fetch(`/api/goals/${id}`, { method: 'DELETE' });
@@ -500,12 +825,12 @@ export default function GoalsClient({ user }) {
 
   return (
     <Shell user={user}>
-      <div className={`px-4 md:px-8 py-5 md:py-6 mx-auto w-full relative min-h-full ${layout === 'tiles' ? 'max-w-5xl' : 'max-w-3xl'}`}>
+      <div className="px-4 md:px-8 py-5 md:py-6 mx-auto w-full relative min-h-full max-w-6xl">
 
         <div className="flex justify-between items-end mb-5 gap-3">
           <div>
             <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Goals</h1>
-            <p className="text-sm text-ink-soft mt-1">tap a goal to view linked investments · crackers fire when a goal is reached</p>
+            <p className="text-sm text-ink-soft mt-1">Small steps today — the goals you fund become the life you build.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <LayoutToggle value={layout} onChange={chooseLayout} />
@@ -515,53 +840,56 @@ export default function GoalsClient({ user }) {
 
         {loading && <div className="h-20 bg-paper-tint rounded-xl animate-pulse" />}
         {!loading && loadError && <p className="text-sm text-danger mb-3">{loadError}</p>}
-
-        {!loading && goals.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-14 h-14 mx-auto rounded-full bg-mint-50 text-mint-600 flex items-center justify-center text-2xl font-light mb-3">+</div>
-            <p className="text-base font-medium mb-1">No goals yet</p>
-            <p className="text-sm text-ink-soft mb-5">Set your first goal to start tracking progress.</p>
-            <Link href="/goals/new" className="btn-primary py-2.5 px-5 rounded-lg text-sm font-medium inline-block">Create a goal</Link>
-          </div>
-        )}
-
         {orderError && <p className="text-sm text-danger mb-3">{orderError}</p>}
-        {!loading && goals.length > 0 && (
-          <p className="text-[11px] text-ink-mute mb-2">Drag the handle to set which goal comes first.</p>
-        )}
-        {!loading && goals.length > 0 && (
-          <div className={layout === 'tiles' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3 items-start' : ''}>
-            {goals.map((g, idx) => (
-              <div
-                key={g.id}
-                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
-                onDrop={(e) => onGoalDrop(e, g.id)}
-                className={`${layout === 'tiles' && editId === g.id ? 'sm:col-span-2' : ''} ${draggingId === g.id ? 'opacity-60' : ''}`}
-              >
-                <GoalCard
-                  goal={g}
-                  idx={idx}
-                  layout={layout}
-                  onDragStart={(e) => onGoalDragStart(e, g.id)}
-                  investments={investmentsByGoal[g.id] || []}
-                  isEditing={editId === g.id}
-                  isExpanded={expandedGoalId === g.id}
-                  editForm={editForm}
-                  setEditForm={setEditForm}
-                  editError={editError}
-                  editSaving={editSaving}
-                  confirmDeleteId={confirmDeleteId}
-                  onToggleExpand={() => setExpandedGoalId((prev) => (prev === g.id ? null : g.id))}
-                  onOpenEdit={(e) => openEdit(e, g)}
-                  onCancelEdit={cancelEdit}
-                  onSaveEdit={saveEdit}
-                  onDelete={onDelete}
-                  onConfirmDelete={(e, id) => { e.stopPropagation(); setConfirmDeleteId(id); }}
-                  onCancelDelete={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-                />
-              </div>
-            ))}
-          </div>
+
+        {!loading && !loadError && (
+          <>
+            {(commonGoals.length > 0 || currentYearGoals.length > 0) && (
+              <p className="text-[11px] text-ink-mute mb-3">Drag the handle within a column to set priority.</p>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 items-start">
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <h2 className="text-base font-medium tracking-tight">Life goal</h2>
+                  <span className="text-[11px] text-ink-mute">{commonGoals.length}</span>
+                </div>
+                {renderGoalList(commonGoals, 'common')}
+              </section>
+              <section>
+                <div className="flex items-baseline justify-between gap-2 mb-3">
+                  <h2 className="text-base font-medium tracking-tight">{CURRENT_YEAR}</h2>
+                  <span className="text-[11px] text-ink-mute">{currentYearGoals.length}</span>
+                </div>
+                {renderGoalList(currentYearGoals, 'current')}
+              </section>
+            </div>
+            <YearStatsChart title="Past years" rows={pastYearStats} />
+            {futureGoalGroups.length > 0 && (
+              <section className="mt-8 pt-6 border-t border-edge space-y-5">
+                <div>
+                  <h2 className="text-lg font-medium tracking-tight">Future years</h2>
+                  <p className="text-sm text-ink-soft mt-1">Goals planned ahead — still in the same list or tiles view</p>
+                </div>
+                {futureGoalGroups.map(({ year, goals: yearGoals }) => (
+                  <div key={year} className="rounded-2xl border border-edge bg-paper-tint/50 p-3 sm:p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="h-8 w-1 rounded-full bg-mint-600 flex-shrink-0" aria-hidden />
+                        <div className="min-w-0">
+                          <h3 className="text-base font-medium tracking-tight tabular-nums">{year}</h3>
+                          <p className="text-[11px] text-ink-mute">Coming up</p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-paper-card border border-edge text-ink-soft flex-shrink-0">
+                        {yearGoals.length} {yearGoals.length === 1 ? 'goal' : 'goals'}
+                      </span>
+                    </div>
+                    {renderGoalList(yearGoals, `future-${year}`)}
+                  </div>
+                ))}
+              </section>
+            )}
+          </>
         )}
 
       </div>

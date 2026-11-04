@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS goals (
   for_liquidity BOOLEAN NOT NULL DEFAULT FALSE,
   amount_as_of DATE,                     -- day the liquidity amount was set, for inflation growth
   icon TEXT DEFAULT 'house',
+  goal_year INT,                          -- null = common/ongoing; otherwise calendar year
+  recurring_yearly BOOLEAN NOT NULL DEFAULT FALSE, -- year goals that repeat each year
   sort_order INT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -152,6 +154,15 @@ CREATE TABLE IF NOT EXISTS investment_tags (
 );
 
 CREATE INDEX IF NOT EXISTS idx_investment_tags_tag ON investment_tags(tag_id);
+
+CREATE TABLE IF NOT EXISTS goal_tags (
+  goal_id UUID NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+  tag_id UUID NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (goal_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_goal_tags_tag ON goal_tags(tag_id);
 
 -- ---------- Market Transactions ----------
 -- Tracks buys, redemptions, dividends, bonuses, and switches for market-linked holdings.
