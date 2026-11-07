@@ -11,6 +11,17 @@ function Row({ label, value, valueClassName = '' }) {
   );
 }
 
+function wastageLabel(pricing) {
+  const parts = [];
+  if (pricing.wastageFromPercent && pricing.wastagePct > 0) parts.push(`${pricing.wastagePct.toFixed(2)}%`);
+  if (pricing.wastageGrams > 0) parts.push(`${pricing.wastageGrams.toFixed(3)} g`);
+  return parts.length ? `Wastage (${parts.join(' · ')})` : 'Wastage';
+}
+
+function discountLabel(pricing, pct) {
+  return pricing.discountFromPercent && pct > 0 ? `Discount (${pct.toFixed(2)}%)` : 'Discount';
+}
+
 export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general', metalName = 'gold' }) {
   if (!pricing) {
     return <p className="text-[11px] text-ink-mute">Enter weight and price to see the bill.</p>;
@@ -18,8 +29,13 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
 
   const directPurchase = purchaseMode !== 'scheme';
   const grams = Number(pricing.units || 0);
-  const investedAmount = Math.round((pricing.baseValue + pricing.payableMakingAmount + pricing.totalGst) * 100) / 100;
+  const investedAmount = pricing.invoiceCost != null
+    ? pricing.invoiceCost
+    : Math.round((pricing.baseValue + pricing.payableMakingAmount + pricing.totalGst) * 100) / 100;
   const payable = pricing.customerPayNowAmount || 0;
+  const wastage = Number(pricing.wastageAmount || 0);
+  const billDiscount = Number(pricing.billDiscountAmount || 0);
+  const generalDiscount = Number(pricing.generalDiscountAmount || 0);
 
   return (
     <div className="space-y-2">
@@ -28,7 +44,13 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
       {directPurchase ? (
         <>
           <Row label="Metal value (grams × rate)" value={inrPaise(pricing.baseValue)} />
+          {wastage > 0 && (
+            <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
+          )}
           <Row label="Making charges" value={inrPaise(pricing.generalMakingAmount)} />
+          {billDiscount > 0 && (
+            <Row label={discountLabel(pricing, pricing.billDiscountPct)} value={`- ${inrPaise(billDiscount)}`} valueClassName="text-mint-600" />
+          )}
           {pricing.sgstAmount > 0 || pricing.cgstAmount > 0 ? (
             <>
               <Row label={`SGST ${pricing.derivedSgstPct.toFixed(2)}%`} value={inrPaise(pricing.sgstAmount)} />
@@ -37,7 +59,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
           ) : null}
           <Row label="GST total" value={inrPaise(pricing.totalGst)} />
           <div className="flex justify-between gap-3 pt-1 border-t border-edge">
-            <span className="text-ink-soft">Amount payable</span>
+            <span className="text-ink-soft">Amount you paid</span>
             <span className="font-medium text-honey-600">{inrPaise(pricing.generalTotal)}</span>
           </div>
         </>
@@ -45,8 +67,14 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
         <>
           <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-1">With scheme</p>
           <Row label="Metal value (grams × rate)" value={inrPaise(pricing.baseValue)} />
+          {wastage > 0 && (
+            <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
+          )}
           <Row label="Making charges you pay" value={inrPaise(pricing.payableMakingAmount)} />
           <Row label="Scheme discount" value={`- ${inrPaise(pricing.totalDiscountAmount)}`} valueClassName="text-mint-600" />
+          {billDiscount > 0 && (
+            <Row label={discountLabel(pricing, pricing.billDiscountPct)} value={`- ${inrPaise(billDiscount)}`} valueClassName="text-mint-600" />
+          )}
           <Row label="GST amount" value={inrPaise(pricing.totalGst)} />
           <div className="flex justify-between gap-3 pt-1 border-t border-edge">
             <span className="text-ink-soft">Total invoice value (with scheme)</span>
@@ -55,7 +83,13 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
 
           <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without scheme</p>
           <Row label="Metal value (grams × rate)" value={inrPaise(pricing.baseValue)} />
+          {wastage > 0 && (
+            <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
+          )}
           <Row label="Making charges" value={inrPaise(pricing.generalMakingAmount)} />
+          {generalDiscount > 0 && (
+            <Row label={discountLabel(pricing, pricing.generalDiscountPct)} value={`- ${inrPaise(generalDiscount)}`} valueClassName="text-mint-600" />
+          )}
           <Row label="GST amount" value={inrPaise(pricing.generalGstAmount)} />
           <div className="flex justify-between gap-3 pt-1 border-t border-edge">
             <span className="text-ink-soft">Total invoice value (without scheme)</span>

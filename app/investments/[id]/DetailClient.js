@@ -8,6 +8,7 @@ import { TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import TagList from '@/components/TagList';
 import { inr, inrPaise, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
+import MetalWastageDiscountFields from '@/components/MetalWastageDiscountFields';
 import {
   MARKET_TRANSACTION_TYPES,
   METAL_TRANSACTION_TYPES,
@@ -25,6 +26,9 @@ import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
   isPrematureWithdrawal,
+  metalAdjustmentNoteLines,
+  metalBuyLedgerAmounts,
+  parseMetalBillNotes,
   schemeNeedsTracking,
   validateSchemeTracking,
 } from '@/lib/metal-pricing';
@@ -97,7 +101,7 @@ function sortTransactionsDesc(list) {
 const EMPTY_TX_FORM = { transaction_type: 'buy', trade_date: '', units: '', price_per_unit: '', cash_amount: '', charges: '0', taxes: '0', notes: '' };
 
 // Metal buys append these computed lines to notes on save; strip them before editing so they are not duplicated.
-const GENERATED_METAL_NOTE_PREFIXES = ['Pricing:', 'Discount:', 'GST:', 'Bill compare:', 'Scheme making input:', 'Scheme tracking:', 'Premature withdrawal:', 'Premature gold settlement', 'Scheme grams'];
+const GENERATED_METAL_NOTE_PREFIXES = ['Pricing:', 'Discount:', 'GST:', 'Bill compare:', 'Wastage:', 'Bill discount:', 'Amount paid:', 'Scheme making input:', 'Scheme tracking:', 'Premature withdrawal:', 'Premature gold settlement', 'Scheme grams'];
 
 function stripGeneratedMetalNotes(notes) {
   return String(notes || '')
@@ -277,6 +281,12 @@ export default function DetailClient({
   const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
   const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
   const [prematurePenaltyPct, setPrematurePenaltyPct] = useState('0');
+  const [wastageMode, setWastageMode] = useState('percentage');
+  const [wastagePct, setWastagePct] = useState('0');
+  const [wastageValue, setWastageValue] = useState('0');
+  const [discountMode, setDiscountMode] = useState('percentage');
+  const [discountPct, setDiscountPct] = useState('0');
+  const [discountValue, setDiscountValue] = useState('0');
   const [lifecycleStatus, setLifecycleStatus] = useState(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE);
   const [closureDate, setClosureDate] = useState(i.closure_date?.slice?.(0, 10) || new Date().toISOString().slice(0, 10));
   const [closureAmount, setClosureAmount] = useState(i.closure_amount != null ? String(i.closure_amount) : '');
@@ -468,8 +478,9 @@ export default function DetailClient({
     const type = txForm.transaction_type;
     const units = Number(txForm.units || 0);
     const price = Number(txForm.price_per_unit || 0);
-    const charges = metalType && type === 'buy' && metalPricing ? metalPricing.payableMakingAmount : Number(txForm.charges || 0);
-    const taxes = metalType && type === 'buy' && metalPricing ? metalPricing.totalGst : Number(txForm.taxes || 0);
+    const ledger = metalType && type === 'buy' && metalPricing ? metalBuyLedgerAmounts(metalPricing) : null;
+    const charges = ledger ? ledger.charges : Number(txForm.charges || 0);
+    const taxes = ledger ? ledger.taxes : Number(txForm.taxes || 0);
     const cashAmount = Number(txForm.cash_amount || 0);
 
     try {
@@ -482,6 +493,12 @@ export default function DetailClient({
           if (Number(actualMakingValue || 0) < 0 || Number(payableMakingValue || 0) < 0) {
             throw new Error('Making charge values cannot be negative.');
           }
+        }
+        if (i.type_code === 'GOLD') {
+          const wastageInput = wastageMode === 'value' ? wastageValue : wastagePct;
+          const discountInput = discountMode === 'value' ? discountValue : discountPct;
+          if (Number(wastageInput || 0) < 0) throw new Error('Wastage cannot be negative.');
+          if (Number(discountInput || 0) < 0) throw new Error('Discount cannot be negative.');
         }
 
         if (useGstSplit) {
@@ -516,6 +533,7 @@ export default function DetailClient({
             throw new Error('Premature withdrawal penalty % cannot be negative.');
           }
         }
+        if (ledger && ledger.amountPaid <= 0) throw new Error('Amount paid must be greater than zero. Lower the discount.');
       }
 
       const notesLines = [];
@@ -534,6 +552,13 @@ export default function DetailClient({
           notesLines.push(
             `Bill compare: general ${inrPaise(metalPricing.generalTotal)} vs current ${inrPaise(metalPricing.schemeTotal)} (${metalPricing.comparisonDifference >= 0 ? 'saving' : 'loss'} ${inr(Math.abs(metalPricing.comparisonDifference))})`
           );
+          notesLines.push(...metalAdjustmentNoteLines({
+            useWastagePercent: wastageMode !== 'value',
+            wastagePct,
+            useDiscountPercent: discountMode !== 'value',
+            discountPct,
+            pricing: metalPricing,
+          }));
         }
         if (purchaseMode === 'scheme' && metalPricing) {
           notesLines.push(
@@ -566,7 +591,7 @@ export default function DetailClient({
         trade_date: txForm.trade_date,
         units: ['dividend'].includes(type) ? 0 : units,
         price_per_unit: ['dividend', 'bonus', 'split'].includes(type) ? 0 : price,
-        total_amount: type === 'dividend' ? cashAmount : units * price,
+        total_amount: type === 'dividend' ? cashAmount : (ledger ? ledger.totalAmount : units * price),
         charges,
         taxes,
         notes: notesLines.length ? notesLines.join('\n') : null,
@@ -613,6 +638,12 @@ export default function DetailClient({
       setGstTotalValue('0');
       setSchemeAccumulatedGrams('');
       setSchemePurchasedGrams('');
+      setWastageMode('percentage');
+      setWastagePct('0');
+      setWastageValue('0');
+      setDiscountMode('percentage');
+      setDiscountPct('0');
+      setDiscountValue('0');
     }
   }
 
@@ -634,13 +665,23 @@ export default function DetailClient({
     });
     setAutoCalcCharges(false);
     if (metalBuy) {
-      // Saved metal buys only keep the final making and GST amounts, so edit them as fixed values.
+      // Saved metal buys keep making and GST as amounts. Gold wastage and discount are restored from the bill notes.
+      const parsed = i.type_code === 'GOLD' ? parseMetalBillNotes(tx.notes) : null;
+      const makingAmount = parsed?.payableMaking != null
+        ? parsed.payableMaking
+        : String(Number(tx.charges || 0));
       setPurchaseMode('general');
       setUseMakingPercent(false);
-      setActualMakingValue(String(Number(tx.charges || 0)));
-      setPayableMakingValue(String(Number(tx.charges || 0)));
+      setActualMakingValue(makingAmount);
+      setPayableMakingValue(makingAmount);
       setUseGstSplit(false);
       setGstTotalValue(String(Number(tx.taxes || 0)));
+      setWastageMode(parsed?.wastage?.mode || 'percentage');
+      setWastagePct(parsed?.wastage?.percent || '0');
+      setWastageValue(parsed?.wastage?.mode === 'value' ? (parsed.wastage.value || '0') : '0');
+      setDiscountMode(parsed?.discount?.mode || 'percentage');
+      setDiscountPct(parsed?.discount?.percent || '0');
+      setDiscountValue(parsed?.discount?.mode === 'value' ? (parsed.discount.value || '0') : '0');
     }
     txFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -833,6 +874,12 @@ export default function DetailClient({
       cgstValue,
       gstTotalValue,
       prematurePenaltyPct,
+      useWastagePercent: i.type_code === 'GOLD' && wastageMode !== 'value',
+      wastagePct: i.type_code === 'GOLD' && wastageMode !== 'value' ? wastagePct : 0,
+      wastageValue: i.type_code === 'GOLD' && wastageMode === 'value' ? wastageValue : 0,
+      useDiscountPercent: i.type_code === 'GOLD' && discountMode !== 'value',
+      discountPct: i.type_code === 'GOLD' && discountMode !== 'value' ? discountPct : 0,
+      discountValue: i.type_code === 'GOLD' && discountMode === 'value' ? discountValue : 0,
     });
   }, [
     cgstPct,
@@ -860,6 +907,13 @@ export default function DetailClient({
     schemeStatus,
     txForm.price_per_unit,
     txForm.units,
+    i.type_code,
+    discountMode,
+    discountPct,
+    discountValue,
+    wastageMode,
+    wastagePct,
+    wastageValue,
   ]);
 
   useEffect(() => {
@@ -1342,7 +1396,9 @@ export default function DetailClient({
                           </select>
                           <p className="text-[11px] text-ink-mute mt-1">
                             {purchaseMode === 'general'
-                              ? 'Direct purchase, with no scheme discount. GST is calculated on metal value plus making charges.'
+                              ? (i.type_code === 'GOLD'
+                                ? 'Direct purchase. GST is calculated on gold value, wastage, and making charges, after any discount.'
+                                : 'Direct purchase, with no scheme discount. GST is calculated on metal value plus making charges.')
                               : 'Use a percent when the bill shows a rate, or the rupee amount printed on the bill. Scheme purchases can compare the normal charge with the lower scheme charge.'}
                           </p>
                         </div>
@@ -1414,7 +1470,35 @@ export default function DetailClient({
                           </>
                         )}
 
-
+                        {i.type_code === 'GOLD' && (
+                          <MetalWastageDiscountFields
+                            wastageMode={wastageMode}
+                            onWastageMode={(mode) => {
+                              if (mode === 'value' && metalPricing) {
+                                setWastageValue((prev) => (Number(prev) > 0 ? prev : metalPricing.wastageAmount.toFixed(2)));
+                              }
+                              setWastageMode(mode);
+                              setAutoCalcCharges(true);
+                            }}
+                            wastagePct={wastagePct}
+                            onWastagePct={(value) => { setWastagePct(value); setAutoCalcCharges(true); }}
+                            wastageValue={wastageValue}
+                            onWastageValue={(value) => { setWastageValue(value); setAutoCalcCharges(true); }}
+                            discountMode={discountMode}
+                            onDiscountMode={(mode) => {
+                              if (mode === 'value' && metalPricing) {
+                                setDiscountValue((prev) => (Number(prev) > 0 ? prev : metalPricing.billDiscountAmount.toFixed(2)));
+                              }
+                              setDiscountMode(mode);
+                              setAutoCalcCharges(true);
+                            }}
+                            discountPct={discountPct}
+                            onDiscountPct={(value) => { setDiscountPct(value); setAutoCalcCharges(true); }}
+                            discountValue={discountValue}
+                            onDiscountValue={(value) => { setDiscountValue(value); setAutoCalcCharges(true); }}
+                            pricing={metalPricing}
+                          />
+                        )}
 
                         <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1462,7 +1546,7 @@ export default function DetailClient({
                           )}
                           <div className="mt-2 text-[11px] text-ink-mute">
                             {metalPricing
-                              ? `GST on metal + making: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
+                              ? `GST on ${i.type_code === 'GOLD' ? 'gold, wastage, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
                               : 'Enter weight and price to view GST conversion.'}
                           </div>
                         </div>

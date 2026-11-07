@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
+import MetalWastageDiscountFields from '@/components/MetalWastageDiscountFields';
 import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
 import { investmentTags } from '@/lib/tags';
 import TagField from '@/components/TagField';
@@ -15,6 +16,8 @@ import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
   isPrematureWithdrawal,
+  metalAdjustmentNoteLines,
+  metalBuyLedgerAmounts,
   schemeNeedsTracking,
   validateSchemeTracking,
 } from '@/lib/metal-pricing';
@@ -36,7 +39,7 @@ const TYPE_TOOLTIP = {
   ETF: 'ETF — track exchange-traded fund units with repeated buys and redemptions',
   ST: 'Shares — direct equity holdings with multiple buy and sell transactions',
   GD: 'Gold / SGB — physical gold, digital gold, or Sovereign Gold Bonds',
-  GOLD: 'Physical Gold — track gold purchases by weight (grams). Record who it was bought for, purchase price per gram, making charges, and set a target weight.',
+  GOLD: 'Physical Gold — track gold purchases by weight (grams). Record who it was bought for, purchase price per gram, making charges, wastage, discount, and set a target weight.',
   SILV: 'Physical Silver — track silver purchases by weight (grams). Record who it was bought for, purchase price per gram, and set a target weight.',
   PPF: 'Public Provident Fund — 15-year government-backed tax-free savings (yearly contributions)',
   CHIT: 'Chit Fund — monthly instalments with a pick month. Compare payout, total paid, profit/loss, and effective interest rate.',
@@ -190,6 +193,12 @@ export default function NewInvestmentClient({
   const [schemeAccumulatedGrams, setSchemeAccumulatedGrams] = useState('');
   const [schemePurchasedGrams, setSchemePurchasedGrams] = useState('');
   const [prematurePenaltyPct, setPrematurePenaltyPct] = useState('0');
+  const [wastageMode, setWastageMode] = useState('percentage');
+  const [wastagePct, setWastagePct] = useState('0');
+  const [wastageValue, setWastageValue] = useState('0');
+  const [discountMode, setDiscountMode] = useState('percentage');
+  const [discountPct, setDiscountPct] = useState('0');
+  const [discountValue, setDiscountValue] = useState('0');
   const [initialNotes, setInitialNotes] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -314,6 +323,12 @@ export default function NewInvestmentClient({
       cgstValue,
       gstTotalValue,
       prematurePenaltyPct,
+      useWastagePercent: typeCode === 'GOLD' && wastageMode !== 'value',
+      wastagePct: typeCode === 'GOLD' && wastageMode !== 'value' ? wastagePct : 0,
+      wastageValue: typeCode === 'GOLD' && wastageMode === 'value' ? wastageValue : 0,
+      useDiscountPercent: typeCode === 'GOLD' && discountMode !== 'value',
+      discountPct: typeCode === 'GOLD' && discountMode !== 'value' ? discountPct : 0,
+      discountValue: typeCode === 'GOLD' && discountMode === 'value' ? discountValue : 0,
     });
   }, [
     actualMakingValue,
@@ -339,8 +354,15 @@ export default function NewInvestmentClient({
     schemePurchasedGrams,
     schemePaidMonths,
     schemeStatus,
+    typeCode,
     useGstSplit,
     useMakingPercent,
+    discountMode,
+    discountPct,
+    discountValue,
+    wastageMode,
+    wastagePct,
+    wastageValue,
   ]);
 
   useEffect(() => {
@@ -456,14 +478,21 @@ export default function NewInvestmentClient({
       if (hasAnyInitialInput) {
         const units = Number(initialUnits || 0);
         const price = Number(initialPrice || 0);
-        const charges = isMetalType && metalPricing ? metalPricing.payableMakingAmount : Number(initialCharges || 0);
-        const taxes = isMetalType && metalPricing ? metalPricing.totalGst : Number(initialTaxes || 0);
+        const ledger = isMetalType && metalPricing ? metalBuyLedgerAmounts(metalPricing) : null;
+        const charges = ledger ? ledger.charges : Number(initialCharges || 0);
+        const taxes = ledger ? ledger.taxes : Number(initialTaxes || 0);
         if (isMetalType) {
           if (useMakingPercent) {
             if (Number(makingChargePct || 0) < 0) { setError('Making charge % cannot be negative.'); return; }
           } else if (Number(actualMakingValue || 0) < 0 || Number(payableMakingValue || 0) < 0) {
             setError('Making charge values cannot be negative.');
             return;
+          }
+          if (typeCode === 'GOLD') {
+            const wastageInput = wastageMode === 'value' ? wastageValue : wastagePct;
+            const discountInput = discountMode === 'value' ? discountValue : discountPct;
+            if (Number(wastageInput || 0) < 0) { setError('Wastage cannot be negative.'); return; }
+            if (Number(discountInput || 0) < 0) { setError('Discount cannot be negative.'); return; }
           }
 
           if (useGstSplit) {
@@ -508,6 +537,7 @@ export default function NewInvestmentClient({
         if (units <= 0) { setError(isMetalType ? 'Weight (grams) must be greater than zero.' : 'Initial buy units must be greater than zero.'); return; }
         if (price <= 0) { setError(isMetalType ? 'Purchase price per gram must be greater than zero.' : 'Initial buy price must be greater than zero.'); return; }
         if (charges < 0 || taxes < 0) { setError('Charges cannot be negative.'); return; }
+        if (ledger && ledger.amountPaid <= 0) { setError('Amount paid must be greater than zero. Lower the discount.'); return; }
 
         const notesLines = [];
         if (initialNotes.trim()) notesLines.push(initialNotes.trim());
@@ -525,6 +555,13 @@ export default function NewInvestmentClient({
             notesLines.push(
               `Bill compare: general ${inrPaise(metalPricing.generalTotal)} vs current ${inrPaise(metalPricing.schemeTotal)} (${metalPricing.comparisonDifference >= 0 ? 'saving' : 'loss'} ${inr(Math.abs(metalPricing.comparisonDifference))})`
             );
+            notesLines.push(...metalAdjustmentNoteLines({
+              useWastagePercent: wastageMode !== 'value',
+              wastagePct,
+              useDiscountPercent: discountMode !== 'value',
+              discountPct,
+              pricing: metalPricing,
+            }));
           }
           if (purchaseMode === 'scheme' && metalPricing) {
             notesLines.push(
@@ -557,7 +594,7 @@ export default function NewInvestmentClient({
           trade_date: startDateInput,
           units,
           price_per_unit: price,
-          total_amount: units * price,
+          total_amount: ledger ? ledger.totalAmount : units * price,
           charges,
           taxes,
           notes: notesLines.length ? notesLines.join('\n') : null,
@@ -797,7 +834,8 @@ export default function NewInvestmentClient({
             <div className="rounded-xl border border-honey-600/30 bg-honey-50 p-3.5 text-sm">
               <p className="font-medium text-honey-700">{typeCode === 'GOLD' ? '🥇 Physical Gold accumulation' : '🥈 Physical Silver accumulation'}</p>
               <p className="text-[11px] text-honey-700/80 mt-1">
-                Track each purchase by weight (grams). Record who it was bought for, purchase price per gram, and making charges / GST.
+                Track each purchase by weight (grams). Record who it was bought for, purchase price per gram, making charges, and GST.
+                {typeCode === 'GOLD' ? ' For gold, add wastage and a discount as a percent or a rupee amount to see the exact amount paid.' : ''}
                 {isEditing ? ' Use the detail page to add more purchases.' : ' You can add more purchases from the detail page.'}
               </p>
             </div>
@@ -973,7 +1011,9 @@ export default function NewInvestmentClient({
                         </select>
                         <p className="text-[11px] text-ink-mute mt-1">
                           {purchaseMode === 'general'
-                            ? 'Direct purchase, with no scheme discount. GST is calculated on metal value plus making charges.'
+                            ? (typeCode === 'GOLD'
+                              ? 'Direct purchase. GST is calculated on gold value, wastage, and making charges, after any discount.'
+                              : 'Direct purchase, with no scheme discount. GST is calculated on metal value plus making charges.')
                             : 'Use a percent when the bill shows a rate, or the rupee amount printed on the bill. Scheme purchases can compare the normal charge with the lower scheme charge.'}
                         </p>
                       </div>
@@ -1045,7 +1085,35 @@ export default function NewInvestmentClient({
                         </>
                       )}
 
-
+                      {typeCode === 'GOLD' && (
+                        <MetalWastageDiscountFields
+                          wastageMode={wastageMode}
+                          onWastageMode={(mode) => {
+                            if (mode === 'value' && metalPricing) {
+                              setWastageValue((prev) => (Number(prev) > 0 ? prev : metalPricing.wastageAmount.toFixed(2)));
+                            }
+                            setWastageMode(mode);
+                            setAutoCalcCharges(true);
+                          }}
+                          wastagePct={wastagePct}
+                          onWastagePct={(value) => { setWastagePct(value); setAutoCalcCharges(true); }}
+                          wastageValue={wastageValue}
+                          onWastageValue={(value) => { setWastageValue(value); setAutoCalcCharges(true); }}
+                          discountMode={discountMode}
+                          onDiscountMode={(mode) => {
+                            if (mode === 'value' && metalPricing) {
+                              setDiscountValue((prev) => (Number(prev) > 0 ? prev : metalPricing.billDiscountAmount.toFixed(2)));
+                            }
+                            setDiscountMode(mode);
+                            setAutoCalcCharges(true);
+                          }}
+                          discountPct={discountPct}
+                          onDiscountPct={(value) => { setDiscountPct(value); setAutoCalcCharges(true); }}
+                          discountValue={discountValue}
+                          onDiscountValue={(value) => { setDiscountValue(value); setAutoCalcCharges(true); }}
+                          pricing={metalPricing}
+                        />
+                      )}
 
                       <div className="md:col-span-2 rounded-xl border border-edge bg-paper px-3 py-2.5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1093,7 +1161,7 @@ export default function NewInvestmentClient({
                         )}
                         <div className="mt-2 text-[11px] text-ink-mute">
                           {metalPricing
-                            ? `GST on metal + making: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
+                            ? `GST on ${typeCode === 'GOLD' ? 'gold, wastage, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
                             : 'Enter weight and price to view GST conversion.'}
                         </div>
                       </div>
