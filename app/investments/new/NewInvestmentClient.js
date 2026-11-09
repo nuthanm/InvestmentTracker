@@ -39,7 +39,7 @@ const TYPE_TOOLTIP = {
   ETF: 'ETF — track exchange-traded fund units with repeated buys and redemptions',
   ST: 'Shares — direct equity holdings with multiple buy and sell transactions',
   GD: 'Gold / SGB — physical gold, digital gold, or Sovereign Gold Bonds',
-  GOLD: 'Physical Gold — track gold purchases by weight (grams). Record who it was bought for, purchase price per gram, making charges, wastage, discount, and set a target weight.',
+  GOLD: 'Physical Gold — track gold purchases by weight (grams). Record who it was bought for, purchase price per gram, making charges, wastage, stone, discount, and set a target weight.',
   SILV: 'Physical Silver — track silver purchases by weight (grams). Record who it was bought for, purchase price per gram, and set a target weight.',
   PPF: 'Public Provident Fund — 15-year government-backed tax-free savings (yearly contributions)',
   CHIT: 'Chit Fund — monthly instalments with a pick month. Compare payout, total paid, profit/loss, and effective interest rate.',
@@ -196,6 +196,7 @@ export default function NewInvestmentClient({
   const [wastageMode, setWastageMode] = useState('percentage');
   const [wastagePct, setWastagePct] = useState('0');
   const [wastageValue, setWastageValue] = useState('0');
+  const [stoneValue, setStoneValue] = useState('0');
   const [discountMode, setDiscountMode] = useState('percentage');
   const [discountPct, setDiscountPct] = useState('0');
   const [discountValue, setDiscountValue] = useState('0');
@@ -326,6 +327,7 @@ export default function NewInvestmentClient({
       useWastagePercent: typeCode === 'GOLD' && wastageMode !== 'value',
       wastagePct: typeCode === 'GOLD' && wastageMode !== 'value' ? wastagePct : 0,
       wastageValue: typeCode === 'GOLD' && wastageMode === 'value' ? wastageValue : 0,
+      stoneValue: typeCode === 'GOLD' ? stoneValue : 0,
       useDiscountPercent: typeCode === 'GOLD' && discountMode !== 'value',
       discountPct: typeCode === 'GOLD' && discountMode !== 'value' ? discountPct : 0,
       discountValue: typeCode === 'GOLD' && discountMode === 'value' ? discountValue : 0,
@@ -360,6 +362,7 @@ export default function NewInvestmentClient({
     discountMode,
     discountPct,
     discountValue,
+    stoneValue,
     wastageMode,
     wastagePct,
     wastageValue,
@@ -492,6 +495,7 @@ export default function NewInvestmentClient({
             const wastageInput = wastageMode === 'value' ? wastageValue : wastagePct;
             const discountInput = discountMode === 'value' ? discountValue : discountPct;
             if (Number(wastageInput || 0) < 0) { setError('Wastage cannot be negative.'); return; }
+            if (Number(stoneValue || 0) < 0) { setError('Stone amount cannot be negative.'); return; }
             if (Number(discountInput || 0) < 0) { setError('Discount cannot be negative.'); return; }
           }
 
@@ -835,7 +839,7 @@ export default function NewInvestmentClient({
               <p className="font-medium text-honey-700">{typeCode === 'GOLD' ? '🥇 Physical Gold accumulation' : '🥈 Physical Silver accumulation'}</p>
               <p className="text-[11px] text-honey-700/80 mt-1">
                 Track each purchase by weight (grams). Record who it was bought for, purchase price per gram, making charges, and GST.
-                {typeCode === 'GOLD' ? ' For gold, add wastage and a discount as a percent or a rupee amount to see the exact amount paid.' : ''}
+                {typeCode === 'GOLD' ? ' For gold, add wastage, stone, and a discount to see the exact amount paid.' : ''}
                 {isEditing ? ' Use the detail page to add more purchases.' : ' You can add more purchases from the detail page.'}
               </p>
             </div>
@@ -1012,7 +1016,7 @@ export default function NewInvestmentClient({
                         <p className="text-[11px] text-ink-mute mt-1">
                           {purchaseMode === 'general'
                             ? (typeCode === 'GOLD'
-                              ? 'Direct purchase. GST is calculated on gold value, wastage, and making charges, after any discount.'
+                              ? 'Direct purchase. GST is calculated on gold value, wastage, stone, and making charges, after any discount.'
                               : 'Direct purchase, with no scheme discount. GST is calculated on metal value plus making charges.')
                             : 'Use a percent when the bill shows a rate, or the rupee amount printed on the bill. Scheme purchases can compare the normal charge with the lower scheme charge.'}
                         </p>
@@ -1099,6 +1103,8 @@ export default function NewInvestmentClient({
                           onWastagePct={(value) => { setWastagePct(value); setAutoCalcCharges(true); }}
                           wastageValue={wastageValue}
                           onWastageValue={(value) => { setWastageValue(value); setAutoCalcCharges(true); }}
+                          stoneValue={stoneValue}
+                          onStoneValue={(value) => { setStoneValue(value); setAutoCalcCharges(true); }}
                           discountMode={discountMode}
                           onDiscountMode={(mode) => {
                             if (mode === 'value' && metalPricing) {
@@ -1161,7 +1167,7 @@ export default function NewInvestmentClient({
                         )}
                         <div className="mt-2 text-[11px] text-ink-mute">
                           {metalPricing
-                            ? `GST on ${typeCode === 'GOLD' ? 'gold, wastage, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
+                            ? `GST on ${typeCode === 'GOLD' ? 'gold, wastage, stone, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
                             : 'Enter weight and price to view GST conversion.'}
                         </div>
                       </div>

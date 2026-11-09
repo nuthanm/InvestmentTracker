@@ -45,6 +45,8 @@ export default function MetalWastageDiscountFields({
   onWastagePct,
   wastageValue,
   onWastageValue,
+  stoneValue,
+  onStoneValue,
   discountMode,
   onDiscountMode,
   discountPct,
@@ -55,6 +57,9 @@ export default function MetalWastageDiscountFields({
 }) {
   const wastageComputed = pricing && pricing.wastageAmount > 0
     ? `Adds ${inrPaise(pricing.wastageAmount)}${pricing.wastageGrams > 0 ? ` (${pricing.wastageGrams.toFixed(3)} g)` : ''}.`
+    : '';
+  const stoneComputed = pricing && pricing.stoneAmount > 0
+    ? `Adds ${inrPaise(pricing.stoneAmount)} to the bill.`
     : '';
   const discountComputed = pricing && pricing.billDiscountAmount > 0
     ? `Takes off ${inrPaise(pricing.billDiscountAmount)} before GST.`
@@ -75,6 +80,22 @@ export default function MetalWastageDiscountFields({
           : 'Percent of the gold value, the same as a percent of the weight.'}
         computed={wastageComputed}
       />
+      <div>
+        <label className="block text-xs text-ink-soft mb-1.5">Stone (₹)</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={stoneValue}
+          onChange={(e) => onStoneValue(e.target.value)}
+          className="field-input"
+          placeholder="0.00"
+        />
+        <p className="text-[11px] text-ink-mute mt-1">
+          Diamond or gemstone amount printed on the bill.
+          {stoneComputed ? ` ${stoneComputed}` : ''}
+        </p>
+      </div>
       <ModeField
         label="Discount"
         mode={discountMode}
@@ -85,7 +106,7 @@ export default function MetalWastageDiscountFields({
         onRupee={onDiscountValue}
         help={discountMode === 'value'
           ? 'Rupee discount on the bill, taken off before GST.'
-          : 'Percent of gold value, wastage, and making charges, before GST.'}
+          : 'Percent of gold value, wastage, stone, and making charges, before GST.'}
         computed={discountComputed}
       />
     </>

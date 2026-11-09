@@ -34,6 +34,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
     : Math.round((pricing.baseValue + pricing.payableMakingAmount + pricing.totalGst) * 100) / 100;
   const payable = pricing.customerPayNowAmount || 0;
   const wastage = Number(pricing.wastageAmount || 0);
+  const stone = Number(pricing.stoneAmount || 0);
   const billDiscount = Number(pricing.billDiscountAmount || 0);
   const generalDiscount = Number(pricing.generalDiscountAmount || 0);
 
@@ -48,6 +49,9 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
             <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
           )}
           <Row label="Making charges" value={inrPaise(pricing.generalMakingAmount)} />
+          {stone > 0 && (
+            <Row label="Stone" value={inrPaise(stone)} />
+          )}
           {billDiscount > 0 && (
             <Row label={discountLabel(pricing, pricing.billDiscountPct)} value={`- ${inrPaise(billDiscount)}`} valueClassName="text-mint-600" />
           )}
@@ -71,6 +75,9 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
             <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
           )}
           <Row label="Making charges you pay" value={inrPaise(pricing.payableMakingAmount)} />
+          {stone > 0 && (
+            <Row label="Stone" value={inrPaise(stone)} />
+          )}
           <Row label="Scheme discount" value={`- ${inrPaise(pricing.totalDiscountAmount)}`} valueClassName="text-mint-600" />
           {billDiscount > 0 && (
             <Row label={discountLabel(pricing, pricing.billDiscountPct)} value={`- ${inrPaise(billDiscount)}`} valueClassName="text-mint-600" />
@@ -87,6 +94,9 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
             <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
           )}
           <Row label="Making charges" value={inrPaise(pricing.generalMakingAmount)} />
+          {stone > 0 && (
+            <Row label="Stone" value={inrPaise(stone)} />
+          )}
           {generalDiscount > 0 && (
             <Row label={discountLabel(pricing, pricing.generalDiscountPct)} value={`- ${inrPaise(generalDiscount)}`} valueClassName="text-mint-600" />
           )}
