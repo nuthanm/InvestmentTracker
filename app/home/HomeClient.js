@@ -91,7 +91,8 @@ function nextRecurringDueDate(inv, today) {
   return null;
 }
 
-function buildUpcomingEvents(investments) {
+/** Contribution dues + maturities for active plans (same source as Upcoming Events). */
+function collectUpcomingEvents(investments, { withinDays = null } = {}) {
   const today = new Date();
   const events = [];
 
@@ -137,54 +138,34 @@ function buildUpcomingEvents(investments) {
     }
   }
 
-  return events
-    .sort((a, b) => a.date - b.date)
-    .slice(0, 4);
+  const sorted = events.sort((a, b) => a.date - b.date);
+  if (withinDays == null) return sorted;
+
+  return sorted.filter((event) => daysUntil(event.date, today) <= withinDays);
 }
 
-/** Small ⓘ tooltip to explain a metric. */
-function InfoTip({ text }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <span className="relative inline-block ml-1 align-middle" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
-      <button
-        type="button"
-        className="w-4 h-4 rounded-full bg-paper-tint text-ink-mute text-[10px] font-bold leading-none flex items-center justify-center hover:bg-paper-card hover:text-ink transition"
-        aria-label="More info"
-      >ⓘ</button>
-      {open && (
-        <div className="absolute z-20 left-1/2 -translate-x-1/2 top-6 w-64 bg-ink text-paper text-[11px] rounded-xl p-3 shadow-xl leading-relaxed">
-          {text}
-        </div>
-      )}
-    </span>
-  );
+function buildUpcomingEvents(investments) {
+  return collectUpcomingEvents(investments).slice(0, 4);
 }
 
-function StatTile({ href, icon, label, value, pct, note, tone = 'mint', extra }) {
-  const barClass = { honey: 'goal-bar-gold', sky: 'goal-bar-silver', mint: 'goal-bar-wealth' }[tone] || 'goal-bar-wealth';
-  const noteClass = { honey: 'goal-accum-gold', sky: 'goal-accum-silver', mint: 'goal-accum-wealth' }[tone] || 'goal-accum-wealth';
-  const accent = { honey: 'text-honey-600', sky: 'text-sky-600', mint: 'text-mint-600' }[tone] || 'text-mint-600';
-  const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+/** One cell in the home metrics band. */
+function HomeMetric({ href, label, value, note, tone = 'ink', alert = false, wide = false, title }) {
+  const valueClass = {
+    ink: 'text-ink',
+    mint: 'text-mint-700',
+    sky: 'text-sky-600',
+    honey: 'text-honey-600',
+  }[tone] || 'text-ink';
 
   return (
-    <Link href={href} className="relative bg-paper-card border border-edge rounded-2xl p-4 flex flex-col min-h-[132px] hover:border-mint-600 transition">
-      <div className="flex flex-col flex-1">
-        <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1 min-w-0">
-          <span aria-hidden="true" className="flex-shrink-0">{icon}</span>
-          <span className="leading-tight">{label}</span>
-          {extra}
-        </p>
-        <div className="flex items-baseline justify-between gap-2 mt-1 mb-2">
-          <p className="text-lg font-medium leading-tight min-w-0">{value}</p>
-          <p className={`text-sm font-medium flex-shrink-0 ${accent}`}>{fill}%</p>
-        </div>
-        <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
-          <div className={`fill-bar h-full ${barClass} rounded-full`} style={{ width: `${fill}%` }} />
-        </div>
-        <p className={`text-[11px] mt-auto leading-snug ${noteClass}`}>{note}</p>
-      </div>
+    <Link
+      href={href}
+      title={title}
+      className={`home-metric${alert ? ' home-metric-alert' : ''}${wide ? ' home-metric-wide' : ''}`}
+    >
+      <span className="home-metric-label">{label}</span>
+      <span className={`home-metric-value ${valueClass}`}>{value}</span>
+      <span className="home-metric-note">{note}</span>
     </Link>
   );
 }
@@ -464,9 +445,17 @@ export default function HomeClient({ user }) {
     0
   );
   const totalInvested = activeInvestments.reduce((sum, inv) => sum + effectiveInvestedSoFar(inv), 0);
+  const portfolioAmountOf = (inv) => (
+    isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)
+  );
+  const isGoldHolding = (inv) => inv.type_code === 'GOLD' || inv.type_code === 'GD';
   const liquidityHeld = activeInvestments
     .filter((inv) => isLiquiditySaving(inv))
-    .reduce((sum, inv) => sum + (isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)), 0);
+    .reduce((sum, inv) => sum + portfolioAmountOf(inv), 0);
+  const goldHeld = activeInvestments
+    .filter((inv) => !isLiquiditySaving(inv) && isGoldHolding(inv))
+    .reduce((sum, inv) => sum + portfolioAmountOf(inv), 0);
+  const investedHeld = Math.max(0, totalCurrentPortfolioValue - liquidityHeld - goldHeld);
   const closedReceivedTotal = closedInvestments.reduce((sum, inv) => {
     if (Number(inv.closure_amount) > 0) return sum + Number(inv.closure_amount);
     return sum + effectiveCurrentValue(inv);
@@ -482,12 +471,8 @@ export default function HomeClient({ user }) {
     }, 0) / goals.length)
     : 0;
 
-  const maturingSoon = activeInvestments.filter((inv) => {
-    if (isMarketInvestment(inv.type_code) || isLiquiditySaving(inv) || !inv.maturity_date) return false;
-    const days = (new Date(inv.maturity_date) - new Date()) / (1000 * 60 * 60 * 24);
-    return days > 0 && days <= 30;
-  }).length;
-
+  const dueWithin30Days = collectUpcomingEvents(activeInvestments, { withinDays: 30 });
+  const dueSoonCount = dueWithin30Days.length;
   const upcomingEvents = buildUpcomingEvents(activeInvestments);
   const tagStats = summarizeTags(activeInvestments, {
     amountOf: effectiveInvestedSoFar,
@@ -525,61 +510,77 @@ export default function HomeClient({ user }) {
             <div className="min-w-0">
               {/* ── Header ── */}
               <div className="md:flex md:items-end md:justify-between mb-5">
-                <div>
+                <div className="text-center md:text-left">
                   <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
-                  <h1 className="text-3xl md:text-4xl font-medium tracking-tight mt-1">{inr(totalCurrentPortfolioValue)}</h1>
+                  <h1 className="portfolio-hero-value text-3xl md:text-4xl tracking-tight mt-1 tabular-nums">{inr(totalCurrentPortfolioValue)}</h1>
                   <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
-                  {liquidityHeld > 0 && (
-                    <p className="text-sm text-ink-soft mt-0.5">{inr(totalCurrentPortfolioValue - liquidityHeld)} invested · {inr(liquidityHeld)} kept for liquidity</p>
+                  {(goldHeld > 0 || liquidityHeld > 0) && (
+                    <div className="portfolio-split mt-3 mx-auto md:mx-0">
+                      {investedHeld > 0 && (
+                        <div className="portfolio-split-row">
+                          <span className="portfolio-split-label">Investment</span>
+                          <span className="portfolio-split-value text-mint-700">{inr(investedHeld)}</span>
+                        </div>
+                      )}
+                      {goldHeld > 0 && (
+                        <div className="portfolio-split-row">
+                          <span className="portfolio-split-label">Gold</span>
+                          <span className="portfolio-split-value text-honey-600">{inr(goldHeld)}</span>
+                        </div>
+                      )}
+                      {liquidityHeld > 0 && (
+                        <div className="portfolio-split-row">
+                          <span className="portfolio-split-label">Liquidity</span>
+                          <span className="portfolio-split-value text-sky-600">{inr(liquidityHeld)}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
                 <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
               </div>
 
-              {/* ── Stat cards ── */}
+              {/* ── Snapshot metrics ── */}
               <div className="home-stat-grid">
-                <StatTile
+                <HomeMetric
                   href="/investments?view=active"
-                  icon="🌱"
-                  label="Active plans"
+                  label="Active"
                   value={activeInvestments.length}
-                  pct={planTotal ? Math.round((activeInvestments.length / planTotal) * 100) : 0}
-                  note={planTotal ? `${planTotal} plans in all` : 'No plans yet'}
+                  note={planTotal ? `of ${planTotal} plans` : 'No plans yet'}
+                  tone="mint"
                 />
-                <StatTile
+                <HomeMetric
                   href="/investments?view=closed"
-                  icon="📁"
-                  label="Closed plans"
+                  label="Closed"
                   value={closedInvestments.length}
-                  pct={planTotal ? Math.round((closedInvestments.length / planTotal) * 100) : 0}
+                  note={closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : 'None yet'}
                   tone="sky"
-                  note={closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : 'Nothing closed yet'}
                 />
-                <StatTile
-                  href="/investments?view=active"
-                  icon="📅"
+                <HomeMetric
+                  href="#upcoming-events"
                   label="Due in 30 days"
-                  value={maturingSoon}
-                  pct={activeInvestments.length ? Math.round((maturingSoon / activeInvestments.length) * 100) : 0}
+                  value={dueSoonCount}
+                  note={dueSoonCount > 0 ? 'Contributions & maturities' : 'Clear for now'}
                   tone="honey"
-                  note={maturingSoon > 0 ? 'Need a decision soon' : 'Nothing due this month'}
+                  alert={dueSoonCount > 0}
+                  title="Same contribution dues and maturities as Upcoming Events"
                 />
-                <StatTile
+                <HomeMetric
                   href="/goals"
-                  icon="🎯"
-                  label="Goals"
-                  value={goals.length}
-                  pct={goalsPct}
-                  note={goals.length ? 'Average progress' : 'No goals yet'}
+                  label="Goals progress"
+                  value={goals.length ? `${goalsPct}%` : '—'}
+                  note={goals.length ? `avg across ${goals.length} goals` : 'No goals yet'}
+                  tone="mint"
+                  title="100% means your savings goals are fully funded on average"
                 />
-                <StatTile
+                <HomeMetric
                   href="/investments?view=active"
-                  icon="💰"
-                  label="Maturity value"
-                  value={inrShort(totalValue)}
-                  pct={totalValue > 0 ? Math.min(100, Math.round((totalCurrentPortfolioValue / totalValue) * 100)) : 0}
-                  note={totalValue > 0 ? `${inrShort(totalCurrentPortfolioValue)} held now` : 'No active maturity yet'}
-                  extra={<InfoTip text="The total amount you will receive when all active investments mature at their respective rates. Closed plans are excluded." />}
+                  label="At maturity"
+                  value={totalValue > 0 ? inrShort(totalValue) : '—'}
+                  note={totalValue > 0 ? `${inrShort(totalCurrentPortfolioValue)} held now` : 'No active maturity'}
+                  tone="mint"
+                  wide
+                  title="Projected amount when all active plans mature. Closed plans are excluded."
                 />
               </div>
 
@@ -731,7 +732,7 @@ export default function HomeClient({ user }) {
                 })}
               </section>
 
-              <section className="mt-5 pt-4 border-t border-edge">
+              <section id="upcoming-events" className="mt-5 pt-4 border-t border-edge scroll-mt-4">
                 <div className="mb-3">
                   <h2 className="text-sm font-medium">Upcoming events</h2>
                 </div>

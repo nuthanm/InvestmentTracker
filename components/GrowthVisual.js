@@ -206,30 +206,128 @@ export function TreeGlyph({ ratio = 0, wilted = false, complete = false }) {
   );
 }
 
+/** Compact metal glyph — gold reads as a bullion bar, silver as a coin. */
 export function CoinGlyph({ metal = 'gold' }) {
   const uid = useId().replace(/:/g, '');
-  const gold = metal === 'gold';
+  if (metal === 'gold') {
+    const bodyId = `gold-body-${uid}`;
+    const topId = `gold-top-${uid}`;
+    const endId = `gold-end-${uid}`;
+    const bevelId = `gold-bevel-${uid}`;
+    const shineId = `gold-shine-${uid}`;
+    const stampId = `gold-stamp-${uid}`;
+    return (
+      <span className="metal-coin metal-coin-gold metal-bar" aria-hidden="true">
+        <svg viewBox="0 0 36 36">
+          <defs>
+            <linearGradient id={bodyId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FFE9A0" />
+              <stop offset="28%" stopColor="#F0C14B" />
+              <stop offset="62%" stopColor="#C9911A" />
+              <stop offset="100%" stopColor="#8A5A0C" />
+            </linearGradient>
+            <linearGradient id={topId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#FFF8D2" />
+              <stop offset="40%" stopColor="#F7D56A" />
+              <stop offset="100%" stopColor="#D4A017" />
+            </linearGradient>
+            <linearGradient id={endId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#D4A017" />
+              <stop offset="100%" stopColor="#6E4709" />
+            </linearGradient>
+            <linearGradient id={bevelId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(255,248,210,0.7)" />
+              <stop offset="100%" stopColor="rgba(120,70,10,0.15)" />
+            </linearGradient>
+            <radialGradient id={shineId} cx="32%" cy="28%" r="65%">
+              <stop offset="0%" stopColor="rgba(255,255,255,0.75)" />
+              <stop offset="42%" stopColor="rgba(255,236,170,0.2)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            </radialGradient>
+            <linearGradient id={stampId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(255,230,150,0.35)" />
+              <stop offset="100%" stopColor="rgba(90,55,10,0.28)" />
+            </linearGradient>
+          </defs>
+
+          <ellipse cx="18" cy="29.8" rx="12.2" ry="2.3" fill="rgba(80, 48, 8, 0.2)" />
+
+          {/* Classic bullion silhouette — wide, low, tapered top */}
+          <path
+            d="M5.2 16.2
+               C5.2 15.2 5.9 14.4 6.9 14.2
+               L10.8 13.2 L25.2 13.2 L29.1 14.2
+               C30.1 14.4 30.8 15.2 30.8 16.2
+               L30.8 24.4
+               C30.8 25.5 29.9 26.4 28.8 26.4
+               L7.2 26.4
+               C6.1 26.4 5.2 25.5 5.2 24.4 Z"
+            fill={`url(#${bodyId})`}
+          />
+          {/* Top face / bevel */}
+          <path
+            d="M7.4 14.5
+               L11.2 10.6
+               C11.6 10.2 12.2 10 12.8 10
+               L23.2 10
+               C23.8 10 24.4 10.2 24.8 10.6
+               L28.6 14.5
+               L7.4 14.5 Z"
+            fill={`url(#${topId})`}
+          />
+          {/* Right taper shadow */}
+          <path
+            d="M28.6 14.5 L24.8 10.6 C25.4 11 28.2 13.6 28.8 14.8 L30.8 16.2 L30.8 24.4 C30.8 25.1 30.4 25.7 29.8 26 L28.6 14.5 Z"
+            fill={`url(#${endId})`}
+            opacity="0.9"
+          />
+          {/* Left taper shadow */}
+          <path
+            d="M7.4 14.5 L11.2 10.6 C10.6 11 7.8 13.6 7.2 14.8 L5.2 16.2 L5.2 24.4 C5.2 25.1 5.6 25.7 6.2 26 L7.4 14.5 Z"
+            fill="rgba(110,70,12,0.22)"
+          />
+          {/* Rim highlight */}
+          <path
+            d="M7.6 14.7 L11.4 10.9 C11.7 10.6 12.2 10.45 12.8 10.45 L23.2 10.45 C23.8 10.45 24.3 10.6 24.6 10.9 L28.4 14.7"
+            fill="none"
+            stroke="rgba(255,248,220,0.65)"
+            strokeWidth="0.55"
+          />
+          {/* Front sheen */}
+          <rect x="7.4" y="15.2" width="21.2" height="10.4" rx="1.1" fill={`url(#${bevelId})`} opacity="0.55" />
+          <ellipse cx="14" cy="17.8" rx="7.5" ry="3.2" fill={`url(#${shineId})`} />
+          {/* Engraved plate — no chunky text */}
+          <rect x="11.4" y="17.6" width="13.2" height="5.6" rx="0.8" fill={`url(#${stampId})`} stroke="rgba(90,55,10,0.28)" strokeWidth="0.35" />
+          <path d="M13.2 19.2 H22.8" stroke="rgba(90,55,10,0.35)" strokeWidth="0.45" strokeLinecap="round" />
+          <path d="M14.4 20.6 H21.6" stroke="rgba(255,236,170,0.45)" strokeWidth="0.4" strokeLinecap="round" />
+          <path d="M15.2 22 H20.8" stroke="rgba(90,55,10,0.28)" strokeWidth="0.4" strokeLinecap="round" />
+        </svg>
+        <span className="metal-coin-shine metal-bar-shine" />
+      </span>
+    );
+  }
+
   const faceId = `coin-face-${uid}`;
   const rimId = `coin-rim-${uid}`;
   return (
-    <span className={`metal-coin metal-coin-${gold ? 'gold' : 'silver'}`} aria-hidden="true">
+    <span className="metal-coin metal-coin-silver" aria-hidden="true">
       <svg viewBox="0 0 36 36">
         <defs>
           <linearGradient id={rimId} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={gold ? '#FFF3C4' : '#F7FBFF'} />
-            <stop offset="48%" stopColor={gold ? '#E0B03A' : '#C5CED6'} />
-            <stop offset="100%" stopColor={gold ? '#8C6414' : '#66727E'} />
+            <stop offset="0%" stopColor="#F7FBFF" />
+            <stop offset="48%" stopColor="#C5CED6" />
+            <stop offset="100%" stopColor="#66727E" />
           </linearGradient>
           <radialGradient id={faceId} cx="34%" cy="30%" r="72%">
-            <stop offset="0%" stopColor={gold ? '#FFF8DC' : '#FFFFFF'} />
-            <stop offset="46%" stopColor={gold ? '#F0C453' : '#E2E8EE'} />
-            <stop offset="100%" stopColor={gold ? '#C49216' : '#9AA6B2'} />
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="46%" stopColor="#E2E8EE" />
+            <stop offset="100%" stopColor="#9AA6B2" />
           </radialGradient>
         </defs>
         <circle cx="18" cy="18" r="16.2" fill={`url(#${rimId})`} />
-        <circle cx="18" cy="18" r="15.15" fill="none" stroke={gold ? '#F8E7A8' : '#EEF3F7'} strokeWidth="0.6" strokeDasharray="0.9 1.35" />
+        <circle cx="18" cy="18" r="15.15" fill="none" stroke="#EEF3F7" strokeWidth="0.6" strokeDasharray="0.9 1.35" />
         <circle cx="18" cy="18" r="13.15" fill={`url(#${faceId})`} />
-        <circle cx="18" cy="18" r="11.15" fill="none" stroke={gold ? 'rgba(120,78,12,0.45)' : 'rgba(70,84,96,0.4)'} strokeWidth="0.55" />
+        <circle cx="18" cy="18" r="11.15" fill="none" stroke="rgba(70,84,96,0.4)" strokeWidth="0.55" />
         <ellipse cx="12.2" cy="11.2" rx="4.6" ry="2.5" fill="rgba(255,255,255,0.55)" />
         <text
           x="18"
@@ -238,9 +336,9 @@ export function CoinGlyph({ metal = 'gold' }) {
           fontSize="9.5"
           fontWeight="700"
           fontFamily="Georgia, 'Times New Roman', serif"
-          fill={gold ? '#6A4510' : '#3C4A56'}
+          fill="#3C4A56"
         >
-          {gold ? 'Au' : 'Ag'}
+          Ag
         </text>
       </svg>
       <span className="metal-coin-shine" />

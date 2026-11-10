@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Children, useEffect, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { GrowthAvatar, WaterBubbles, useCelebrateOnce } from '@/components/GrowthVisual';
-import { inr, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
+import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import {
   effectiveInvestedSoFar,
   hasGrowthDeduction,
@@ -30,17 +30,17 @@ import TagList from '@/components/TagList';
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
 const CATEGORY_DEFS = [
-  { key: 'LIQUIDITY', label: 'Liquidity' },
-  { key: 'GOLD', label: 'Gold' },
-  { key: 'SILVER', label: 'Silver' },
-  { key: 'FD', label: 'Fixed Deposit' },
-  { key: 'RD', label: 'Recurring Deposit' },
-  { key: 'MF', label: 'Mutual Fund' },
-  { key: 'ETF', label: 'ETF' },
-  { key: 'ST', label: 'Shares' },
-  { key: 'PPF', label: 'PPF' },
-  { key: 'CHIT', label: 'Chit Fund' },
-  { key: 'OT', label: 'Other' },
+  { key: 'LIQUIDITY', label: 'Liquidity', short: 'Liquidity' },
+  { key: 'GOLD', label: 'Gold', short: 'Gold' },
+  { key: 'SILVER', label: 'Silver', short: 'Silver' },
+  { key: 'FD', label: 'Fixed Deposit', short: 'FD' },
+  { key: 'RD', label: 'Recurring Deposit', short: 'RD' },
+  { key: 'MF', label: 'Mutual Fund', short: 'MF' },
+  { key: 'ETF', label: 'ETF', short: 'ETF' },
+  { key: 'ST', label: 'Shares', short: 'Shares' },
+  { key: 'PPF', label: 'PPF', short: 'PPF' },
+  { key: 'CHIT', label: 'Chit Fund', short: 'Chit' },
+  { key: 'OT', label: 'Other', short: 'Other' },
 ];
 
 function categoryKey(investment) {
@@ -92,6 +92,98 @@ function LayoutToggle({ value, onChange }) {
       <button type="button" onClick={() => onChange('list')} className={`px-2.5 py-1 ${value === 'list' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>List</button>
       <button type="button" onClick={() => onChange('tiles')} className={`px-2.5 py-1 ${value === 'tiles' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>Tiles</button>
     </div>
+  );
+}
+
+/** Horizontally scrolling filter row — stays one line on mobile. */
+function FilterRail({ label, action = null, children }) {
+  const railRef = useRef(null);
+  const [overflow, setOverflow] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return undefined;
+
+    const updateOverflow = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      setOverflow({
+        left: el.scrollLeft > 2,
+        right: max > 2 && el.scrollLeft < max - 2,
+      });
+    };
+
+    updateOverflow();
+    el.addEventListener('scroll', updateOverflow, { passive: true });
+    window.addEventListener('resize', updateOverflow);
+
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(updateOverflow);
+      resizeObserver.observe(el);
+    }
+
+    return () => {
+      el.removeEventListener('scroll', updateOverflow);
+      window.removeEventListener('resize', updateOverflow);
+      resizeObserver?.disconnect();
+    };
+  }, [Children.count(children)]);
+
+  const scrollByDir = (dir) => {
+    const el = railRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.7), behavior: 'smooth' });
+  };
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
+        <p className="text-[11px] uppercase tracking-wider text-ink-mute">{label}</p>
+        {action}
+      </div>
+      <div className={`filter-rail-wrap${overflow.left ? ' has-left' : ''}${overflow.right ? ' has-right' : ''}`}>
+        {overflow.left && (
+          <div className="filter-rail-nav filter-rail-nav-left">
+            <button
+              type="button"
+              className="filter-rail-nav-btn"
+              onClick={() => scrollByDir(-1)}
+              aria-label={`Scroll ${label} filters left`}
+            >
+              ‹
+            </button>
+          </div>
+        )}
+        <div ref={railRef} className="filter-rail">{children}</div>
+        {overflow.right && (
+          <div className="filter-rail-nav filter-rail-nav-right">
+            <button
+              type="button"
+              className="filter-rail-nav-btn"
+              onClick={() => scrollByDir(1)}
+              aria-label={`Scroll ${label} filters right`}
+            >
+              ›
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({ active, onClick, title, name, count = null, amount = null }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`filter-chip ${active ? 'on' : ''}`}
+    >
+      <span className="filter-chip-name">{name}</span>
+      {count != null && <span className="filter-chip-count">{count}</span>}
+      {amount != null && <span className="filter-chip-amount">{amount}</span>}
+    </button>
   );
 }
 
@@ -376,7 +468,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const [loading, setLoading] = useState(!seeded && !readOnly);
   const [filter, setFilter] = useState('ALL');
   const [tagFilter, setTagFilter] = useState('');
-  const [groupByTag, setGroupByTag] = useState(false);
+  const [groupByTag, setGroupByTag] = useState(true);
   const [lifecycleFilter, setLifecycleFilter] = useState('active');
   const [layout, setLayout] = useState('list');
   const [draggingId, setDraggingId] = useState(null);
@@ -392,7 +484,8 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     if (tag) setTagFilter(tag);
     const stored = window.localStorage.getItem('investments-layout');
     if (stored === 'tiles' || stored === 'list') setLayout(stored);
-    if (window.localStorage.getItem('investments-group-by-tag') === '1') setGroupByTag(true);
+    // Default on; only turn off when the user previously chose a flat list.
+    if (window.localStorage.getItem('investments-group-by-tag') === '0') setGroupByTag(false);
   }, []);
 
   const chooseLayout = (next) => {
@@ -588,40 +681,69 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
-        {tagStats.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <button type="button" onClick={() => chooseGroup(!groupByTag)} className={`chip whitespace-nowrap ${groupByTag ? 'on' : ''}`}>
-              {groupByTag ? 'Grouped by tag' : 'Group by tag'}
-            </button>
-            <button type="button" onClick={() => chooseTag('')} className={`chip whitespace-nowrap ${tagFilter ? '' : 'on'}`}>All tags</button>
-            {tagStats.map((tag) => (
-              <button key={tag.key} type="button" onClick={() => chooseTag(tag.name)} className={`chip whitespace-nowrap ${tagKey(tagFilter) === tag.key ? 'on' : ''}`}>
-                <span className="block leading-tight">{tag.name} ({tag.count})</span>
-                <span className="block text-[10px] font-medium leading-tight mt-0.5">
-                  {tag.invested > 0 && tag.liquidity > 0
-                    ? <>{inr(tag.invested)} invested · {inr(tag.liquidity)} liquidity</>
-                    : tag.liquidity > 0
-                      ? <>{inr(tag.liquidity)} liquidity</>
-                      : <>{inr(tag.invested)} saved</>}
-                </span>
-              </button>
+        {investments.length > 0 && (
+          <FilterRail label="Type">
+            <FilterChip
+              active={filter === 'ALL'}
+              onClick={() => setFilter('ALL')}
+              title="All types"
+              name="All"
+              amount={inrShort(lifecycleScoped.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0))}
+            />
+            {categories.map((category) => (
+              <FilterChip
+                key={category.key}
+                active={filter === category.key}
+                onClick={() => setFilter(category.key)}
+                title={`${category.label} · ${category.count} · ${inr(category.saved)} saved`}
+                name={category.short || category.label}
+                count={category.count}
+                amount={inrShort(category.saved)}
+              />
             ))}
-          </div>
+          </FilterRail>
         )}
 
-        {investments.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
-            <button onClick={() => setFilter('ALL')} className={`chip whitespace-nowrap ${filter === 'ALL' ? 'on' : ''}`}>
-              <span className="block leading-tight">All</span>
-              <span className="block text-[10px] font-medium leading-tight mt-0.5">{inr(lifecycleScoped.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0))}</span>
-            </button>
-            {categories.map((category) => (
-              <button key={category.key} onClick={() => setFilter(category.key)} className={`chip whitespace-nowrap ${filter === category.key ? 'on' : ''}`}>
-                <span className="block leading-tight">{category.label} ({category.count})</span>
-                <span className="block text-[10px] font-medium leading-tight mt-0.5">{inr(category.saved)} saved</span>
+        {tagStats.length > 0 && (
+          <FilterRail
+            label="Tag"
+            action={(
+              <button
+                type="button"
+                onClick={() => chooseGroup(!groupByTag)}
+                aria-pressed={groupByTag}
+                title={groupByTag ? 'Show plans as one list' : 'Group plans under each tag'}
+                className={`filter-chip filter-chip-action ${groupByTag ? 'on' : ''}`}
+              >
+                <span className="filter-chip-name">{groupByTag ? 'Grouped by tag' : 'Group by tag'}</span>
               </button>
-            ))}
-          </div>
+            )}
+          >
+            <FilterChip
+              active={!tagFilter}
+              onClick={() => chooseTag('')}
+              title="All tags"
+              name="All"
+            />
+            {tagStats.map((tag) => {
+              const amountLabel = tag.invested > 0 && tag.liquidity > 0
+                ? `${inr(tag.invested)} invested · ${inr(tag.liquidity)} liquidity`
+                : tag.liquidity > 0
+                  ? `${inr(tag.liquidity)} liquidity`
+                  : `${inr(tag.invested)} saved`;
+              return (
+                <FilterChip
+                  key={tag.key}
+                  active={tagKey(tagFilter) === tag.key}
+                  onClick={() => chooseTag(tag.name)}
+                  title={`${tag.name} · ${tag.count} · ${amountLabel}`}
+                  name={tag.name}
+                  count={tag.count}
+                  amount={inrShort(tag.invested + tag.liquidity)}
+                />
+              );
+            })}
+          </FilterRail>
         )}
 
         {!loading && (selectedCategory || tagFilter) && (
@@ -672,11 +794,25 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
                   <section key={section.key}>
                     <div className="flex items-end justify-between gap-3 mb-2">
                       <h2 className="text-sm font-medium">{section.name}</h2>
-                      <p className="text-[11px] text-ink-soft text-right">
-                        {section.items.length} {section.items.length === 1 ? 'plan' : 'plans'}
-                        {split.invested > 0 && split.liquidity > 0
-                          ? ` · ${inr(split.invested)} invested · ${inr(split.liquidity)} liquidity`
-                          : ` · ${inr(split.invested + split.liquidity)}`}
+                      <p className="text-[11px] text-ink-soft text-right leading-snug">
+                        <span className="text-ink-mute">
+                          {section.items.length} {section.items.length === 1 ? 'plan' : 'plans'}
+                        </span>
+                        {split.invested > 0 && split.liquidity > 0 ? (
+                          <>
+                            {' · '}
+                            <span className="font-semibold text-mint-700 tabular-nums">{inr(split.invested)}</span>
+                            <span className="text-ink-mute"> invested</span>
+                            {' · '}
+                            <span className="font-semibold text-sky-600 tabular-nums">{inr(split.liquidity)}</span>
+                            <span className="text-ink-mute"> liquidity</span>
+                          </>
+                        ) : (
+                          <>
+                            {' · '}
+                            <span className="font-semibold text-mint-700 tabular-nums">{inr(split.invested + split.liquidity)}</span>
+                          </>
+                        )}
                       </p>
                     </div>
                     <Plans
