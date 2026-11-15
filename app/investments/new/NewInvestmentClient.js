@@ -27,6 +27,8 @@ import {
   documentBadge,
   isAllowedDocumentName,
 } from '@/lib/documents';
+import Icon from '@/components/Icon';
+import { CoinGlyph } from '@/components/GrowthVisual';
 
 const TYPES = ['FD', 'RD', 'MF', 'ETF', 'ST', 'GD', 'GOLD', 'SILV', 'PPF', 'CHIT', 'OT'];
 const PRESET_TYPES = ['Crypto', 'Real Estate', 'NSC', 'Sukanya Samriddhi', 'Lent to family'];
@@ -752,13 +754,13 @@ export default function NewInvestmentClient({
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
-        <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">{isEditing ? 'Edit investment' : 'Add investment'}</h1>
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Cancel</button>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">{isEditing ? 'Edit investment' : 'Add investment'}</h1>
         <p className="text-sm text-ink-soft mb-6">{isEditing ? 'Update the details below.' : 'All fields are required unless marked optional.'}</p>
 
         <form onSubmit={submit} className="space-y-5">
           <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
@@ -766,7 +768,7 @@ export default function NewInvestmentClient({
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
               >
                 <p className="text-sm font-medium">Investment</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Money held to grow. Tenure, rate, and maturity apply.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">Money held to grow. Tenure, rate, and maturity apply.</p>
               </button>
               <button
                 type="button"
@@ -774,21 +776,21 @@ export default function NewInvestmentClient({
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
               >
                 <p className="text-sm font-medium">Saving for liquidity</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Bank balance you can use. No tenure, rate, or maturity.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">Bank balance you can use. No tenure, rate, or maturity.</p>
               </button>
             </div>
           </section>
 
           {!forLiquidity && (
           <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Type<span className="text-danger ml-0.5">*</span></p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2.5">Type<span className="text-danger ml-0.5">*</span></p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((t) => (
                 <div key={t} className="relative group">
                   <button type="button" onClick={() => handleTypeChange(t)} className={`chip w-full ${typeCode === t ? 'on' : ''}`}>
                     {TYPE_CHIP_LABEL[t]}
                   </button>
-                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-ink px-3 py-2 text-[11px] leading-snug text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 z-20 shadow-lg">
+                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-ink px-3 py-2 text-[12px] leading-snug text-paper opacity-0 transition-opacity duration-150 group-hover:opacity-100 z-20 shadow-lg">
                     {TYPE_TOOLTIP[t]}
                     <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-ink" />
                   </div>
@@ -801,7 +803,7 @@ export default function NewInvestmentClient({
                 <input type="text" placeholder="e.g. Crypto, NSC..." value={customType} onChange={(e) => setCustomType(e.target.value)} className="field-input" />
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {PRESET_TYPES.map((p) => (
-                    <button key={p} type="button" onClick={() => setCustomType(p)} className="text-[11px] px-2.5 py-1 rounded-full bg-paper-card border border-edge hover:border-mint-600">{p}</button>
+                    <button key={p} type="button" onClick={() => setCustomType(p)} className="text-[12px] px-2.5 py-1 rounded-full bg-paper-card border border-edge hover:border-mint-600">{p}</button>
                   ))}
                 </div>
               </div>
@@ -811,10 +813,10 @@ export default function NewInvestmentClient({
 
           {!forLiquidity && (typeCode === 'RD' || typeCode === 'PPF') && (
             <div className="flex items-start gap-2.5 p-3 bg-paper-tint rounded-xl text-sm">
-              <span className="text-lg leading-none mt-0.5">{typeCode === 'RD' ? '🔁' : '📅'}</span>
+              <span className="w-7 h-7 rounded-lg bg-paper-card text-ink-soft flex items-center justify-center flex-shrink-0"><Icon name={typeCode === 'RD' ? 'repeat' : 'calendar'} size={15} /></span>
               <div>
                 <p className="font-medium">{typeCode === 'RD' ? 'Monthly contributions' : 'Yearly contributions'}</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">
+                <p className="text-[12px] text-ink-soft mt-0.5">
                   {typeCode === 'RD'
                     ? 'Enter your fixed monthly deposit amount. Maturity is calculated using compound interest on each instalment.'
                     : 'Enter your yearly deposit amount (max ₹1.5 L/yr). Maturity uses the PPF annuity formula.'}
@@ -826,7 +828,7 @@ export default function NewInvestmentClient({
           {!forLiquidity && isMarketType && (
             <div className="rounded-xl border border-edge bg-paper-tint p-3.5 text-sm">
               <p className="font-medium">Transaction-based holding</p>
-              <p className="text-[11px] text-ink-soft mt-1">
+              <p className="text-[12px] text-ink-soft mt-1">
                 {isEditing
                   ? 'Update holding details here. Use the detail page to add buys, redemptions, dividends, and other transactions.'
                   : 'Create the holding once, then keep adding buys, SIPs, redemptions, and dividends from the detail page.'}
@@ -836,8 +838,8 @@ export default function NewInvestmentClient({
 
           {!forLiquidity && isMetalType && (
             <div className="rounded-xl border border-honey-600/30 bg-honey-50 p-3.5 text-sm">
-              <p className="font-medium text-honey-700">{typeCode === 'GOLD' ? '🥇 Physical Gold accumulation' : '🥈 Physical Silver accumulation'}</p>
-              <p className="text-[11px] text-honey-700/80 mt-1">
+              <p className="font-medium text-honey-600 flex items-center gap-2"><span className="inline-flex w-6 h-6"><CoinGlyph metal={typeCode === 'GOLD' ? 'gold' : 'silver'} /></span>{typeCode === 'GOLD' ? 'Physical Gold accumulation' : 'Physical Silver accumulation'}</p>
+              <p className="text-[12px] text-honey-600 mt-1">
                 Track each purchase by weight (grams). Record who it was bought for, purchase price per gram, making charges, and GST.
                 {typeCode === 'GOLD' ? ' For gold, add wastage, stone, and a discount to see the exact amount paid.' : ''}
                 {isEditing ? ' Use the detail page to add more purchases.' : ' You can add more purchases from the detail page.'}
@@ -848,14 +850,14 @@ export default function NewInvestmentClient({
           {!forLiquidity && isChitType && (
             <div className="rounded-xl border border-plum-600/20 bg-plum-50 p-3.5 text-sm">
               <p className="font-medium text-plum-600">Chit fund</p>
-              <p className="text-[11px] text-ink-soft mt-1">
+              <p className="text-[12px] text-ink-soft mt-1">
                 Track dual-rate or custom monthly instalments, choose your pick month, and see profit/loss plus effective interest before you save.
               </p>
             </div>
           )}
 
           <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">{forLiquidity ? 'Account' : 'Plan details'}</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2.5">{forLiquidity ? 'Account' : 'Plan details'}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'Bank' : (isMetalType ? 'Store / jeweller / source' : (isChitType ? 'Organizer / company' : 'Bank / platform'))}<span className="text-danger ml-0.5">*</span></label>
@@ -880,16 +882,16 @@ export default function NewInvestmentClient({
               {tenureMode === CUSTOM_TENURE_MODE && (
                 <div className="grid grid-cols-3 gap-2 mt-3 max-w-sm">
                   <div>
-                    <label className="block text-[11px] text-ink-mute mb-1">Years</label>
+                    <label className="block text-[12px] text-ink-mute mb-1">Years</label>
                     <input type="number" min="0" value={customY} onChange={(e) => setCustomY(e.target.value)} className="field-input" />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-ink-mute mb-1">Months</label>
+                    <label className="block text-[12px] text-ink-mute mb-1">Months</label>
                     <input type="number" min="0" max="11" value={customM} onChange={(e) => setCustomM(e.target.value)} className="field-input" />
                   </div>
                   {effectiveFrequency === 'lump_sum' && (
                     <div>
-                      <label className="block text-[11px] text-ink-mute mb-1">Days</label>
+                      <label className="block text-[12px] text-ink-mute mb-1">Days</label>
                       <input type="number" min="0" max="30" value={customD} onChange={(e) => setCustomD(e.target.value)} className="field-input" />
                     </div>
                   )}
@@ -902,7 +904,7 @@ export default function NewInvestmentClient({
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">{forLiquidity ? 'As of' : (isMetalType ? 'Date of purchase' : (isMarketType ? 'Holding start / first trade date' : 'Start / debit date'))}<span className="text-danger ml-0.5">*</span></label>
               <input type="date" value={startDateInput} onChange={(e) => setStartDateInput(e.target.value)} className="field-input" />
-              <p className="text-[11px] text-ink-mute mt-1">{forLiquidity ? 'Date this balance is true.' : (isMetalType ? 'Date of the first purchase (add more later).' : (isMarketType ? 'Used as the opening date for this holding and the default date for the first buy.' : 'For monthly/yearly plans, this date sets the recurring debit day anchor.'))}</p>
+              <p className="text-[12px] text-ink-mute mt-1">{forLiquidity ? 'Date this balance is true.' : (isMetalType ? 'Date of the first purchase (add more later).' : (isMarketType ? 'Used as the opening date for this holding and the default date for the first buy.' : 'For monthly/yearly plans, this date sets the recurring debit day anchor.'))}</p>
             </div>
           </section>
 
@@ -910,13 +912,13 @@ export default function NewInvestmentClient({
             <section>
               <label className="block text-xs text-ink-soft mb-1.5">Balance (₹)<span className="text-danger ml-0.5">*</span></label>
               <input type="number" inputMode="numeric" placeholder="50000" value={amount} onChange={(e) => setAmount(e.target.value)} className="field-input max-w-xs" />
-              <p className="text-[11px] text-ink-mute mt-1">The cash sitting in this account. It stays available, so there is no tenure or interest to enter.</p>
+              <p className="text-[12px] text-ink-mute mt-1">The cash sitting in this account. It stays available, so there is no tenure or interest to enter.</p>
             </section>
           ) : isTransactionType ? (
             <section className="space-y-3">
               <div>
-                <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalType ? 'Initial purchase now' : 'Initial buy now'} <span className="text-[10px] normal-case ml-1">optional</span></p>
-                <p className="text-[11px] text-ink-mute mt-1">You can leave this empty and save. Add transactions later from the investment detail page.</p>
+                <p className="text-[12px] tracking-wider text-ink-mute uppercase">{isMetalType ? 'Initial purchase now' : 'Initial buy now'} <span className="text-[11px] normal-case ml-1">optional</span></p>
+                <p className="text-[12px] text-ink-mute mt-1">You can leave this empty and save. Add transactions later from the investment detail page.</p>
               </div>
               {isEditing ? (
                 <div className="rounded-xl border border-edge bg-paper-tint p-3 text-[12px] text-ink-soft">{isMetalType ? 'Use the investment detail page to add another purchase or record a sale.' : 'Use the investment detail page to add another buy, redeem units, or record dividends.'}</div>
@@ -962,7 +964,7 @@ export default function NewInvestmentClient({
                       )}
 
                       {acquisitionFlow === 'scheme_monthly' && (
-                        <p className="text-[11px] text-ink-soft mt-2">
+                        <p className="text-[12px] text-ink-soft mt-2">
                           This starts a monthly plan, the same way a recurring deposit works. After you save, mark each month as you pay it.
                           {schemeAllowsPurchaseEntry
                             ? ' The scheme months are complete, so you can record the purchase below.'
@@ -1013,7 +1015,7 @@ export default function NewInvestmentClient({
                           <option value="percentage">Percent of metal value</option>
                           <option value="value">Rupee amount on the bill</option>
                         </select>
-                        <p className="text-[11px] text-ink-mute mt-1">
+                        <p className="text-[12px] text-ink-mute mt-1">
                           {purchaseMode === 'general'
                             ? (typeCode === 'GOLD'
                               ? 'Direct purchase. GST is calculated on gold value, wastage, stone, and making charges, after any discount.'
@@ -1165,7 +1167,7 @@ export default function NewInvestmentClient({
                             </div>
                           </div>
                         )}
-                        <div className="mt-2 text-[11px] text-ink-mute">
+                        <div className="mt-2 text-[12px] text-ink-mute">
                           {metalPricing
                             ? `GST on ${typeCode === 'GOLD' ? 'gold, wastage, stone, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
                             : 'Enter weight and price to view GST conversion.'}
@@ -1176,7 +1178,7 @@ export default function NewInvestmentClient({
                         <>
                           <div className="md:col-span-2 rounded-xl border border-honey-600/30 bg-honey-50 px-3 py-2.5 text-sm">
                             <p className="font-medium text-honey-700">Scheme details</p>
-                            <p className="text-[11px] text-honey-700/80 mt-1">Compare normal making charge with scheme-offered making charge to see savings or loss.</p>
+                            <p className="text-[12px] text-honey-600 mt-1">Compare normal making charge with scheme-offered making charge to see savings or loss.</p>
                           </div>
                           <div>
                             <label className="block text-xs text-ink-soft mb-1.5">Actual making charge (%)</label>
@@ -1284,7 +1286,7 @@ export default function NewInvestmentClient({
                             setCgstPct((prev) => (Number(prev) > 0 ? prev : '1.5'));
                             setAutoCalcCharges(true);
                           }}
-                          className="mt-1 text-[11px] text-sky-700 hover:underline"
+                          className="mt-1 text-[12px] text-sky-700 hover:underline"
                         >
                           Use auto-calculated values
                         </button>
@@ -1305,7 +1307,7 @@ export default function NewInvestmentClient({
                     </>
                   )}
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[10px] text-ink-mute">optional</span></label>
+                    <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[11px] text-ink-mute">optional</span></label>
                     <textarea rows="3" value={initialNotes} onChange={(e) => setInitialNotes(e.target.value)} className="field-input" placeholder={isMetalType ? 'e.g. Wedding gift, hallmark BIS 916…' : 'SIP instalment, broker note, folio reference…'} />
                   </div>
                   <div className="md:col-span-2 bg-paper-tint rounded-xl border border-edge px-3 py-2.5 text-sm">
@@ -1392,7 +1394,7 @@ export default function NewInvestmentClient({
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Goal<span className="text-danger ml-0.5">*</span></label>
               {goals.length === 0 ? (
-                <Link href="/goals/new" className="block field-input text-sky-600 text-sm">+ Create your first goal</Link>
+                <Link href="/goals/new" className="flex items-center gap-1.5 field-input text-mint-700 font-medium text-sm"><Icon name="plus" size={16} />Create your first goal</Link>
               ) : (
                 <select value={goalId} onChange={(e) => setGoalId(e.target.value)} className="field-input">
                   {goals.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
@@ -1406,7 +1408,7 @@ export default function NewInvestmentClient({
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Account holder</label>
               <input type="text" placeholder="Self, Wife, Father…" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} className="field-input" />
-              <p className="text-[11px] text-ink-mute mt-1">Whose account / name this investment is in</p>
+              <p className="text-[12px] text-ink-mute mt-1">Whose account / name this investment is in</p>
             </div>
             <div className="md:col-span-2">
               <TagField value={tags} onChange={setTags} suggestions={knownTags} />
@@ -1418,7 +1420,7 @@ export default function NewInvestmentClient({
               <div className="flex items-center justify-between p-3 bg-paper-tint rounded-xl">
                 <div>
                   <div className="text-sm font-medium">Auto-renew on maturity</div>
-                  <div className="text-[11px] text-ink-soft mt-0.5">Reminder fires 30 days before</div>
+                  <div className="text-[12px] text-ink-soft mt-0.5">Reminder fires 30 days before</div>
                 </div>
                 <button type="button" onClick={() => setAutoRenew(!autoRenew)} className={`w-9 h-5 rounded-full relative transition ${autoRenew ? 'bg-mint-600' : 'bg-ink-mute'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${autoRenew ? 'right-0.5' : 'left-0.5'}`}></span>
@@ -1428,7 +1430,7 @@ export default function NewInvestmentClient({
           )}
 
           <section>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Document <span className="text-[10px] text-ink-mute normal-case ml-1">optional</span></p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Document <span className="text-[11px] text-ink-mute normal-case ml-1">optional</span></p>
             <div
               role="button"
               tabIndex={0}
@@ -1455,16 +1457,16 @@ export default function NewInvestmentClient({
                 onClick={(e) => e.stopPropagation()}
               />
               <div className="text-sm font-medium">{dragOver ? 'Drop to upload' : 'Drag and drop, or tap to browse'}</div>
-              <div className="text-[11px] text-ink-soft mt-1">PDF, PNG, JPG, DOCX, XLSX, or CSV · up to 5 MB each</div>
+              <div className="text-[12px] text-ink-soft mt-1">PDF, PNG, JPG, DOCX, XLSX, or CSV · up to 5 MB each</div>
             </div>
             {docs.map((d, i) => {
               const badge = documentBadge(d.filename);
               return (
                 <div key={i} className="flex items-center gap-2.5 p-2.5 bg-paper-tint rounded-lg mt-2">
-                  <div className={`w-8 h-9 rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
+                  <div className={`w-8 h-9 rounded text-[11px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium truncate">{d.filename}</p>
-                    <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB</p>
+                    <p className="text-[12px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB</p>
                   </div>
                   <button type="button" onClick={() => removeDoc(i)} className="text-ink-mute hover:text-danger px-2">×</button>
                 </div>

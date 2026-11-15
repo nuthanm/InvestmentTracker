@@ -296,7 +296,7 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
             <button
               key={r.key}
               onClick={() => setRange(r.key)}
-              className={`text-[11px] px-2.5 py-1 rounded-md transition ${range === r.key ? 'bg-ink text-paper font-medium' : 'text-ink-mute hover:text-ink hover:bg-paper-tint'}`}
+              className={`text-[12px] px-2.5 py-1 rounded-md transition ${range === r.key ? 'bg-ink text-paper font-medium' : 'text-ink-mute hover:text-ink hover:bg-paper-tint'}`}
             >
               {r.label}
             </button>
@@ -320,12 +320,12 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
 
           {/* Y-axis labels */}
           {yl.map((g, i) => (
-            <text key={i} x={L - 5} y={g.y + 4} textAnchor="end" fontSize="9" fill="#7A867F">{g.label}</text>
+            <text key={i} x={L - 5} y={g.y + 4} textAnchor="end" fontSize="10" fill="#5E6A64">{g.label}</text>
           ))}
 
           {/* X-axis labels */}
           {xl.map((g, i) => (
-            <text key={i} x={g.x} y={T + PH + 20} textAnchor="middle" fontSize="9" fill="#7A867F">{g.label}</text>
+            <text key={i} x={g.x} y={T + PH + 20} textAnchor="middle" fontSize="10" fill="#5E6A64">{g.label}</text>
           ))}
 
           {/* Goal amount: dashed line when in range, text annotation when above range */}
@@ -383,7 +383,7 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
             <>
               <line x1={todayX.toFixed(1)} y1={T} x2={todayX.toFixed(1)} y2={T + PH}
                 stroke="#A8B0AB" strokeWidth="1" strokeDasharray="4,3" />
-              <text x={todayX + 3} y={T + 10} fontSize="8" fill="#7A867F">Today</text>
+              <text x={todayX + 3} y={T + 10} fontSize="8" fill="#5E6A64">Today</text>
             </>
           )}
 
@@ -420,19 +420,19 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
 
         {/* Hover tooltip */}
         {hoverPoint && (
-          <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 bg-ink text-paper text-[11px] rounded-lg px-3 py-2 shadow-lg min-w-[160px] z-10">
+          <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 bg-ink text-paper text-[12px] rounded-lg px-3 py-2 shadow-lg min-w-[160px] z-10">
             <p className="font-medium mb-1 text-center">{fmtTooltipDate(hoverPoint.date)}</p>
             <div className="flex justify-between gap-4">
-              <span className="text-[10px] text-ink-mute">Invested</span>
+              <span className="text-[11px] text-ink-mute">Invested</span>
               <span className="font-medium text-sky-50">{inrShort(hoverPoint.invested)}</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-[10px] text-ink-mute">Projected</span>
+              <span className="text-[11px] text-ink-mute">Projected</span>
               <span className="font-medium text-mint-50">{inrShort(hoverPoint.value)}</span>
             </div>
             {hoverPoint.value > 0 && hoverPoint.invested > 0 && (
               <div className="flex justify-between gap-4 border-t border-edge mt-1 pt-1">
-                <span className="text-[10px] text-ink-mute">Return</span>
+                <span className="text-[11px] text-ink-mute">Return</span>
                 <span className="font-medium text-mint-50">
                   +{(((hoverPoint.value - hoverPoint.invested) / hoverPoint.invested) * 100).toFixed(1)}%
                 </span>
@@ -441,7 +441,7 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
             {hoverMaturity.length > 0 && (
               <div className="border-t border-edge mt-1.5 pt-1.5">
                 {hoverMaturity.map((ev, i) => (
-                  <p key={i} className="text-[10px] text-mint-50">
+                  <p key={i} className="text-[11px] text-mint-50">
                     ● {ev.label} matured {inrShort(ev.amount)}
                   </p>
                 ))}
@@ -453,19 +453,19 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
 
       {/* Legend */}
       <div className="flex flex-wrap gap-4 mt-2 pl-1">
-        <span className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-soft">
           <span className="w-3 h-0.5 bg-sky-600 inline-block rounded" /> Invested
         </span>
-        <span className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-soft">
           <span className="w-3 h-0.5 bg-mint-600 inline-block rounded" /> Projected Value
         </span>
         {goalAmount && (
-          <span className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+          <span className="flex items-center gap-1.5 text-[12px] text-ink-soft">
             <span className="inline-block w-5" style={{ borderTop: '2px dashed #3C3489' }} /> Goal
           </span>
         )}
         {maturityEvents.length > 0 && (
-          <span className="flex items-center gap-1.5 text-[11px] text-ink-soft">
+          <span className="flex items-center gap-1.5 text-[12px] text-ink-soft">
             <span className="w-2 h-2 rounded-full bg-mint-600 inline-block" /> Maturity
           </span>
         )}

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import TagField from '@/components/TagField';
+import Icon from '@/components/Icon';
 
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -103,13 +104,13 @@ export default function NewGoalClient({ user }) {
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-xl mx-auto w-full">
-        <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">New goal</h1>
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Cancel</button>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">New goal</h1>
         <p className="text-sm text-ink-soft mb-6">Required fields marked with *</p>
 
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Scope</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2.5">Scope</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
@@ -117,7 +118,7 @@ export default function NewGoalClient({ user }) {
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${scope === 'common' ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
               >
                 <p className="text-sm font-medium">Life goal</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Ongoing goals that are not tied to a year.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">Ongoing goals that are not tied to a year.</p>
               </button>
               <button
                 type="button"
@@ -125,7 +126,7 @@ export default function NewGoalClient({ user }) {
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${scope === 'year' ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
               >
                 <p className="text-sm font-medium">Year goal</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Counts toward a specific calendar year.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">Counts toward a specific calendar year.</p>
               </button>
             </div>
             {scope === 'year' && (
@@ -147,7 +148,7 @@ export default function NewGoalClient({ user }) {
                   />
                   <span>
                     <span className="block text-sm font-medium">Repeats every year</span>
-                    <span className="block text-[11px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
+                    <span className="block text-[12px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
                   </span>
                 </label>
               </div>
@@ -155,7 +156,7 @@ export default function NewGoalClient({ user }) {
           </div>
 
           <div>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2.5">Purpose</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
@@ -163,7 +164,7 @@ export default function NewGoalClient({ user }) {
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${!forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge bg-paper-card hover:border-mint-600'}`}
               >
                 <p className="text-sm font-medium">Goal with a date</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">A target you want to reach by a chosen day.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">A target you want to reach by a chosen day.</p>
               </button>
               <button
                 type="button"
@@ -171,7 +172,7 @@ export default function NewGoalClient({ user }) {
                 className={`text-left rounded-xl border px-3 py-2.5 transition ${forLiquidity ? 'border-sky-600 bg-sky-50' : 'border-edge bg-paper-card hover:border-sky-600'}`}
               >
                 <p className="text-sm font-medium">Liquidity savings</p>
-                <p className="text-[11px] text-ink-soft mt-0.5">Cash to keep available. Inflation applies. No end date.</p>
+                <p className="text-[12px] text-ink-soft mt-0.5">Cash to keep available. Inflation applies. No end date.</p>
               </button>
             </div>
           </div>
@@ -208,15 +209,15 @@ export default function NewGoalClient({ user }) {
                 Target date <span className="text-danger ml-0.5">*</span>
               </label>
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field-input"/>
-              <p className="text-[11px] text-ink-mute mt-1">This date is used to project the future goal amount.</p>
+              <p className="text-[12px] text-ink-mute mt-1">This date is used to project the future goal amount.</p>
             </div>
           )}
 
           {forLiquidity && Number(amount) > 0 && (
             <div className="rounded-xl border border-sky-600/30 bg-sky-50 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wider text-sky-600 mb-1">Buffer to keep available</p>
+              <p className="text-[11px] uppercase tracking-wider text-sky-600 mb-1">Buffer to keep available</p>
               <p className="text-lg font-medium text-ink">₹{Number(amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
-              <p className="text-[11px] text-ink-soft mt-1">
+              <p className="text-[12px] text-ink-soft mt-1">
                 {Number(inflationPct) > 0
                   ? `At ${Number(inflationPct)}% inflation this is about ₹${Number(Number(amount) * Math.pow(1 + Number(inflationPct) / 100, 1)).toLocaleString('en-IN', { maximumFractionDigits: 0 })} in one year. There is no end date.`
                   : 'This stays at the amount you enter. There is no end date.'}
@@ -227,10 +228,10 @@ export default function NewGoalClient({ user }) {
           {!forLiquidity && Number(amount) > 0 && date && (
             <div className="rounded-xl border border-mint-200 bg-mint-50 px-3 py-2 space-y-2">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
+                <p className="text-[11px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
                 <p className="text-lg font-medium text-mint-800">₹{Number(projectedGoalAmount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
               </div>
-              <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
+              <div className="flex flex-wrap gap-2 text-[12px] text-mint-800">
                 <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.daily).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day</span>
                 <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.monthly).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month</span>
               </div>

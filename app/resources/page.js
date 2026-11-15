@@ -1,3 +1,4 @@
+import PublicShell from '@/components/PublicShell';
 import Link from 'next/link';
 
 export const metadata = {
@@ -34,7 +35,8 @@ const guides = [
 
 export default function ResourcesPage() {
   return (
-    <main className="legal-wrap">
+    <PublicShell>
+      <main className="legal-wrap">
       <h1>Resources</h1>
       <p>
         Explore practical, implementation-focused guides for long-term money management.
@@ -66,5 +68,6 @@ export default function ResourcesPage() {
         review <Link href="/privacy"> Privacy Policy</Link> and <Link href="/terms"> Terms</Link>.
       </p>
     </main>
+    </PublicShell>
   );
 }

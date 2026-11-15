@@ -16,6 +16,7 @@ import {
 import { getLifecycleLabel, isClosedLifecycleStatus, isPrematureWithdrawalStatus } from '@/lib/investment-lifecycle';
 import { investmentTags } from '@/lib/tags';
 import TagList from '@/components/TagList';
+import Icon from '@/components/Icon';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -80,7 +81,7 @@ export default async function ViewInvestmentPage({ params }) {
   return (
     <ViewShell token={params.token} ownerName={access.ownerName}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full">
-        <Link href={`/view/${params.token}`} className="text-xs text-ink-soft mb-4 inline-block">← Back to portfolio</Link>
+        <Link href={`/view/${params.token}`} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Back to portfolio</Link>
 
         <div className="rounded-xl border border-edge bg-paper-tint px-4 py-3 mb-4">
           <p className="text-sm font-medium">View only</p>
@@ -93,7 +94,7 @@ export default async function ViewInvestmentPage({ params }) {
               {getLifecycleLabel(investment.lifecycle_status)}{investment.closure_date ? ` · ${fmtDate(investment.closure_date)}` : ''}
             </p>
             {investment.closure_amount != null && (
-              <p className="text-[11px] text-ink-soft mt-0.5">
+              <p className="text-[12px] text-ink-soft mt-0.5">
                 Received {inr(investment.closure_amount)}
                 {investment.penalty_amount ? ` · penalty ${inr(investment.penalty_amount)}` : ''}
                 {investment.interest_loss ? ` · interest loss ${inr(investment.interest_loss)}` : ''}
@@ -103,9 +104,9 @@ export default async function ViewInvestmentPage({ params }) {
         )}
 
         <div className="bg-paper-tint rounded-2xl p-5 mb-5">
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase">
+          <p className="text-[12px] tracking-wider text-ink-mute uppercase">
             {labelFor(investment)}
-            {liquidity && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
+            {liquidity && <span className="ml-2 align-middle text-[11px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
           </p>
           {liquidity ? (
             <>
@@ -195,7 +196,7 @@ export default async function ViewInvestmentPage({ params }) {
 
         {transactionType && (
           <section className="mb-5">
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Transaction history</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Transaction history</p>
             <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
               {detail.transactions.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-ink-soft text-center">No transactions recorded.</div>
@@ -204,12 +205,12 @@ export default async function ViewInvestmentPage({ params }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">{getTransactionTypeLabel(tx.transaction_type)}</p>
-                      <p className="text-[11px] text-ink-mute mt-0.5">
+                      <p className="text-[12px] text-ink-mute mt-0.5">
                         {fmtDate(tx.trade_date)}
                         {Number(tx.units || 0) > 0 && ` · ${formatUnits(tx.units)} ${metalType ? 'g' : 'units'}`}
                         {Number(tx.price_per_unit || 0) > 0 && ` · ${inr(tx.price_per_unit)} ${metalType ? '/ g' : '/ unit'}`}
                       </p>
-                      {tx.notes ? <p className="text-[11px] text-ink-soft mt-1">{tx.notes}</p> : null}
+                      {tx.notes ? <p className="text-[12px] text-ink-soft mt-1">{tx.notes}</p> : null}
                     </div>
                     <p className="text-sm font-medium">{inr(computeTransactionNetAmount(tx))}</p>
                   </div>
@@ -222,8 +223,8 @@ export default async function ViewInvestmentPage({ params }) {
         {recurring && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Payment history</p>
-              <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)}</span>
+              <p className="text-[12px] tracking-wider text-ink-mute uppercase">Payment history</p>
+              <span className="text-[12px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)}</span>
             </div>
             <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
               {schedule.length === 0 ? (
@@ -233,11 +234,11 @@ export default async function ViewInvestmentPage({ params }) {
                 const paid = !!record?.paid;
                 return (
                   <div key={slot.period_label} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''}`}>
-                    <span className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center text-[10px] ${paid ? 'bg-mint-600 border-mint-600 text-white' : 'border-edge text-transparent'}`}>✓</span>
+                    <span className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center text-[11px] ${paid ? 'bg-mint-600 border-mint-600 text-white' : 'border-edge text-transparent'}`}>✓</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{slot.period_label}</p>
-                      <p className="text-[11px] text-ink-mute">{paid ? `Paid ${fmtDate(record.paid_at || record.due_date)}` : dueLabel(slot.due_date)}</p>
-                      {record?.notes ? <p className="text-[11px] text-ink-soft mt-0.5">{record.notes}</p> : null}
+                      <p className="text-[12px] text-ink-mute">{paid ? `Paid ${fmtDate(record.paid_at || record.due_date)}` : dueLabel(slot.due_date)}</p>
+                      {record?.notes ? <p className="text-[12px] text-ink-soft mt-0.5">{record.notes}</p> : null}
                     </div>
                     <p className="text-sm font-medium">{inr(slot.amount)}</p>
                   </div>
@@ -250,15 +251,15 @@ export default async function ViewInvestmentPage({ params }) {
         {recurring && withdrawals.length > 0 && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
-              <span className="text-[11px] text-ink-soft">{inr(stillInvested)} still invested</span>
+              <p className="text-[12px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
+              <span className="text-[12px] text-ink-soft">{inr(stillInvested)} still invested</span>
             </div>
             <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
               {withdrawals.map((row, idx) => (
                 <div key={row.id} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''}`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{fmtDate(row.withdrawn_on)}</p>
-                    {row.notes ? <p className="text-[11px] text-ink-soft mt-0.5">{row.notes}</p> : null}
+                    {row.notes ? <p className="text-[12px] text-ink-soft mt-0.5">{row.notes}</p> : null}
                   </div>
                   <p className="text-sm font-medium">− {inr(row.amount)}</p>
                 </div>

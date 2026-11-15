@@ -92,11 +92,11 @@ export default function ChitFundFields({
     <div className="space-y-4">
       <div className="rounded-xl border border-plum-600/20 bg-plum-50/60 p-3.5 text-sm">
         <p className="font-medium text-plum-600">Chit fund schedule</p>
-        <p className="text-[11px] text-ink-soft mt-1">
+        <p className="text-[12px] text-ink-soft mt-1">
           Enter instalments and month-wise payouts. Pre-pick amount applies through the month you take the chit;
           the higher amount starts the following month. Use the table to compare rates before you pick.
         </p>
-        <button type="button" onClick={applyPreset} className="mt-2 text-[11px] px-2.5 py-1 rounded-full bg-paper-card border border-edge hover:border-plum-600">
+        <button type="button" onClick={applyPreset} className="mt-2 text-[12px] px-2.5 py-1 rounded-full bg-paper-card border border-edge hover:border-plum-600">
           Fill 2.5L dual-rate example
         </button>
       </div>
@@ -134,7 +134,7 @@ export default function ChitFundFields({
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Every month after pick (₹)<span className="text-danger ml-0.5">*</span></label>
               <input type="number" min="0" step="1" value={postPickAmount} onChange={(e) => setPostPickAmount(e.target.value)} className="field-input" placeholder="23335" />
-              <p className="text-[11px] text-ink-mute mt-1">Starts from the month after you pick.</p>
+              <p className="text-[12px] text-ink-mute mt-1">Starts from the month after you pick.</p>
             </div>
           </div>
 
@@ -162,7 +162,7 @@ export default function ChitFundFields({
         <div>
           <p className="text-xs text-ink-soft mb-2">Month-wise payment and payout<span className="text-danger ml-0.5">*</span></p>
           <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
-            <div className="grid grid-cols-[4rem_1fr_1fr] gap-2 px-3.5 py-2 text-[11px] text-ink-mute border-b border-edge">
+            <div className="grid grid-cols-[4rem_1fr_1fr] gap-2 px-3.5 py-2 text-[12px] text-ink-mute border-b border-edge">
               <span>Month</span>
               <span>You pay</span>
               <span>You receive</span>
@@ -195,18 +195,18 @@ export default function ChitFundFields({
       )}
 
       <div className="bg-paper-tint rounded-xl p-3.5 space-y-1.5 text-sm">
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase">If you pick month {selected.pick_month}</p>
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase">If you pick month {selected.pick_month}</p>
         <div className="flex justify-between"><span className="text-ink-soft">Total you pay</span><span className="font-medium">{inr(selected.total_paid)}</span></div>
         <div className="flex justify-between"><span className="text-ink-soft">Prize received</span><span className="font-medium">{inr(selected.prize)}</span></div>
         <div className="flex justify-between"><span className="text-ink-soft">Profit / loss</span><span className={`font-medium ${profitTone}`}>{profit >= 0 ? '+' : ''}{inr(profit)}</span></div>
         <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">{rateLabel}</span><span className="font-medium text-plum-600">{formatRate(selected.monthly_rate_pct)} /mo</span></div>
         <div className="flex justify-between"><span className="text-ink-soft">Annualized</span><span className="font-medium">{formatRate(selected.annual_rate_pct)}</span></div>
-        <p className="text-[11px] text-ink-mute pt-1">Early pick ≈ borrowing (you receive cash first). Late pick ≈ saving (you get the prize at the end).</p>
+        <p className="text-[12px] text-ink-mute pt-1">Early pick ≈ borrowing (you receive cash first). Late pick ≈ saving (you get the prize at the end).</p>
       </div>
 
       <div>
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Pick-month simulator</p>
-        <p className="text-[11px] text-ink-soft mb-2">Tap a row to choose that pick month.</p>
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Pick-month simulator</p>
+        <p className="text-[12px] text-ink-soft mb-2">Tap a row to choose that pick month.</p>
         <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[520px]">
             <thead>

@@ -69,6 +69,7 @@ const CHIT_TYPE_CODES = new Set(['CHIT', 'CHITFUND']);
 const SAVINGS_TYPE_CODES = new Set(['SAVINGS', 'SAVING', 'SAV', 'CASH']);
 const FUND_TYPE_CODES = new Set(['MF', 'MUTUALFUND']);
 const OTHER_TYPE_CODES = new Set(['OT', 'OTHER']);
+const FD_TYPE_CODES = new Set(['FD', 'FIXEDDEPOSIT', 'TD', 'TERMDEPOSIT']);
 const MARKET_TYPE_CODES = new Set(['ETF', 'STOCK', 'ST', 'EQ', 'EQUITY', 'SHARES']);
 
 function compactLabel(value) {
@@ -107,6 +108,7 @@ export function investmentThumbKind(typeCode, customType = '', planName = '') {
   if (GOLD_TYPE_CODES.has(code)) return 'gold';
   if (RD_TYPE_CODES.has(code)) return 'rd';
   if (CHIT_TYPE_CODES.has(code)) return 'chit';
+  if (FD_TYPE_CODES.has(code)) return 'fd';
   if (SAVINGS_TYPE_CODES.has(code) || labelIsSavingsOrCash(typeCode)) return 'savings';
   if (FUND_TYPE_CODES.has(code) || labelIsMutualFund(typeCode)) return 'fund';
   if (MARKET_TYPE_CODES.has(code)) return 'market';
@@ -115,6 +117,7 @@ export function investmentThumbKind(typeCode, customType = '', planName = '') {
   if (GOLD_TYPE_CODES.has(extraNorm) || /\bgold\b/.test(extra) || /sovereign gold/.test(extra)) return 'gold';
   if (RD_TYPE_CODES.has(extraNorm) || /\brd\b/.test(extra) || /recurring deposit/.test(extra)) return 'rd';
   if (CHIT_TYPE_CODES.has(extraNorm) || /\bchit\b/.test(extra) || /chit fund/.test(extra)) return 'chit';
+  if (FD_TYPE_CODES.has(extraNorm) || /fixed deposit/.test(extra)) return 'fd';
   if (labelIsMutualFund(customType)) return 'fund';
   if (labelIsSavingsOrCash(customType)) return 'savings';
   if (OTHER_TYPE_CODES.has(code) && labelIsSavingsOrCash(planName)) return 'savings';
@@ -478,6 +481,76 @@ export function FundGlyph() {
   );
 }
 
+/** A coin drops onto a stack while a lock pulses: money locked in and growing. */
+export function FdGlyph() {
+  const uid = useId().replace(/:/g, '');
+  const faceId = `fd-face-${uid}`;
+  const coin = (y, key, extra = null) => (
+    <g key={key}>
+      <rect x="6" y={y} width="18" height="3.8" fill="#B07E14" />
+      <ellipse cx="15" cy={y + 3.8} rx="9" ry="2.2" fill="#B07E14" />
+      <ellipse cx="15" cy={y} rx="9" ry="2.2" fill={`url(#${faceId})`} />
+      {extra}
+    </g>
+  );
+  return (
+    <span className="fd-stack" aria-hidden="true">
+      <svg viewBox="0 0 36 36">
+        <defs>
+          <linearGradient id={faceId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#F7D56A" />
+            <stop offset="100%" stopColor="#C9911A" />
+          </linearGradient>
+        </defs>
+        <ellipse cx="15" cy="31.6" rx="10" ry="1.8" fill="rgba(80, 48, 8, 0.18)" />
+        {[27, 23.2, 19.4].map((y) => coin(y, y))}
+        <g className="fd-coin-drop">
+          {coin(15.6, 'drop', (
+            <text x="15" y="16.9" textAnchor="middle" fontSize="3.6" fontWeight="700" fontFamily="Georgia, serif" fill="#7A520C">₹</text>
+          ))}
+        </g>
+        <g className="fd-lock">
+          <rect x="23.5" y="9.5" width="9" height="7.5" rx="1.6" fill="#0F6E56" />
+          <path d="M25.4 9.6V7.8a2.6 2.6 0 0 1 5.2 0v1.8" fill="none" stroke="#0F6E56" strokeWidth="1.5" />
+          <circle cx="28" cy="13.1" r="1.1" fill="#E1F5EE" />
+        </g>
+      </svg>
+    </span>
+  );
+}
+
+/**
+ * A small upright tank that fills to `pct` with the same waves, shimmer and
+ * bubbles as GoalWaterFill. `tone` tints the water (mint, sky, honey, plum).
+ */
+export function WaterTank({ pct = 0, tone = 'mint', label, valueLabel, title }) {
+  const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+  return (
+    <div className="water-tank-col" title={title}>
+      <div className={`water-tank water-tone-${tone}`} aria-hidden="true">
+        {fill > 0 && (
+          <div className={`goal-water-body${fill >= 100 ? ' is-full' : ''}`} style={{ height: `${fill}%` }}>
+            <div className="goal-water-fill">
+              <span className="goal-water-shimmer" />
+              <span className="goal-water-bubble" style={{ left: '18%', width: 5, height: 5, animationDelay: '0.3s' }} />
+              <span className="goal-water-bubble" style={{ left: '55%', width: 4, height: 4, animationDelay: '1.6s', animationDuration: '5.4s' }} />
+            </div>
+            <svg className="goal-water-wave goal-water-wave-back" viewBox="0 0 1440 48" preserveAspectRatio="none">
+              <path d={WAVE_BACK} fill="rgba(255,255,255,0.45)" />
+            </svg>
+            <svg className="goal-water-wave" viewBox="0 0 1440 48" preserveAspectRatio="none">
+              <path d={WAVE_FRONT} fill="rgba(255,255,255,0.55)" />
+              <path d={WAVE_CREST} fill="none" stroke="rgba(255,255,255,0.88)" strokeWidth="2.5" />
+            </svg>
+          </div>
+        )}
+      </div>
+      <span className="water-tank-pct">{valueLabel ?? `${Math.round(fill)}%`}</span>
+      <span className="water-tank-label">{label}</span>
+    </div>
+  );
+}
+
 export function TypeThumbnail({
   typeCode,
   customType,
@@ -522,6 +595,13 @@ export function TypeThumbnail({
       </span>
     );
   }
+  if (thumb === 'fd') {
+    return (
+      <span className="type-thumb">
+        <FdGlyph />
+      </span>
+    );
+  }
   return null;
 }
 
@@ -539,7 +619,7 @@ export function GrowthAvatar({
   const showTree = kind === 'tree' || kind === 'wilted' || kind === 'complete';
   const showBubbles = kind === 'bubbles' || kind === 'achieved';
   const treeRatio = Number(ratio) || 0;
-  if (thumb === 'gold' || thumb === 'silver' || thumb === 'rd' || thumb === 'chit' || thumb === 'savings' || thumb === 'fund' || thumb === 'market') {
+  if (thumb === 'gold' || thumb === 'silver' || thumb === 'rd' || thumb === 'chit' || thumb === 'savings' || thumb === 'fund' || thumb === 'market' || thumb === 'fd') {
     const treeThumb = thumb === 'rd' || thumb === 'chit';
     return (
       <div className="growth-avatar">
@@ -562,7 +642,7 @@ export function GrowthAvatar({
       {showTree ? (
         <TreeGlyph ratio={treeRatio} wilted={kind === 'wilted'} complete={kind === 'complete' || celebrate} />
       ) : (
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 relative z-[1] ${toneClass}`}>
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-medium flex-shrink-0 relative z-[1] ${toneClass}`}>
           {typeShort}
         </div>
       )}

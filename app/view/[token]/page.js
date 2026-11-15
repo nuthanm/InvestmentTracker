@@ -62,27 +62,27 @@ export default async function ViewPortfolioPage({ params }) {
 
         {portfolio.goals.length > 0 && (
           <section className="mb-2">
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Goals</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Goals</p>
             <div className="grid sm:grid-cols-2 gap-2">
               {portfolio.goals.map((goal) => {
                 const invested = investedTowardGoal(goal.id, portfolio.investments);
                 return (
                   <div key={goal.id} className="bg-paper-card border border-edge rounded-xl px-3.5 py-3">
                     <p className="text-sm font-medium">{goal.name}</p>
-                    {goal.description ? <p className="text-[11px] text-ink-soft mt-1 line-clamp-2">{goal.description}</p> : null}
+                    {goal.description ? <p className="text-[12px] text-ink-soft mt-1 line-clamp-2">{goal.description}</p> : null}
                     <div className="mt-2.5 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
                       <div className="min-w-0">
-                        <p className="text-[10px] tracking-wider uppercase text-ink-mute">{isLiquidityGoal(goal) ? 'Keep available' : 'Target'}</p>
+                        <p className="text-[11px] tracking-wider uppercase text-ink-mute">{isLiquidityGoal(goal) ? 'Keep available' : 'Target'}</p>
                         <p className="text-base font-medium leading-snug">{inr(goalTargetAmount(goal))}</p>
                       </div>
-                      <p className="shrink-0 text-[11px] text-ink-soft pb-0.5">
+                      <p className="shrink-0 text-[12px] text-ink-soft pb-0.5">
                         {isLiquidityGoal(goal)
                           ? (Number(goal.inflation_pct) > 0 ? `${Number(goal.inflation_pct)}% inflation` : 'No end date')
                           : `By ${fmtDate(goal.target_date)}`}
                       </p>
                     </div>
                     <div className="mt-2 pt-2 border-t border-dashed border-edge">
-                      <p className="text-[10px] tracking-wider uppercase text-ink-mute">Invested</p>
+                      <p className="text-[11px] tracking-wider uppercase text-ink-mute">Invested</p>
                       <p className="text-sm font-medium text-mint-700">{inr(invested)}</p>
                     </div>
                   </div>

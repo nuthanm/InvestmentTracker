@@ -24,7 +24,7 @@ function discountLabel(pricing, pct) {
 
 export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general', metalName = 'gold' }) {
   if (!pricing) {
-    return <p className="text-[11px] text-ink-mute">Enter weight and price to see the bill.</p>;
+    return <p className="text-[12px] text-ink-mute">Enter weight and price to see the bill.</p>;
   }
 
   const directPurchase = purchaseMode !== 'scheme';
@@ -40,7 +40,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
 
   return (
     <div className="space-y-2">
-      <p className="text-[11px] tracking-wider text-ink-mute uppercase">Invoice calculation</p>
+      <p className="text-[12px] tracking-wider text-ink-mute uppercase">Invoice calculation</p>
 
       {directPurchase ? (
         <>
@@ -69,7 +69,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
         </>
       ) : (
         <>
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-1">With scheme</p>
+          <p className="text-[12px] tracking-wider text-ink-mute uppercase pt-1">With scheme</p>
           <Row label="Metal value (grams × rate)" value={inrPaise(pricing.baseValue)} />
           {wastage > 0 && (
             <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
@@ -88,7 +88,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
             <span className="font-medium text-mint-600">{inrPaise(pricing.schemeTotal)}</span>
           </div>
 
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without scheme</p>
+          <p className="text-[12px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Without scheme</p>
           <Row label="Metal value (grams × rate)" value={inrPaise(pricing.baseValue)} />
           {wastage > 0 && (
             <Row label={wastageLabel(pricing)} value={inrPaise(wastage)} />
@@ -106,7 +106,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
             <span className="font-medium">{inrPaise(pricing.generalTotal)}</span>
           </div>
 
-          <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Scheme grams split</p>
+          <p className="text-[12px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Scheme grams split</p>
           <Row label="Scheme accumulated grams" value={`${pricing.accumulatedGrams.toFixed(3)} g`} />
           <Row label="Purchased grams" value={`${pricing.purchasedGrams.toFixed(3)} g`} />
           <Row
@@ -120,7 +120,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
 
           {pricing.isPrematureWithdrawal && (
             <>
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Premature withdrawal</p>
+              <p className="text-[12px] tracking-wider text-ink-mute uppercase pt-2 border-t border-dashed border-edge">Premature withdrawal</p>
               <Row label="Amount paid into scheme" value={inrPaise(pricing.paidAmount)} />
               <Row label={`Withdrawal penalty (${pricing.prematurePenaltyPct.toFixed(2)}%)`} value={`- ${inrPaise(pricing.prematurePenaltyAmount)}`} valueClassName="text-danger" />
               <Row label="Estimated cash refund" value={inrPaise(pricing.prematureCashRefund)} valueClassName="text-mint-600" />
@@ -138,7 +138,7 @@ export default function MetalInvoiceDetails({ pricing, purchaseMode = 'general',
         </>
       )}
 
-      <p className="text-[11px] text-ink-mute pt-2 border-t border-dashed border-edge">
+      <p className="text-[12px] text-ink-mute pt-2 border-t border-dashed border-edge">
         Saving adds {grams.toFixed(3)} g to your {metalName} accumulation goal and {inrPaise(investedAmount)} to the linked goal&apos;s invested amount.
       </p>
     </div>

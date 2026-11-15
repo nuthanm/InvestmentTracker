@@ -41,6 +41,7 @@ import {
   isPrematureWithdrawalStatus,
 } from '@/lib/investment-lifecycle';
 import { documentBadge, documentPreviewKind, downloadDataUrl } from '@/lib/documents';
+import Icon from '@/components/Icon';
 
 function buildSchedule(investment) {
   return buildRecurringPaymentSchedule(investment);
@@ -938,16 +939,16 @@ export default function DetailClient({
   return (
     <Shell user={user}>
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-3xl mx-auto w-full">
-        <button onClick={() => router.back()} className="text-xs text-ink-soft mb-4">← Back</button>
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Back</button>
 
         {!forLiquidity && !lifecycleClosed && !marketType && (maturityMatured || maturityUrgent || maturityWarning) && (
           <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${maturityMatured ? 'bg-mint-50 border border-mint-600/30' : maturityUrgent ? 'bg-danger-soft border border-danger/30' : 'bg-honey-50 border border-honey-600/30'}`}>
-            <span className="text-xl leading-none">{maturityMatured ? '✅' : maturityUrgent ? '🔔' : '📅'}</span>
+            <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${maturityMatured ? 'bg-mint-50 text-mint-700' : maturityUrgent ? 'bg-honey-50 text-honey-600' : 'bg-sky-50 text-sky-600'}`}><Icon name={maturityMatured ? 'checkCircle' : maturityUrgent ? 'bell' : 'calendar'} size={16} /></span>
             <div>
               <p className={`text-sm font-medium ${maturityMatured ? 'text-mint-700' : maturityUrgent ? 'text-danger' : 'text-honey-600'}`}>
                 {maturityMatured ? (daysLeft === 0 ? 'Matures today' : `Matured ${Math.abs(daysLeft)} day${Math.abs(daysLeft) === 1 ? '' : 's'} ago`) : maturityUrgent ? `Matures in ${daysLeft} day${daysLeft === 1 ? '' : 's'}!` : `Matures in ${daysLeft} days`}
               </p>
-              <p className="text-[11px] text-ink-soft mt-0.5">
+              <p className="text-[12px] text-ink-soft mt-0.5">
                 {maturityMatured ? 'This investment reached maturity. You can mark closure or plan reinvestment.' : maturityUrgent ? 'This investment is about to mature. Plan your next steps — renew, withdraw, or reinvest.' : 'This investment is maturing soon. Consider your renewal or withdrawal options.'}
               </p>
             </div>
@@ -956,12 +957,12 @@ export default function DetailClient({
 
         {lifecycleClosed && (
           <div className={`flex items-start gap-3 rounded-xl p-3.5 mb-4 ${isPrematureWithdrawalStatus(i.lifecycle_status) ? 'bg-danger-soft border border-danger/30' : 'bg-mint-50 border border-mint-600/30'}`}>
-            <span className="text-xl leading-none">{isPrematureWithdrawalStatus(i.lifecycle_status) ? '⚠️' : '✅'}</span>
+            <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${isPrematureWithdrawalStatus(i.lifecycle_status) ? 'bg-honey-50 text-honey-600' : 'bg-mint-50 text-mint-700'}`}><Icon name={isPrematureWithdrawalStatus(i.lifecycle_status) ? 'alert' : 'checkCircle'} size={16} /></span>
             <div>
               <p className={`text-sm font-medium ${isPrematureWithdrawalStatus(i.lifecycle_status) ? 'text-danger' : 'text-mint-700'}`}>
                 {getLifecycleLabel(i.lifecycle_status)}{i.closure_date ? ` · ${fmtDate(i.closure_date)}` : ''}
               </p>
-              <p className="text-[11px] text-ink-soft mt-0.5">
+              <p className="text-[12px] text-ink-soft mt-0.5">
                 {i.closure_amount != null
                   ? <>Received <span className="font-medium text-ink">{inr(i.closure_amount)}</span>{i.penalty_amount ? <> · penalty {inr(i.penalty_amount)}</> : null}{i.interest_loss ? <> · interest loss {inr(i.interest_loss)}</> : null}</>
                   : 'Closure recorded. Add the received amount below if needed.'}
@@ -984,9 +985,9 @@ export default function DetailClient({
                 />
               </span>
             ) : null}
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase">
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase">
               {labelFor(i)}
-              {forLiquidity && <span className="ml-2 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
+              {forLiquidity && <span className="ml-2 align-middle text-[11px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide">Liquidity</span>}
             </p>
           </div>
           {forLiquidity ? (
@@ -1144,14 +1145,14 @@ export default function DetailClient({
                   <option value="">— No goal —</option>
                   {goals.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
                 </select>
-                <button onClick={saveGoal} disabled={savingGoal} className="text-[11px] font-medium text-mint-600 hover:underline disabled:opacity-50">{savingGoal ? 'Saving…' : 'Save'}</button>
-                <button onClick={() => { setEditingGoal(false); setGoalId(i.goal_id || ''); setGoalError(''); }} className="text-[11px] text-ink-mute hover:underline">Cancel</button>
-                {goalError && <span className="text-[11px] text-danger w-full text-right">{goalError}</span>}
+                <button onClick={saveGoal} disabled={savingGoal} className="text-[12px] font-medium text-mint-600 hover:underline disabled:opacity-50">{savingGoal ? 'Saving…' : 'Save'}</button>
+                <button onClick={() => { setEditingGoal(false); setGoalId(i.goal_id || ''); setGoalError(''); }} className="text-[12px] text-ink-mute hover:underline">Cancel</button>
+                {goalError && <span className="text-[12px] text-danger w-full text-right">{goalError}</span>}
               </div>
             ) : (
               <span className="font-medium text-right flex items-center gap-2">
-                {i.goal_name ? <Link href="/goals" className="text-sky-600">{i.goal_name} →</Link> : <span className="text-ink-mute">—</span>}
-                <button onClick={() => setEditingGoal(true)} className="text-[11px] text-ink-mute hover:text-mint-600 transition">change</button>
+                {i.goal_name ? <Link href="/goals" className="link-more">{i.goal_name}<Icon name="chevronRight" size={14} /></Link> : <span className="text-ink-mute">—</span>}
+                <button onClick={() => setEditingGoal(true)} className="text-[12px] text-ink-mute hover:text-mint-600 transition">change</button>
               </span>
             )}
           </div>
@@ -1162,13 +1163,13 @@ export default function DetailClient({
             <span className="text-right">
               <span className="font-medium">{forLiquidity ? 'Saving for liquidity' : 'Investment'}</span>
               {forLiquidity ? (
-                <Link href={`/investments/${i.id}/edit`} className="block ml-auto text-[11px] text-sky-600 hover:underline">Change to an investment</Link>
+                <Link href={`/investments/${i.id}/edit`} className="block ml-auto link-more text-[12px]">Change to an investment</Link>
               ) : (
-                <button type="button" onClick={togglePurpose} disabled={savingPurpose} className="block ml-auto text-[11px] text-sky-600 hover:underline disabled:opacity-50">
+                <button type="button" onClick={togglePurpose} disabled={savingPurpose} className="block ml-auto link-more text-[12px] disabled:opacity-50">
                   {savingPurpose ? 'Saving…' : 'Save as bank balance'}
                 </button>
               )}
-              {purposeError && <span className="block text-[11px] text-danger mt-1">{purposeError}</span>}
+              {purposeError && <span className="block text-[12px] text-danger mt-1">{purposeError}</span>}
             </span>
           </div>
           {!forLiquidity && !isTransactionType && <Row label="Auto-renew" value={i.auto_renew ? <span className="text-mint-600">on · reminder 30d before</span> : 'off'} />}
@@ -1180,10 +1181,10 @@ export default function DetailClient({
           <div className="flex items-center justify-between gap-3 mb-3">
             <div>
               <p className="text-sm font-medium">Closure & premature withdrawal</p>
-              <p className="text-[11px] text-ink-soft mt-0.5">Applies to FD, RD, PPF, mutual funds, gold schemes, and other plans.</p>
+              <p className="text-[12px] text-ink-soft mt-0.5">Applies to FD, RD, PPF, mutual funds, gold schemes, and other plans.</p>
             </div>
           </div>
-          {closureError && <p className="text-[11px] text-danger mb-3">{closureError}</p>}
+          {closureError && <p className="text-[12px] text-danger mb-3">{closureError}</p>}
           <form onSubmit={saveClosure} className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-ink-soft mb-1.5">Status</label>
@@ -1208,16 +1209,16 @@ export default function DetailClient({
                     <div>
                       <label className="block text-xs text-ink-soft mb-1.5">Effective ROI on exit (% p.a.)</label>
                       <input type="number" step="0.01" value={appliedRatePct} onChange={(e) => setAppliedRatePct(e.target.value)} className="field-input" />
-                      <p className="text-[10px] text-ink-mute mt-1">Bank card rate applied on premature closure (e.g. SBI effective ROI).</p>
+                      <p className="text-[11px] text-ink-mute mt-1">Bank card rate applied on premature closure (e.g. SBI effective ROI).</p>
                     </div>
                     <div>
                       <label className="block text-xs text-ink-soft mb-1.5">Penalty (₹)</label>
                       <input type="number" min="0" step="0.01" value={lifecyclePenaltyAmount} onChange={(e) => setLifecyclePenaltyAmount(e.target.value)} className="field-input" />
                     </div>
                     <div>
-                      <label className="block text-xs text-ink-soft mb-1.5">Penalty on interest (%) <span className="text-[10px] text-ink-mute">optional fallback</span></label>
+                      <label className="block text-xs text-ink-soft mb-1.5">Penalty on interest (%) <span className="text-[11px] text-ink-mute">optional fallback</span></label>
                       <input type="number" min="0" step="0.01" value={lifecyclePenaltyPct} onChange={(e) => setLifecyclePenaltyPct(e.target.value)} className="field-input" />
-                      <p className="text-[10px] text-ink-mute mt-1">Used only when penalty ₹ is zero.</p>
+                      <p className="text-[11px] text-ink-mute mt-1">Used only when penalty ₹ is zero.</p>
                     </div>
                   </>
                 )}
@@ -1226,12 +1227,12 @@ export default function DetailClient({
                   <input type="number" min="0" step="0.01" value={closureAmount} onChange={(e) => setClosureAmount(e.target.value)} className="field-input" placeholder={closurePreview?.closureValue != null ? String(closurePreview.closureValue) : '0'} />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[10px] text-ink-mute">optional</span></label>
+                  <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[11px] text-ink-mute">optional</span></label>
                   <textarea rows="2" value={closureNotes} onChange={(e) => setClosureNotes(e.target.value)} className="field-input" placeholder="Penalty terms, reference number, reinvestment plan…" />
                 </div>
                 {closurePreview && (
                   <div className="md:col-span-2 rounded-xl border border-edge bg-paper-tint px-3 py-3 text-sm space-y-1.5">
-                    <p className="text-[11px] tracking-wider text-ink-mute uppercase">Review closure details</p>
+                    <p className="text-[12px] tracking-wider text-ink-mute uppercase">Review closure details</p>
                     {closurePreview.kind === 'rate_based' ? (
                       <>
                         <div className="flex justify-between"><span className="text-ink-soft">Principal amount</span><span className="font-medium">{inr(closurePreview.investedPrincipal)}</span></div>
@@ -1259,7 +1260,7 @@ export default function DetailClient({
                           <div className="flex justify-between"><span className="text-ink-soft">Realized gain / loss</span><span className={`font-medium ${Number(closurePreview.realizedGainLoss) >= 0 ? 'text-mint-600' : 'text-danger'}`}>{inr(closurePreview.realizedGainLoss)}</span></div>
                         )}
                         {isTransactionType && !closurePreview.isFullyRedeemed && isPrematureWithdrawalStatus(lifecycleStatus) && (
-                          <p className="text-[11px] text-honey-700 pt-1">Redeem or sell all units before saving premature withdrawal for market holdings.</p>
+                          <p className="text-[12px] text-honey-700 pt-1">Redeem or sell all units before saving premature withdrawal for market holdings.</p>
                         )}
                       </>
                     )}
@@ -1277,7 +1278,7 @@ export default function DetailClient({
           <section className="mb-5 space-y-4">
             {marketType && (
               <div>
-                <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Transaction summary</p>
+                <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Transaction summary</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                   <SummaryCard label="Units held" value={formatUnits(currentSummary.total_units)} />
                   <SummaryCard label="Avg cost" value={inr(currentSummary.average_buy_price || 0)} />
@@ -1290,7 +1291,7 @@ export default function DetailClient({
             )}
             {metalType && (
               <div>
-                <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Metal summary</p>
+                <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Metal summary</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                   <SummaryCard label="Weight held" value={`${formatUnits(currentSummary.total_units)} g`} />
                   <SummaryCard label="Avg price / g" value={inr(currentSummary.average_buy_price || 0)} />
@@ -1302,7 +1303,7 @@ export default function DetailClient({
             {metalType && !isMetalScheme && (
               <form onSubmit={saveSchemePlan} className="bg-paper-card border border-edge rounded-2xl p-4">
                 <p className="text-sm font-medium">Accumulate monthly, like a recurring deposit</p>
-                <p className="text-[11px] text-ink-soft mt-1">Start the scheme now. Each month can be marked paid. The purchase stays here for when you convert the balance.</p>
+                <p className="text-[12px] text-ink-soft mt-1">Start the scheme now. Each month can be marked paid. The purchase stays here for when you convert the balance.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
                   <div>
                     <label className="block text-xs text-ink-soft mb-1">Scheme months</label>
@@ -1329,10 +1330,10 @@ export default function DetailClient({
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium">{editingTxId ? 'Edit transaction' : (metalType ? 'Add purchase / sale' : 'Add transaction')}</p>
                 {editingTxId
-                  ? <button type="button" onClick={() => { resetTxForm(); setTransactionError(''); }} className="text-[11px] text-sky-700 hover:underline">Cancel edit</button>
-                  : <span className="text-[11px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>}
+                  ? <button type="button" onClick={() => { resetTxForm(); setTransactionError(''); }} className="text-[12px] text-sky-700 hover:underline">Cancel edit</button>
+                  : <span className="text-[12px] text-ink-soft">{metalType ? 'Purchase, sell' : 'Buy, redeem, switch, dividend'}</span>}
               </div>
-              {transactionError && <p className="text-[11px] text-danger mb-3">{transactionError}</p>}
+              {transactionError && <p className="text-[12px] text-danger mb-3">{transactionError}</p>}
               {metalType && (
                 <div className="mb-3 rounded-xl border border-honey-600/25 bg-honey-50 px-3 py-2 text-[12px]">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1400,7 +1401,7 @@ export default function DetailClient({
                             <option value="percentage">Percent of metal value</option>
                             <option value="value">Rupee amount on the bill</option>
                           </select>
-                          <p className="text-[11px] text-ink-mute mt-1">
+                          <p className="text-[12px] text-ink-mute mt-1">
                             {purchaseMode === 'general'
                               ? (i.type_code === 'GOLD'
                                 ? 'Direct purchase. GST is calculated on gold value, wastage, stone, and making charges, after any discount.'
@@ -1552,7 +1553,7 @@ export default function DetailClient({
                               </div>
                             </div>
                           )}
-                          <div className="mt-2 text-[11px] text-ink-mute">
+                          <div className="mt-2 text-[12px] text-ink-mute">
                             {metalPricing
                               ? `GST on ${i.type_code === 'GOLD' ? 'gold, wastage, stone, and making, after discount' : 'metal + making'}: SGST ${metalPricing.derivedSgstPct.toFixed(2)}% (${inrPaise(metalPricing.sgstAmount)}), CGST ${metalPricing.derivedCgstPct.toFixed(2)}% (${inrPaise(metalPricing.cgstAmount)}), Total ${metalPricing.totalGstPct.toFixed(2)}% (${inrPaise(metalPricing.totalGst)})`
                               : 'Enter weight and price to view GST conversion.'}
@@ -1563,7 +1564,7 @@ export default function DetailClient({
                           <>
                             <div className="md:col-span-2 rounded-xl border border-honey-600/30 bg-honey-50 px-3 py-2.5 text-sm">
                               <p className="font-medium text-honey-700">Scheme details</p>
-                              <p className="text-[11px] text-honey-700/80 mt-1">Compare general vs scheme purchase to see savings or loss.</p>
+                              <p className="text-[12px] text-honey-700/80 mt-1">Compare general vs scheme purchase to see savings or loss.</p>
                             </div>
                             <div>
                               <label className="block text-xs text-ink-soft mb-1.5">Actual making charge (%)</label>
@@ -1657,7 +1658,7 @@ export default function DetailClient({
                           setSgstPct((prev) => (Number(prev) > 0 ? prev : '1.5'));
                           setCgstPct((prev) => (Number(prev) > 0 ? prev : '1.5'));
                           setAutoCalcCharges(true);
-                        }} className="mt-1 text-[11px] text-sky-700 hover:underline">Use auto-calculated values</button>
+                        }} className="mt-1 text-[12px] text-sky-700 hover:underline">Use auto-calculated values</button>
                       </div>
                     ) : (
                       <div>
@@ -1668,7 +1669,7 @@ export default function DetailClient({
                   </>
                 )}
                 <div className="md:col-span-2">
-                  <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[10px] text-ink-mute">optional</span></label>
+                  <label className="block text-xs text-ink-soft mb-1.5">Notes <span className="text-[11px] text-ink-mute">optional</span></label>
                   <textarea rows="3" value={txForm.notes} onChange={(e) => setTxForm((prev) => ({ ...prev, notes: e.target.value }))} className="field-input" />
                 </div>
                 {metalBuyType && (
@@ -1693,7 +1694,7 @@ export default function DetailClient({
             ) : (
               <div className="bg-paper-card border border-edge rounded-2xl p-4">
                 <p className="text-sm font-medium">Scheme is still active</p>
-                <p className="text-[11px] text-ink-soft mt-1">Keep marking the monthly payments. The purchase invoice appears when you redeem, close the scheme, or withdraw early.</p>
+                <p className="text-[12px] text-ink-soft mt-1">Keep marking the monthly payments. The purchase invoice appears when you redeem, close the scheme, or withdraw early.</p>
                 <button
                   type="button"
                   onClick={() => { setShowSchemePurchase(true); setPurchaseMode('scheme'); setSchemeStatus('closed'); }}
@@ -1706,10 +1707,10 @@ export default function DetailClient({
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] tracking-wider text-ink-mute uppercase">Transaction history</p>
-                <span className="text-[11px] text-ink-soft">{transactions.length} entries</span>
+                <p className="text-[12px] tracking-wider text-ink-mute uppercase">Transaction history</p>
+                <span className="text-[12px] text-ink-soft">{transactions.length} entries</span>
               </div>
-              {historyError && <p role="alert" className="text-[11px] text-danger mb-2">{historyError}</p>}
+              {historyError && <p role="alert" className="text-[12px] text-danger mb-2">{historyError}</p>}
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                 {transactions.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-ink-soft text-center">{metalType ? (isMetalScheme && !lifecycleClosed && !showSchemePurchase ? 'No purchase yet. Monthly payments are listed below.' : 'No purchases yet. Record your first purchase above.') : 'No transactions yet. Add your first buy or SIP above.'}</div>
@@ -1722,7 +1723,7 @@ export default function DetailClient({
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-medium">{getTransactionTypeLabel(tx.transaction_type)} <span className="text-ink-mute font-normal">· {fmtDate(tx.trade_date)}</span></p>
-                          {isEditing && <p className="text-[11px] text-sky-700 mt-0.5">Editing above</p>}
+                          {isEditing && <p className="text-[12px] text-sky-700 mt-0.5">Editing above</p>}
                         </div>
                         <p className="text-sm font-medium">{inrPaise(tx.net_amount ?? computeTransactionNetAmount(tx))}</p>
                       </div>
@@ -1736,7 +1737,7 @@ export default function DetailClient({
                         <TxDetail label="Added on" value={fmtDateTime(tx.created_at)} />
                         <TxDetail label="Last edited" value={tx.updated_at ? fmtDateTime(tx.updated_at) : '—'} />
                       </dl>
-                      {tx.notes && <p className="text-[11px] text-ink-soft mt-2 whitespace-pre-line">{tx.notes}</p>}
+                      {tx.notes && <p className="text-[12px] text-ink-soft mt-2 whitespace-pre-line">{tx.notes}</p>}
                       <div className="mt-2 flex items-center justify-end gap-3 text-[12px]">
                         {isConfirmingDelete ? (
                           <>
@@ -1759,12 +1760,12 @@ export default function DetailClient({
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] tracking-wider text-ink-mute uppercase">Transaction activity log</p>
-                <button type="button" onClick={() => setShowAudit((v) => !v)} className="text-[11px] text-sky-700 hover:underline">
+                <p className="text-[12px] tracking-wider text-ink-mute uppercase">Transaction activity log</p>
+                <button type="button" onClick={() => setShowAudit((v) => !v)} className="text-[12px] text-sky-700 hover:underline">
                   {showAudit ? 'Hide' : `Show (${auditEvents.length})`}
                 </button>
               </div>
-              {auditError && <p className="text-[11px] text-danger mb-2">{auditError}</p>}
+              {auditError && <p className="text-[12px] text-danger mb-2">{auditError}</p>}
               {showAudit && (
                 <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden">
                   {auditEvents.length === 0 ? (
@@ -1805,12 +1806,12 @@ export default function DetailClient({
         {isRecurring && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">{isMetalScheme ? 'Monthly payments' : 'Payment history'}</p>
+              <p className="text-[12px] tracking-wider text-ink-mute uppercase">{isMetalScheme ? 'Monthly payments' : 'Payment history'}</p>
               {paymentsLoaded && (
-                <span className="text-[11px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{isMetalScheme && schemeGramsHeld > 0 ? ` · ${formatUnits(schemeGramsHeld)} g` : ''}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
+                <span className="text-[12px] text-ink-soft">{paidCount}/{schedule.length} paid · {inr(totalPaid)} of {inr(scheduleTotal)}{isMetalScheme && schemeGramsHeld > 0 ? ` · ${formatUnits(schemeGramsHeld)} g` : ''}{expectedPaid > 0 && paidCount < expectedPaid && <span className="ml-1.5 text-danger font-medium">{expectedPaid - paidCount} overdue</span>}</span>
               )}
             </div>
-            {paymentsError && <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{paymentsError}</p>}
+            {paymentsError && <p role="alert" aria-live="polite" className="text-[12px] text-danger mb-2">{paymentsError}</p>}
             {!paymentsLoaded ? (
               <div className="space-y-1.5">{[0, 1, 2].map((n) => <div key={n} className="h-10 bg-paper-tint rounded-xl animate-pulse" />)}</div>
             ) : (
@@ -1832,61 +1833,61 @@ export default function DetailClient({
                   return (
                     <div key={slot.period_label} className={`flex items-start gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''} ${!paid && isDue ? 'bg-danger-soft/30' : ''}`}>
                       <button onClick={() => togglePayment(slot, isMetalScheme ? draft : null)} disabled={isToggling || !paymentsWritable} className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition ${paid ? 'bg-mint-600 border-mint-600' : 'border-edge hover:border-mint-600'} ${!paymentsWritable ? 'opacity-50 cursor-not-allowed' : ''}`} title={paid ? 'Mark unpaid' : 'Mark paid'}>
-                        {paid && <span className="text-white text-[10px] font-bold">✓</span>}
-                        {isToggling && <span className="text-ink-mute text-[9px]">…</span>}
+                        {paid && <Icon name="check" size={12} strokeWidth={3} className="text-white" />}
+                        {isToggling && <span className="text-ink-mute text-[11px]">…</span>}
                       </button>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{slot.period_label}</p>
                         {!paid && (
                           <>
-                            <p className="text-[11px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
+                            <p className="text-[12px] text-ink-mute">{dueStatusLabel(slot.due_date, today)}</p>
                             <div className="mt-1.5 flex items-center gap-2">
-                              <label className="text-[10px] text-ink-mute">Paid on</label>
-                              <input type="date" value={selectedPaidDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setManualPaidDate((prev) => ({ ...prev, [slot.period_label]: e.target.value }))} disabled={!paymentsWritable || isToggling} className="text-[11px] px-2 py-1 rounded-md border border-edge bg-paper-card" />
+                              <label className="text-[11px] text-ink-mute">Paid on</label>
+                              <input type="date" value={selectedPaidDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setManualPaidDate((prev) => ({ ...prev, [slot.period_label]: e.target.value }))} disabled={!paymentsWritable || isToggling} className="text-[12px] px-2 py-1 rounded-md border border-edge bg-paper-card" />
                             </div>
                           </>
                         )}
                         {isMetalScheme && (
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div>
-                              <label className="block text-[10px] text-ink-mute mb-1">Amount (₹)</label>
+                              <label className="block text-[11px] text-ink-mute mb-1">Amount (₹)</label>
                               <input type="number" min="0" step="0.01" value={draft.amount} disabled={!paymentsWritable || isToggling} onChange={(e) => {
                                 const amount = e.target.value;
                                 setDraft({ amount, grams: draft.manual ? draft.grams : calculatedGrams(amount, draft.rate) });
                               }} className="field-input text-sm" />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-ink-mute mb-1">Rate / gram (₹)</label>
+                              <label className="block text-[11px] text-ink-mute mb-1">Rate / gram (₹)</label>
                               <input type="number" min="0" step="0.01" value={draft.rate} disabled={!paymentsWritable || isToggling} onChange={(e) => {
                                 const rate = e.target.value;
                                 setDraft({ rate, grams: draft.manual ? draft.grams : calculatedGrams(draft.amount, rate) });
                               }} className="field-input text-sm" />
                             </div>
                             <div>
-                              <label className="block text-[10px] text-ink-mute mb-1">Grams {draft.manual ? '(edited)' : '(calculated)'}</label>
+                              <label className="block text-[11px] text-ink-mute mb-1">Grams {draft.manual ? '(edited)' : '(calculated)'}</label>
                               <input type="number" min="0" step="0.001" value={draft.grams} disabled={!paymentsWritable || isToggling} onChange={(e) => setDraft({ grams: e.target.value, manual: true })} className="field-input text-sm" />
                               {draft.manual && (
-                                <button type="button" className="mt-1 text-[10px] text-sky-600 hover:underline" onClick={() => setDraft({ grams: calculatedGrams(draft.amount, draft.rate), manual: false })}>Use calculated</button>
+                                <button type="button" className="mt-1 link-more text-[12px]" onClick={() => setDraft({ grams: calculatedGrams(draft.amount, draft.rate), manual: false })}>Use calculated</button>
                               )}
                             </div>
                           </div>
                         )}
                         {isMetalScheme && paid && (
                           <div className="mt-2 flex justify-end">
-                            <button type="button" disabled={isToggling || !paymentsWritable} onClick={() => savePayment(slot, { paid: true, draft })} className="text-[11px] text-mint-700 font-medium hover:underline">Save this month</button>
+                            <button type="button" disabled={isToggling || !paymentsWritable} onClick={() => savePayment(slot, { paid: true, draft })} className="text-[12px] text-mint-700 font-medium hover:underline">Save this month</button>
                           </div>
                         )}
                       </div>
                       {!isMetalScheme && (
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-medium">{inr(slot.amount)}</p>
-                        {paid ? <p className="text-[11px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[11px] text-danger">Overdue</p> : <p className="text-[11px] text-ink-mute">Upcoming</p>}
+                        {paid ? <p className="text-[12px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[12px] text-danger">Overdue</p> : <p className="text-[12px] text-ink-mute">Upcoming</p>}
                       </div>
                       )}
                       {isMetalScheme && (
                         <div className="text-right flex-shrink-0">
                           <p className="text-sm font-medium">{draft.grams ? `${draft.grams} g` : inr(draft.amount || slot.amount)}</p>
-                          {paid ? <p className="text-[11px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[11px] text-danger">Overdue</p> : <p className="text-[11px] text-ink-mute">Upcoming</p>}
+                          {paid ? <p className="text-[12px] text-mint-600">Paid{record.paid_at ? ` · ${fmtDate(record.paid_at)}` : ''}</p> : isDue ? <p className="text-[12px] text-danger">Overdue</p> : <p className="text-[12px] text-ink-mute">Upcoming</p>}
                         </div>
                       )}
                     </div>
@@ -1900,26 +1901,26 @@ export default function DetailClient({
         {isRecurring && !isMetalScheme && (
           <section className="mb-5">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
+              <p className="text-[12px] tracking-wider text-ink-mute uppercase">Partial withdrawals</p>
               {paymentsLoaded && (
-                <span className="text-[11px] text-ink-soft">
+                <span className="text-[12px] text-ink-soft">
                   {paidCount}/{schedule.length} paid · {inr(stillInvested)} still invested
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-ink-soft mb-2">The same plan stays open. Checked months stay checked, and only the amount still invested goes down.</p>
-            {withdrawalError && <p role="alert" aria-live="polite" className="text-[11px] text-danger mb-2">{withdrawalError}</p>}
+            <p className="text-[12px] text-ink-soft mb-2">The same plan stays open. Checked months stay checked, and only the amount still invested goes down.</p>
+            {withdrawalError && <p role="alert" aria-live="polite" className="text-[12px] text-danger mb-2">{withdrawalError}</p>}
             {withdrawals.length > 0 && (
               <div className="bg-paper-card border border-edge rounded-2xl overflow-hidden mb-3">
                 {withdrawals.map((row, idx) => (
                   <div key={row.id} className={`flex items-center gap-3 px-3.5 py-2.5 ${idx > 0 ? 'border-t border-edge' : ''}`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{fmtDate(row.withdrawn_on)}</p>
-                      {row.notes ? <p className="text-[11px] text-ink-soft mt-0.5">{row.notes}</p> : null}
+                      {row.notes ? <p className="text-[12px] text-ink-soft mt-0.5">{row.notes}</p> : null}
                     </div>
                     <p className="text-sm font-medium text-danger">− {inr(row.amount)}</p>
                     {withdrawalsWritable && (
-                      <button type="button" onClick={() => removeWithdrawal(row.id)} disabled={removingWithdrawalId === row.id} className="text-[11px] text-ink-soft hover:text-danger">
+                      <button type="button" onClick={() => removeWithdrawal(row.id)} disabled={removingWithdrawalId === row.id} className="text-[12px] text-ink-soft hover:text-danger">
                         {removingWithdrawalId === row.id ? '…' : 'Remove'}
                       </button>
                     )}
@@ -1931,20 +1932,20 @@ export default function DetailClient({
               <form onSubmit={recordWithdrawal} className="bg-paper-card border border-edge rounded-2xl p-3.5">
                 <div className="grid sm:grid-cols-3 gap-2">
                   <div>
-                    <label className="block text-[10px] text-ink-mute mb-1">Amount</label>
+                    <label className="block text-[11px] text-ink-mute mb-1">Amount</label>
                     <input type="number" min="0.01" step="0.01" value={withdrawalAmount} onChange={(e) => setWithdrawalAmount(e.target.value)} className="field-input text-sm" placeholder="0" required />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-ink-mute mb-1">Withdrawn on</label>
+                    <label className="block text-[11px] text-ink-mute mb-1">Withdrawn on</label>
                     <input type="date" value={withdrawalDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setWithdrawalDate(e.target.value)} className="field-input text-sm" required />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-ink-mute mb-1">Note</label>
+                    <label className="block text-[11px] text-ink-mute mb-1">Note</label>
                     <input type="text" value={withdrawalNotes} onChange={(e) => setWithdrawalNotes(e.target.value)} className="field-input text-sm" placeholder="Optional" maxLength={500} />
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-3 gap-3">
-                  <p className="text-[11px] text-ink-mute">Available from checked payments: {inr(stillInvested)}</p>
+                  <p className="text-[12px] text-ink-mute">Available from checked payments: {inr(stillInvested)}</p>
                   <button type="submit" disabled={savingWithdrawal || stillInvested <= 0} className="btn-primary py-2 px-3 rounded-lg text-sm font-medium">{savingWithdrawal ? 'Saving…' : 'Record withdrawal'}</button>
                 </div>
               </form>
@@ -1957,16 +1958,16 @@ export default function DetailClient({
 
         {documents.length > 0 && (
           <section className="mb-5">
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Documents</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Documents</p>
             {documents.map((d) => {
               const badge = documentBadge(d.filename);
               const canPreview = documentPreviewKind(d.filename) !== 'download';
               return (
                 <button key={d.id} onClick={() => setViewing(d)} className="w-full flex items-center gap-3 p-3 bg-paper-card border border-edge rounded-xl mb-2 hover:border-mint-600 transition text-left">
-                  <div className={`w-8 h-9 rounded text-[10px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
+                  <div className={`w-8 h-9 rounded text-[11px] font-medium flex items-center justify-center flex-shrink-0 ${badge.className}`}>{badge.label}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{d.filename}</p>
-                    <p className="text-[11px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB · {canPreview ? 'tap to view' : 'tap to download'}</p>
+                    <p className="text-[12px] text-ink-mute">{(d.size_bytes / 1024).toFixed(0)} KB · {canPreview ? 'tap to view' : 'tap to download'}</p>
                   </div>
                   <span className="text-ink-mute text-sm">›</span>
                 </button>
@@ -2041,7 +2042,7 @@ function TxDetail({ label, value }) {
 function SummaryCard({ label, value, tone = '' }) {
   return (
     <div className="rounded-xl border border-edge bg-paper-card px-3 py-2.5">
-      <p className="text-[11px] text-ink-mute">{label}</p>
+      <p className="text-[12px] text-ink-mute">{label}</p>
       <p className={`text-sm font-medium mt-1 ${tone}`}>{value}</p>
     </div>
   );

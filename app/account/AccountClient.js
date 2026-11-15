@@ -280,7 +280,7 @@ export default function AccountClient({ user }) {
   return (
     <>
     <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
-        <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Account</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">Account</h1>
         <p className="text-sm text-ink-soft mb-6">Manage your profile, security, and export your data anytime.</p>
 
         <div className="flex items-center gap-3.5 p-4 bg-paper-tint rounded-2xl mb-6">
@@ -291,7 +291,7 @@ export default function AccountClient({ user }) {
           </div>
         </div>
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Profile</p>
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Profile</p>
         <div className="bg-paper-card border border-edge rounded-2xl mb-5">
           <div className="px-4 py-3.5 border-b border-edge">
             {!editingName ? (
@@ -321,7 +321,7 @@ export default function AccountClient({ user }) {
           </button>
         </div>
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Security</p>
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Security</p>
         <div className="bg-paper-card border border-edge rounded-2xl mb-5">
           <div className="px-4 py-3.5 border-b border-edge flex justify-between items-center">
             <div>
@@ -354,7 +354,7 @@ export default function AccountClient({ user }) {
 
         <ViewLinkSection />
 
-        <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Danger zone</p>
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Danger zone</p>
         <div className="bg-paper-card border border-edge rounded-2xl mb-5">
           <button onClick={() => setDeleteModal(true)} className="w-full px-4 py-3.5 flex justify-between items-center hover:bg-danger-soft/40 transition">
             <span className="text-sm text-danger text-left">Delete account</span>
@@ -425,7 +425,7 @@ export default function AccountClient({ user }) {
                         href={app.ios}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
+                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[11px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
                       >
                         iOS
                       </a>
@@ -433,7 +433,7 @@ export default function AccountClient({ user }) {
                         href={app.android}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[10px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
+                        className="px-2 py-0.5 bg-mint-600/20 text-mint-600 text-[11px] sm:text-xs rounded hover:bg-mint-600/30 transition whitespace-nowrap"
                       >
                         Android
                       </a>
@@ -450,7 +450,7 @@ export default function AccountClient({ user }) {
 
             <div className="bg-edge/30 border border-edge rounded-lg p-3 mb-3">
               <p className="text-xs font-medium text-ink mb-1.5">Need help resetting MFA entry?</p>
-              <ol className="text-[11px] text-ink-soft space-y-1 list-decimal pl-4">
+              <ol className="text-[12px] text-ink-soft space-y-1 list-decimal pl-4">
                 <li>Disable MFA in this account screen.</li>
                 <li>Delete the old InvestmentTracker entry in your authenticator app.</li>
                 <li>Enable MFA again and scan the new QR code.</li>

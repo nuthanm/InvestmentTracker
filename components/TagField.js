@@ -51,7 +51,7 @@ export default function TagField({ value, onChange, suggestions = [] }) {
       </label>
       <div className="field-input flex flex-wrap items-center gap-1.5 min-h-[42px]">
         {value.map((name) => (
-          <span key={tagKey(name)} className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-plum-50 text-plum-600 border border-plum-600/30">
+          <span key={tagKey(name)} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-plum-50 text-plum-600 border border-plum-600/30">
             {name}
             <button
               type="button"
@@ -83,8 +83,8 @@ export default function TagField({ value, onChange, suggestions = [] }) {
           className="flex-1 min-w-[8rem] bg-transparent outline-none text-sm py-0.5 disabled:cursor-not-allowed"
         />
       </div>
-      <p className="text-[11px] text-ink-mute mt-1">Shared labels across goals and investments. Press Enter after each tag.</p>
-      {error && <p className="text-[11px] text-danger mt-1">{error}</p>}
+      <p className="text-[12px] text-ink-mute mt-1">Shared labels across goals and investments. Press Enter after each tag.</p>
+      {error && <p className="text-[12px] text-danger mt-1">{error}</p>}
       {matches.length > 0 && !atLimit && (
         <div className="flex flex-wrap gap-1.5 mt-2">
           {matches.map((name) => (
@@ -93,7 +93,7 @@ export default function TagField({ value, onChange, suggestions = [] }) {
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => commitNames([name])}
-              className="text-[11px] px-2 py-1 rounded-full border border-edge bg-paper-card text-ink-soft hover:border-plum-600"
+              className="text-[12px] px-2 py-1 rounded-full border border-edge bg-paper-card text-ink-soft hover:border-plum-600"
             >
               {name}
             </button>

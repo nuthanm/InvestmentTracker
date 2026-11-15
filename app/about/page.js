@@ -1,3 +1,5 @@
+import PublicShell from '@/components/PublicShell';
+
 export const metadata = {
   title: 'About',
   description: 'Why InvestmentTracker exists, who it is for, and how the platform is built for trust.',
@@ -5,7 +7,8 @@ export const metadata = {
 
 export default function AboutPage() {
   return (
-    <main className="legal-wrap">
+    <PublicShell>
+      <main className="legal-wrap">
       <h1>About InvestmentTracker</h1>
       <p>
         InvestmentTracker is a practical planning workspace for families that want one clean view of goals,
@@ -45,5 +48,6 @@ export default function AboutPage() {
         brokerage, custody, or guaranteed return recommendations.
       </p>
     </main>
+    </PublicShell>
   );
 }

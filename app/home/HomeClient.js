@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
-import { CoinGlyph, GoalWaterFill, TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
+import { CoinGlyph, GoalWaterFill, TypeThumbnail, WaterTank, investmentThumbKind } from '@/components/GrowthVisual';
+import Icon from '@/components/Icon';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
-import { effectiveCurrentValue, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
+import { effectiveCurrentValue, effectiveInvestedAmount, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import { summarizeTags } from '@/lib/tags';
 import TagList from '@/components/TagList';
 import {
@@ -148,26 +149,36 @@ function buildUpcomingEvents(investments) {
   return collectUpcomingEvents(investments).slice(0, 4);
 }
 
-/** One cell in the home metrics band. */
-function HomeMetric({ href, label, value, note, tone = 'ink', alert = false, wide = false, title }) {
-  const valueClass = {
-    ink: 'text-ink',
-    mint: 'text-mint-700',
-    sky: 'text-sky-600',
-    honey: 'text-honey-600',
-  }[tone] || 'text-ink';
-
+/** One KPI tile: tinted icon, label, value, and a supporting note. */
+function KpiTile({ href, icon, tone = 'mint', label, value, note, alert = false, title }) {
   return (
-    <Link
-      href={href}
-      title={title}
-      className={`home-metric${alert ? ' home-metric-alert' : ''}${wide ? ' home-metric-wide' : ''}`}
-    >
-      <span className="home-metric-label">{label}</span>
-      <span className={`home-metric-value ${valueClass}`}>{value}</span>
-      <span className="home-metric-note">{note}</span>
+    <Link href={href} title={title} className={`kpi-tile${alert ? ' is-alert' : ''}`}>
+      <span className={`kpi-icon kpi-tone-${tone}`}><Icon name={icon} /></span>
+      <span className="kpi-label">{label}</span>
+      <span className="kpi-value">{value}</span>
+      <span className="kpi-note">{note}</span>
     </Link>
   );
+}
+
+/** Splits active holdings into debt, equity, gold/silver and cash by current amount. */
+function allocationOf(activeInvestments, amountOf) {
+  const buckets = { debt: 0, equity: 0, metal: 0, cash: 0 };
+  for (const inv of activeInvestments) {
+    const amount = Math.max(0, amountOf(inv));
+    if (isLiquiditySaving(inv)) buckets.cash += amount;
+    else if (isMetalInvestment(inv.type_code) || inv.type_code === 'GD') buckets.metal += amount;
+    else if (isMarketInvestment(inv.type_code)) buckets.equity += amount;
+    else buckets.debt += amount;
+  }
+  const total = buckets.debt + buckets.equity + buckets.metal + buckets.cash;
+  const pct = (v) => (total > 0 ? (v / total) * 100 : 0);
+  return [
+    { key: 'debt', label: 'Debt', tone: 'mint', amount: buckets.debt, pct: pct(buckets.debt) },
+    { key: 'equity', label: 'Equity', tone: 'sky', amount: buckets.equity, pct: pct(buckets.equity) },
+    { key: 'metal', label: 'Metals', tone: 'honey', amount: buckets.metal, pct: pct(buckets.metal) },
+    { key: 'cash', label: 'Cash', tone: 'plum', amount: buckets.cash, pct: pct(buckets.cash) },
+  ];
 }
 
 /** Single goal card (gold, silver, or money). */
@@ -180,7 +191,7 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
   if (editing) {
     return (
       <div className={`bg-paper-card border ${borderActive} rounded-2xl p-4 flex flex-col`}>
-        <p className="text-[11px] font-medium text-ink-soft uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <p className="text-[12px] font-medium text-ink-soft uppercase tracking-wider mb-3 flex items-center gap-1.5">
           {thumb ? <span className="inline-flex h-5 w-5"><CoinGlyph metal={thumb} /></span> : icon} {label} Goal
         </p>
         <div className="space-y-2 mb-3">
@@ -193,7 +204,7 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
             </div>
           ))}
           <div>
-            <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-[10px] text-ink-mute">optional</span></label>
+            <label className="block text-xs text-ink-soft mb-1">Target date <span className="text-[11px] text-ink-mute">optional</span></label>
             <input type="date" value={form.values.date || ''} onChange={(e) => onFormChange('date', e.target.value)} className="field-input" />
           </div>
         </div>
@@ -214,8 +225,8 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
       <div className="border border-dashed border-edge rounded-2xl p-4 flex flex-col items-center justify-center text-center min-h-[140px]">
         {thumb ? <span className="mb-1 inline-flex h-10 w-10"><CoinGlyph metal={thumb} /></span> : <p className="text-2xl mb-1">{icon}</p>}
         <p className="text-sm font-medium">{label} goal</p>
-        <p className="text-[11px] text-ink-mute mt-0.5 mb-3">Set a target to track progress</p>
-        <button onClick={() => onEdit(true)} className="btn-primary py-1.5 px-3 rounded-full text-xs font-medium">+ Set goal</button>
+        <p className="text-[12px] text-ink-mute mt-0.5 mb-3">Set a target to track progress</p>
+        <button onClick={() => onEdit(true)} className="btn-primary inline-flex items-center gap-1 py-1.5 px-3 rounded-full text-xs font-medium"><Icon name="plus" size={14} strokeWidth={2.2} />Set goal</button>
       </div>
     );
   }
@@ -225,24 +236,24 @@ function GoalCard({ icon, thumb = null, label, tone, currentLabel, currentNote =
       <div className="flex flex-col flex-1">
       <div className="flex justify-between items-start mb-2">
         <div>
-          <p className="text-[11px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
+          <p className="text-[12px] text-ink-mute uppercase tracking-wider flex items-center gap-1.5">
             {thumb ? <span className="inline-flex h-5 w-5 flex-shrink-0"><CoinGlyph metal={thumb} /></span> : icon} {label} Goal
           </p>
           <p className="text-lg font-medium mt-0.5">{targetLabel}</p>
         </div>
         <div className="text-right">
           <p className={`text-xl font-medium ${accentColor}`}>{pct}%</p>
-          <p className="text-[10px] text-ink-mute">{remainingLabel}</p>
+          <p className="text-[11px] text-ink-mute">{remainingLabel}</p>
         </div>
       </div>
       <div className="h-2 bg-paper-tint rounded-full overflow-hidden mb-2">
         <div className={`fill-bar h-full ${barClass} rounded-full`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-[11px] flex-1 leading-snug">
+      <p className="text-[12px] flex-1 leading-snug">
         <span className={emphasizeCurrent ? accumClass : 'text-ink-mute'}>{currentLabel}</span>
         {currentNote ? <span className="goal-accum-note"> · {currentNote}</span> : null}
       </p>
-      <button onClick={() => onEdit(true)} className={`text-[11px] ${accentColor} hover:underline text-left mt-2`}>edit goal</button>
+      <button onClick={() => onEdit(true)} className={`text-[12px] ${accentColor} hover:underline text-left mt-2`}>Edit goal</button>
       </div>
     </div>
   );
@@ -362,7 +373,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
 
   return (
     <div className="mb-5">
-      <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-3">Overall Goals</p>
+      <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-3">Overall Goals</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {/* Gold */}
         <GoalCard
@@ -398,7 +409,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
         />
         {/* Money */}
         <GoalCard
-          icon="💰" label="Overall Wealth" tone="mint"
+          icon={<Icon name="wallet" size={16} />} label="Overall Wealth" tone="mint"
           currentLabel={`${inrShort(investedValue)} invested`}
           currentNote={`${inrShort(currentValue)} projected`}
           emphasizeCurrent
@@ -448,14 +459,17 @@ export default function HomeClient({ user }) {
   const portfolioAmountOf = (inv) => (
     isMarketInvestment(inv.type_code) ? effectiveCurrentValue(inv) : effectiveInvestedSoFar(inv)
   );
-  const isGoldHolding = (inv) => inv.type_code === 'GOLD' || inv.type_code === 'GD';
-  const liquidityHeld = activeInvestments
-    .filter((inv) => isLiquiditySaving(inv))
-    .reduce((sum, inv) => sum + portfolioAmountOf(inv), 0);
-  const goldHeld = activeInvestments
-    .filter((inv) => !isLiquiditySaving(inv) && isGoldHolding(inv))
-    .reduce((sum, inv) => sum + portfolioAmountOf(inv), 0);
-  const investedHeld = Math.max(0, totalCurrentPortfolioValue - liquidityHeld - goldHeld);
+  const allocation = allocationOf(activeInvestments, portfolioAmountOf);
+  // Gain if every active plan runs to maturity, against everything you will have put in.
+  const totalCommitted = activeInvestments.reduce((sum, inv) => sum + effectiveInvestedAmount(inv), 0);
+  const projectedGain = Math.round(totalValue - totalCommitted);
+  const projectedGainPct = totalCommitted > 0 ? (projectedGain / totalCommitted) * 100 : null;
+  // Interest rate weighted by how much is in each plan that has one.
+  const rated = activeInvestments
+    .filter((inv) => !isLiquiditySaving(inv) && Number(inv.rate_pct) > 0)
+    .map((inv) => ({ rate: Number(inv.rate_pct), weight: Math.max(0, effectiveInvestedSoFar(inv)) }));
+  const ratedWeight = rated.reduce((sum, r) => sum + r.weight, 0);
+  const avgRate = ratedWeight > 0 ? rated.reduce((sum, r) => sum + r.rate * r.weight, 0) / ratedWeight : null;
   const closedReceivedTotal = closedInvestments.reduce((sum, inv) => {
     if (Number(inv.closure_amount) > 0) return sum + Number(inv.closure_amount);
     return sum + effectiveCurrentValue(inv);
@@ -508,78 +522,77 @@ export default function HomeClient({ user }) {
         <div className="px-4 md:px-8 py-5 md:py-6 max-w-7xl mx-auto w-full">
           <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-4 md:gap-5 items-start">
             <div className="min-w-0">
-              {/* ── Header ── */}
-              <div className="md:flex md:items-end md:justify-between mb-5">
-                <div className="text-center md:text-left">
-                  <p className="text-[11px] tracking-wider text-ink-mute uppercase">Current Portfolio Value</p>
-                  <h1 className="portfolio-hero-value text-3xl md:text-4xl tracking-tight mt-1 tabular-nums">{inr(totalCurrentPortfolioValue)}</h1>
-                  <p className="text-sm text-ink-soft mt-1.5">Projected maturity value: {inr(totalValue)}</p>
-                  {(goldHeld > 0 || liquidityHeld > 0) && (
-                    <div className="portfolio-split mt-3 mx-auto md:mx-0">
-                      {investedHeld > 0 && (
-                        <div className="portfolio-split-row">
-                          <span className="portfolio-split-label">Investment</span>
-                          <span className="portfolio-split-value text-mint-700">{inr(investedHeld)}</span>
-                        </div>
-                      )}
-                      {goldHeld > 0 && (
-                        <div className="portfolio-split-row">
-                          <span className="portfolio-split-label">Gold</span>
-                          <span className="portfolio-split-value text-honey-600">{inr(goldHeld)}</span>
-                        </div>
-                      )}
-                      {liquidityHeld > 0 && (
-                        <div className="portfolio-split-row">
-                          <span className="portfolio-split-label">Liquidity</span>
-                          <span className="portfolio-split-value text-sky-600">{inr(liquidityHeld)}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+              {/* ── Portfolio summary ── */}
+              <section className="home-hero" aria-label="Portfolio summary">
+                <div className="min-w-0">
+                  <p className="home-hero-label">Portfolio value</p>
+                  <p className="portfolio-hero-value text-3xl md:text-[2.6rem] leading-tight tracking-tight mt-1 mb-3 tabular-nums">{inr(totalCurrentPortfolioValue)}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {projectedGain !== 0 && (
+                      <span className={`delta-pill ${projectedGain > 0 ? 'is-up' : 'is-down'}`} title="Projected gain when all active plans mature, against the full amount you will have put in">
+                        <Icon name={projectedGain > 0 ? 'arrowUp' : 'arrowDown'} size={14} strokeWidth={2.4} />
+                        {projectedGain > 0 ? '+' : '−'}{inrShort(Math.abs(projectedGain))}
+                        {projectedGainPct != null && <> · {projectedGainPct.toFixed(1)}%</>}
+                        <small>by maturity</small>
+                      </span>
+                    )}
+                    {avgRate != null && <span className="home-chip">Avg rate <b>{avgRate.toFixed(2)}% p.a.</b></span>}
+                    <span className="home-chip">Invested <b>{inr(totalInvested)}</b></span>
+                  </div>
                 </div>
-                <Link href="/investments/new" className="hidden md:inline-flex items-center gap-1.5 btn-primary py-2 px-4 rounded-full text-sm font-medium">+ Add investment</Link>
-              </div>
+                {allocation.some((slice) => slice.amount > 0) && (
+                  <div className="water-tanks" role="img" aria-label={`Allocation: ${allocation.map((s) => `${s.label} ${Math.round(s.pct)} percent`).join(', ')}`}>
+                    {allocation.map((slice) => (
+                      <WaterTank key={slice.key} pct={slice.pct} tone={slice.tone} label={slice.label} title={`${slice.label}: ${inr(slice.amount)}`} />
+                    ))}
+                  </div>
+                )}
+              </section>
 
               {/* ── Snapshot metrics ── */}
-              <div className="home-stat-grid">
-                <HomeMetric
+              <div className="kpi-grid">
+                <KpiTile
                   href="/investments?view=active"
-                  label="Active"
+                  icon="layers"
+                  tone="mint"
+                  label="Active plans"
                   value={activeInvestments.length}
                   note={planTotal ? `of ${planTotal} plans` : 'No plans yet'}
-                  tone="mint"
                 />
-                <HomeMetric
+                <KpiTile
                   href="/investments?view=closed"
+                  icon="archive"
+                  tone="sky"
                   label="Closed"
                   value={closedInvestments.length}
                   note={closedInvestments.length > 0 ? `${inrShort(closedReceivedTotal)} received` : 'None yet'}
-                  tone="sky"
                 />
-                <HomeMetric
+                <KpiTile
                   href="#upcoming-events"
+                  icon="clock"
+                  tone="honey"
                   label="Due in 30 days"
                   value={dueSoonCount}
                   note={dueSoonCount > 0 ? 'Contributions & maturities' : 'Clear for now'}
-                  tone="honey"
                   alert={dueSoonCount > 0}
-                  title="Same contribution dues and maturities as Upcoming Events"
+                  title="Same contribution dues and maturities as Upcoming events"
                 />
-                <HomeMetric
+                <KpiTile
                   href="/goals"
+                  icon="target"
+                  tone="plum"
                   label="Goals progress"
                   value={goals.length ? `${goalsPct}%` : '—'}
                   note={goals.length ? `avg across ${goals.length} goals` : 'No goals yet'}
-                  tone="mint"
                   title="100% means your savings goals are fully funded on average"
                 />
-                <HomeMetric
+                <KpiTile
                   href="/investments?view=active"
+                  icon="trendUp"
+                  tone="mint"
                   label="At maturity"
                   value={totalValue > 0 ? inrShort(totalValue) : '—'}
                   note={totalValue > 0 ? `${inrShort(totalCurrentPortfolioValue)} held now` : 'No active maturity'}
-                  tone="mint"
-                  wide
                   title="Projected amount when all active plans mature. Closed plans are excluded."
                 />
               </div>
@@ -600,17 +613,17 @@ export default function HomeClient({ user }) {
               {tagStats.length > 0 && (
                 <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 mb-5">
                   <div className="flex justify-between items-baseline mb-3">
-                    <h2 className="text-sm font-medium">By tag</h2>
-                    <Link href="/investments" className="text-xs text-sky-600">filter plans</Link>
+                    <h2 className="section-title"><Icon name="tag" />By tag</h2>
+                    <Link href="/investments" className="link-more">Filter plans<Icon name="chevronRight" size={15} /></Link>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-2">
                     {tagStats.map((tag) => (
                       <Link key={tag.key} href={`/investments?tag=${encodeURIComponent(tag.name)}`} className="block rounded-xl border border-edge px-3 py-2.5 hover:border-plum-600 transition">
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-sm font-medium truncate">{tag.name}</span>
-                          <span className="text-[11px] text-ink-mute">{tag.count} {tag.count === 1 ? 'plan' : 'plans'}</span>
+                          <span className="text-[12px] text-ink-mute">{tag.count} {tag.count === 1 ? 'plan' : 'plans'}</span>
                         </div>
-                        <p className="text-[11px] text-ink-soft mt-1">
+                        <p className="text-[12px] text-ink-soft mt-1">
                           {tag.invested > 0 && <span>{inrShort(tag.invested)} invested</span>}
                           {tag.invested > 0 && tag.liquidity > 0 && ' · '}
                           {tag.liquidity > 0 && <span>{inrShort(tag.liquidity)} liquidity</span>}
@@ -624,8 +637,8 @@ export default function HomeClient({ user }) {
               {/* ── Recent investments ── */}
               <section className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5">
                 <div className="flex justify-between items-baseline mb-3">
-                  <h2 className="text-sm font-medium">Recent investments</h2>
-                  <Link href="/investments" className="text-xs text-sky-600">view all</Link>
+                  <h2 className="section-title"><Icon name="wallet" />Recent investments</h2>
+                  <Link href="/investments" className="link-more">View all<Icon name="chevronRight" size={15} /></Link>
                 </div>
                 {investments.slice(0, 4).map((investment) => {
                   const tone = toneFor(investment.type_code);
@@ -640,9 +653,9 @@ export default function HomeClient({ user }) {
                   const thumbKind = investmentThumbKind(investment.type_code, investment.custom_type, investment.plan_name);
                   return (
                     <Link key={investment.id} href={`/investments/${investment.id}`} className="flex items-center justify-between py-2.5 border-b border-edge last:border-b-0 hover:bg-paper-tint/50 -mx-2 px-2 rounded transition">
-                      <div className="flex gap-2.5 items-center min-w-0 flex-1">
+                      <div className="flex gap-3 items-center min-w-0 flex-1">
                         {thumbKind ? (
-                          <div className="w-8 h-8 flex-shrink-0">
+                          <div className="w-10 h-10 flex-shrink-0">
                             <TypeThumbnail
                               typeCode={investment.type_code}
                               customType={investment.custom_type}
@@ -653,14 +666,14 @@ export default function HomeClient({ user }) {
                             />
                           </div>
                         ) : (
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-medium flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-semibold flex-shrink-0 ${lumpSum && !closedPlan ? TONE_BG.mint : TONE_BG[tone]}`}>{TYPE_META[investment.type_code]?.short || 'OT'}</div>
                         )}
                         <div className="min-w-0">
-                          <p className="text-xs font-medium truncate">
+                          <p className="text-sm font-medium truncate">
                             {investment.bank} · {investment.plan_name}
-                            {isLiquiditySaving(investment) && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
+                            {isLiquiditySaving(investment) && <span className="ml-1.5 align-middle text-[11px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-semibold">Liquidity</span>}
                           </p>
-                          <p className="text-[11px] text-ink-mute mt-0.5">
+                          <p className="text-[12px] text-ink-mute mt-0.5">
                             {closedPlan && <span className="text-ink-soft font-medium">{lifecycleLabel} · </span>}
                             {labelFor(investment)}
                             {progress && <> · {progress.label}</>}
@@ -672,28 +685,28 @@ export default function HomeClient({ user }) {
                       <div className="text-right ml-2 flex-shrink-0">
                         {metalType ? (
                           <>
-                            <p className="text-xs font-medium">{formatUnits(investment.total_units)} g</p>
-                            <p className="text-[10px] mt-0.5 text-honey-600">{inrShort(investment.remaining_cost_basis || 0)} cost</p>
+                            <p className="text-sm font-semibold tabular-nums">{formatUnits(investment.total_units)} g</p>
+                            <p className="text-[11px] mt-0.5 text-honey-600">{inrShort(investment.remaining_cost_basis || 0)} cost</p>
                           </>
                         ) : marketType ? (
                           <>
-                            <p className="text-xs font-medium">{inrShort(investment.remaining_cost_basis)}</p>
-                            <p className="text-[10px] mt-0.5 text-sky-600">{inrShort(investment.invested_amount)} invested</p>
+                            <p className="text-sm font-semibold tabular-nums">{inrShort(investment.remaining_cost_basis)}</p>
+                            <p className="text-[11px] mt-0.5 text-sky-600">{inrShort(investment.invested_amount)} invested</p>
                           </>
                         ) : isLiquiditySaving(investment) ? (
                           <>
-                            <p className="text-xs font-medium">{inrShort(investment.amount)}</p>
-                            <p className="text-[10px] mt-0.5 text-sky-600">available</p>
+                            <p className="text-sm font-semibold tabular-nums">{inrShort(investment.amount)}</p>
+                            <p className="text-[11px] mt-0.5 text-sky-600">available</p>
                           </>
                         ) : lumpSum ? (
                           <>
-                            <p className="text-xs font-medium achieved-amount">{inrShort(investedSoFar)}</p>
-                            <p className="text-[10px] mt-0.5 text-mint-700">achieved{progress ? ` · ${progress.label}` : ''}</p>
+                            <p className="text-sm font-semibold tabular-nums achieved-amount">{inrShort(investedSoFar)}</p>
+                            <p className="text-[11px] mt-0.5 text-mint-700">achieved{progress ? ` · ${progress.label}` : ''}</p>
                           </>
                         ) : (
                           <>
-                            <p className="text-xs font-medium">{inrShort(investment.amount)}{suffix}</p>
-                            <p className="text-[10px] mt-0.5 text-mint-700">{inrShort(investedSoFar)} invested{progress ? ` · ${progress.label}` : ''}</p>
+                            <p className="text-sm font-semibold tabular-nums">{inrShort(investment.amount)}{suffix}</p>
+                            <p className="text-[11px] mt-0.5 text-mint-700">{inrShort(investedSoFar)} invested{progress ? ` · ${progress.label}` : ''}</p>
                           </>
                         )}
                       </div>
@@ -706,11 +719,11 @@ export default function HomeClient({ user }) {
             <aside className="bg-paper-card border border-edge rounded-2xl p-4 md:p-5 lg:sticky lg:top-4">
               <section>
                 <div className="flex justify-between items-baseline mb-3">
-                  <h2 className="text-sm font-medium">Goals</h2>
-                  <Link href="/goals" className="text-xs text-sky-600">see all</Link>
+                  <h2 className="section-title"><Icon name="target" />Goals</h2>
+                  <Link href="/goals" className="link-more">View all<Icon name="chevronRight" size={15} /></Link>
                 </div>
                 {goals.length === 0 ? (
-                  <Link href="/goals/new" className="block text-center py-4 text-sm text-ink-mute border border-dashed border-edge rounded-xl hover:bg-paper-tint">+ Add your first goal</Link>
+                  <Link href="/goals/new" className="flex items-center justify-center gap-1.5 py-4 text-sm text-ink-soft border border-dashed border-edge rounded-xl hover:bg-paper-tint"><Icon name="plus" size={16} />Add your first goal</Link>
                 ) : goals.slice(0, 3).map((g) => {
                   const cur = Number(g.current_amount || 0);
                   const tgt = Number(g.required_amount || g.target_amount || 1);
@@ -734,22 +747,22 @@ export default function HomeClient({ user }) {
 
               <section id="upcoming-events" className="mt-5 pt-4 border-t border-edge scroll-mt-4">
                 <div className="mb-3">
-                  <h2 className="text-sm font-medium">Upcoming events</h2>
+                  <h2 className="section-title"><Icon name="calendar" />Upcoming events</h2>
                 </div>
                 {upcomingEvents.length === 0 ? (
-                  <div className="text-[11px] text-ink-mute text-center py-2">No upcoming events</div>
+                  <div className="text-[12px] text-ink-mute text-center py-2">No upcoming events</div>
                 ) : (
                   <div className="space-y-2">
                     {upcomingEvents.slice(0, 2).map((event) => (
-                      <Link key={event.key} href={event.href} className={event.soon ? 'event-due-card block rounded-lg p-2 transition text-[11px]' : 'block border border-edge rounded-lg p-2 bg-paper-tint/60 hover:border-mint-600 transition text-[11px]'}>
+                      <Link key={event.key} href={event.href} className={event.soon ? 'event-due-card block rounded-lg p-2 transition text-[12px]' : 'block border border-edge rounded-lg p-2 bg-paper-tint/60 hover:border-mint-600 transition text-[12px]'}>
                         <div className="flex items-start justify-between gap-1 mb-1">
                           <span className="font-medium truncate flex-1">{event.title}</span>
-                          <span className="text-[9px] px-1 py-0.5 rounded bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap flex-shrink-0">{event.tag}</span>
+                          <span className="text-[11px] px-1 py-0.5 rounded bg-mint-50 text-mint-700 border border-mint-100 whitespace-nowrap flex-shrink-0">{event.tag}</span>
                         </div>
                         <p className="text-ink-mute truncate mb-1">{event.detail}</p>
                         <div className="flex items-center justify-between gap-2">
-                          <span className={event.soon ? 'event-due-badge' : 'text-ember-600 font-medium text-[10px]'}>{event.when}</span>
-                          <span className="text-sky-600 text-[10px]">View →</span>
+                          <span className={event.soon ? 'event-due-badge' : 'text-ember-600 font-medium text-[11px]'}>{event.when}</span>
+                          <span className="link-more text-[12px]">View<Icon name="chevronRight" size={13} /></span>
                         </div>
                       </Link>
                     ))}

@@ -1,4 +1,5 @@
 import './globals.css';
+import './redesign.css';
 import Toaster from '@/components/Toast';
 
 export const metadata = {

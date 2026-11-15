@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import BrandMark from '@/components/BrandMark';
+import Icon from '@/components/Icon';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -93,11 +95,11 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade">
-        <div className="brand-mark w-12 h-12 rounded-2xl bg-ink text-paper flex items-center justify-center text-xl font-medium mx-auto mb-4">₹</div>
+        <Link href="/" className="block w-fit mx-auto mb-4" aria-label="InvestmentTracker home"><BrandMark size="lg" /></Link>
 
         {!mfaChallengeToken ? (
           <form onSubmit={onSubmit}>
-            <h1 className="text-xl font-medium text-center">Welcome back</h1>
+            <h1 className="text-xl font-semibold text-center">Welcome back</h1>
             <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Sign in securely with your account email</p>
 
             {/* Email Field */}
@@ -141,7 +143,7 @@ export default function LoginPage() {
               <Link href="/forgot-password" className="text-mint-600">Forgot password?</Link>
             </p>
 
-            <div className="flex items-center gap-3 my-5 text-[11px] text-ink-mute uppercase tracking-wider">
+            <div className="flex items-center gap-3 my-5 text-[12px] text-ink-mute uppercase tracking-wider">
               <div className="flex-1 h-px bg-edge" /> new here? <div className="flex-1 h-px bg-edge" />
             </div>
 
@@ -150,7 +152,7 @@ export default function LoginPage() {
               <Link href="/signup" className="text-mint-600 font-medium">Create one</Link>
             </p>
 
-            <p className="text-[11px] text-ink-mute mt-4 text-center">
+            <p className="text-[12px] text-ink-mute mt-4 text-center">
               By continuing, you agree to our{' '}
               <Link href="/terms" className="text-mint-600">Terms</Link>{' '}
               and{' '}
@@ -159,7 +161,7 @@ export default function LoginPage() {
           </form>
         ) : (
           <form onSubmit={onVerifyMfa}>
-            <h1 className="text-xl font-medium text-center">Verify MFA</h1>
+            <h1 className="text-xl font-semibold text-center">Verify MFA</h1>
             <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">
               Enter the 6-digit code from your authenticator app.
             </p>

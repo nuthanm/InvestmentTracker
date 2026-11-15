@@ -36,7 +36,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 14px;
   transition: all 0.15s;
 }
-.field-input::placeholder { color: #A8B0AB; }
+.field-input::placeholder { color: #7A867F; }
 
 .chip {
   padding: 8px 12px;
@@ -165,7 +165,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .filter-chip-count {
-  color: #7A867F;
+  color: #5E6A64;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1768,7 +1768,7 @@ input:focus, select:focus, textarea:focus {
   line-height: 1.3;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #7A867F;
+  color: #5E6A64;
 }
 
 .home-metric-value {

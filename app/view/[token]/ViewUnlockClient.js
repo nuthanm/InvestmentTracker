@@ -2,6 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import BrandMark from '@/components/BrandMark';
+import Icon from '@/components/Icon';
+import Link from 'next/link';
 
 export default function ViewUnlockClient({ token }) {
   const router = useRouter();
@@ -37,8 +40,8 @@ export default function ViewUnlockClient({ token }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <form onSubmit={onSubmit} className="w-full max-w-sm bg-paper-card border border-edge rounded-2xl p-7 shadow-sm">
-        <div className="brand-mark w-12 h-12 rounded-2xl bg-ink text-paper flex items-center justify-center text-xl font-medium mx-auto mb-4">₹</div>
-        <h1 className="text-xl font-medium text-center">Private view</h1>
+        <Link href="/" className="block w-fit mx-auto mb-4" aria-label="InvestmentTracker home"><BrandMark size="lg" /></Link>
+        <h1 className="text-xl font-semibold text-center">Private view</h1>
         <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">
           Enter the password that came with this link. You can look at the portfolio, and nothing can be changed.
         </p>
@@ -56,7 +59,7 @@ export default function ViewUnlockClient({ token }) {
         <button type="submit" disabled={loading} className="btn-primary w-full py-2.5 rounded-lg text-sm font-medium mt-5">
           {loading ? 'Opening…' : 'Open view'}
         </button>
-        <p className="text-[11px] text-ink-mute text-center mt-4">
+        <p className="text-[12px] text-ink-mute text-center mt-4">
           This stays open on this device for 24 hours. It does not sign you into an account.
         </p>
       </form>

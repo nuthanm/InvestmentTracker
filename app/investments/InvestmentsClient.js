@@ -26,6 +26,7 @@ import {
 } from '@/lib/investment-lifecycle';
 import { groupInvestmentsByTag, hasTag, summarizeTags, tagKey } from '@/lib/tags';
 import TagList from '@/components/TagList';
+import Icon from '@/components/Icon';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -88,7 +89,7 @@ function moveVisible(all, visible, fromId, toId) {
 
 function LayoutToggle({ value, onChange }) {
   return (
-    <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
+    <div className="flex rounded-full border border-edge overflow-hidden text-[12px] flex-shrink-0">
       <button type="button" onClick={() => onChange('list')} className={`px-2.5 py-1 ${value === 'list' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>List</button>
       <button type="button" onClick={() => onChange('tiles')} className={`px-2.5 py-1 ${value === 'tiles' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>Tiles</button>
     </div>
@@ -138,7 +139,7 @@ function FilterRail({ label, action = null, children }) {
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
-        <p className="text-[11px] uppercase tracking-wider text-ink-mute">{label}</p>
+        <p className="text-[12px] uppercase tracking-wider text-ink-mute">{label}</p>
         {action}
       </div>
       <div className={`filter-rail-wrap${overflow.left ? ' has-left' : ''}${overflow.right ? ' has-right' : ''}`}>
@@ -284,9 +285,9 @@ function InvestmentRow({ investment, idx, href, onDragStart }) {
       <div className="flex-1 min-w-0 relative z-[1]">
         <p className="text-sm font-medium truncate">
           {investment.bank} · {investment.plan_name}
-          {liquidity && <span className="ml-1.5 align-middle text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
+          {liquidity && <span className="ml-1.5 align-middle text-[11px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium tracking-wide uppercase">Liquidity</span>}
         </p>
-        <p className="text-[11px] text-ink-mute mt-0.5 truncate">
+        <p className="text-[12px] text-ink-mute mt-0.5 truncate">
           {isClosedPlan && <span className="text-ink-soft font-medium">{lifecycleLabelText} · </span>}
           {labelFor(investment)}
           {marketType ? (
@@ -319,23 +320,23 @@ function InvestmentRow({ investment, idx, href, onDragStart }) {
           {!metalType && investment.account_holder && investment.account_holder !== 'Self' && <> · {investment.account_holder}</>}
         </p>
         {dates && (
-          <p className="text-[11px] text-ink-soft mt-0.5">{dates}</p>
+          <p className="text-[12px] text-ink-soft mt-0.5">{dates}</p>
         )}
         <TagList tags={investment.tags} className="mt-1.5" />
       </div>
       <div className="text-right flex-shrink-0 min-w-[5.5rem] relative z-[1]">
         <p className="text-sm font-medium">{inr(isClosedPlan && Number(investment.closure_amount) > 0 ? investment.closure_amount : investedSoFar)}</p>
-        <p className="text-[11px] text-mint-700 mt-0.5">
+        <p className="text-[12px] text-mint-700 mt-0.5">
           {isClosedPlan && Number(investment.closure_amount) > 0 ? 'received' : 'saved so far'}
           {progress && !liquidity ? ` · ${progress.label}` : ''}
         </p>
-        {metalType && <p className="text-[10px] text-honey-600 mt-0.5">{formatUnits(investment.total_units)} g</p>}
-        {marketType && <p className="text-[10px] text-sky-600 mt-0.5">{formatUnits(investment.total_units)} units</p>}
+        {metalType && <p className="text-[11px] text-honey-600 mt-0.5">{formatUnits(investment.total_units)} g</p>}
+        {marketType && <p className="text-[11px] text-sky-600 mt-0.5">{formatUnits(investment.total_units)} units</p>}
         {(chitType || isRecurringFrequency(investment.payment_frequency)) && !isClosedPlan && (
-          <p className="text-[10px] text-ink-mute mt-0.5">{inr(investment.amount)}{chitType ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
+          <p className="text-[11px] text-ink-mute mt-0.5">{inr(investment.amount)}{chitType ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
         )}
         {chitType && Number.isFinite(chitPl) && (
-          <p className={`text-[10px] mt-0.5 ${chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
+          <p className={`text-[11px] mt-0.5 ${chitPl < 0 ? 'text-danger' : 'text-mint-600'}`}>
             {chitPl >= 0 ? '+' : ''}{inr(chitPl)}{investment.chit_details?.pick_month ? ` · M${investment.chit_details.pick_month}` : ''}
           </p>
         )}
@@ -402,17 +403,17 @@ function InvestmentTile({ investment, href, onDragStart }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <p className="text-sm font-medium leading-snug min-w-0">{investment.bank} · {investment.plan_name}</p>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{liquidity ? 'Liquidity' : categoryLabel(key)}</span>
+          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-paper-tint border border-edge text-ink-soft flex-shrink-0">{liquidity ? 'Liquidity' : categoryLabel(key)}</span>
         </div>
-        {dates && <p className="text-[11px] text-ink-soft mt-1">{dates}</p>}
+        {dates && <p className="text-[12px] text-ink-soft mt-1">{dates}</p>}
         <TagList tags={investment.tags} className="mt-1.5" />
         <p className="text-lg font-medium mt-2">{inr(saved.amount)}</p>
-        <p className="text-[11px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
+        <p className="text-[12px] text-mint-700">{saved.label}{closed ? ` · ${getLifecycleLabel(resolveLifecycleStatus(investment))}` : ''}</p>
         {(isChitInvestment(investment.type_code) || isRecurringFrequency(investment.payment_frequency)) && !closed && (
-          <p className="text-[10px] text-ink-mute mt-1">{inr(investment.amount)}{isChitInvestment(investment.type_code) ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
+          <p className="text-[11px] text-ink-mute mt-1">{inr(investment.amount)}{isChitInvestment(investment.type_code) ? ' chit value' : frequencySuffix(investment.payment_frequency)}</p>
         )}
-        {metalType && <p className="text-[10px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
-        {marketType && <p className="text-[10px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
+        {metalType && <p className="text-[11px] text-honey-600 mt-1">{formatUnits(investment.total_units)} g held</p>}
+        {marketType && <p className="text-[11px] text-sky-600 mt-1">{formatUnits(investment.total_units)} units</p>}
       </div>
       </Link>
     </div>
@@ -473,6 +474,8 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const [layout, setLayout] = useState('list');
   const [draggingId, setDraggingId] = useState(null);
   const [orderError, setOrderError] = useState('');
+  const [search, setSearch] = useState('');
+  const searchInputRef = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -482,6 +485,9 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     }
     const tag = params.get('tag');
     if (tag) setTagFilter(tag);
+    const q = params.get('q');
+    if (q) setSearch(q);
+    if (params.get('focus') === 'search') searchInputRef.current?.focus();
     const stored = window.localStorage.getItem('investments-layout');
     if (stored === 'tiles' || stored === 'list') setLayout(stored);
     // Default on; only turn off when the user previously chose a flat list.
@@ -549,14 +555,33 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
     return undefined;
   }, [seeded, readOnly]);
 
+  // The header search box sends its query here while this page is open.
+  useEffect(() => {
+    const onSearch = (e) => setSearch(String(e.detail || ''));
+    window.addEventListener('app:search', onSearch);
+    return () => window.removeEventListener('app:search', onSearch);
+  }, []);
+
   const activeInvestments = investments.filter(isActiveInvestment);
   const closedInvestments = investments.filter(isClosedInvestment);
+  const searchTerm = search.trim().toLowerCase();
+  const searchHits = searchTerm
+    ? investments.filter((investment) => [
+      investment.bank,
+      investment.plan_name,
+      investment.custom_type,
+      labelFor(investment),
+      ...(Array.isArray(investment.tags) ? investment.tags.map((t) => (typeof t === 'string' ? t : t?.name)) : []),
+    ].some((field) => String(field || '').toLowerCase().includes(searchTerm)))
+    : null;
 
-  const lifecycleScoped = lifecycleFilter === 'active'
-    ? activeInvestments
-    : lifecycleFilter === 'closed'
-      ? closedInvestments
-      : investments;
+  const lifecycleScoped = searchHits
+    ? searchHits
+    : lifecycleFilter === 'active'
+      ? activeInvestments
+      : lifecycleFilter === 'closed'
+        ? closedInvestments
+        : investments;
 
   const categoryBuckets = new Map();
   investments.forEach((investment) => {
@@ -580,7 +605,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
 
   const categoryFiltered = filter === 'ALL'
     ? lifecycleScoped
-    : investments.filter((investment) => categoryKey(investment) === filter);
+    : (searchHits || investments).filter((investment) => categoryKey(investment) === filter);
   const filtered = tagFilter
     ? categoryFiltered.filter((investment) => hasTag(investment, tagFilter))
     : categoryFiltered;
@@ -623,7 +648,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
       <div className="px-4 md:px-8 py-5 md:py-6 max-w-4xl mx-auto w-full">
         <div className="flex items-start justify-between mb-4 gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Investments</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Investments</h1>
             <p className="text-sm text-ink-soft mt-1">
               {filterLabel ? (
                 <>{filterLabel} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
@@ -634,11 +659,35 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <LayoutToggle value={layout} onChange={chooseLayout} />
-            {!readOnly && <Link href="/investments/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap">+ Add</Link>}
+            {!readOnly && <Link href="/investments/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />Add</Link>}
           </div>
         </div>
 
         {!loading && investments.length > 0 && (
+          <div className="relative mb-3">
+            <Icon name="search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-mute pointer-events-none" />
+            <label htmlFor="investments-search" className="sr-only">Search investments</label>
+            <input
+              id="investments-search"
+              ref={searchInputRef}
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by bank, plan, type or tag"
+              autoComplete="off"
+              className="field-input !pl-9"
+            />
+          </div>
+        )}
+
+        {!loading && searchHits && (
+          <p className="text-sm text-ink-soft mb-3">
+            {searchHits.length} {searchHits.length === 1 ? 'match' : 'matches'} for “{search.trim()}” across active and closed plans.{' '}
+            <button type="button" onClick={() => setSearch('')} className="link-more">Clear search</button>
+          </p>
+        )}
+
+        {!loading && investments.length > 0 && !searchHits && (
           <div className="flex gap-2 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             <button onClick={() => { setLifecycleFilter('active'); setFilter('ALL'); }} className={`chip whitespace-nowrap ${filter === 'ALL' && lifecycleFilter === 'active' ? 'on' : ''}`}>Active ({activeInvestments.length})</button>
             <button onClick={() => { setLifecycleFilter('closed'); setFilter('ALL'); }} className={`chip whitespace-nowrap ${filter === 'ALL' && lifecycleFilter === 'closed' ? 'on' : ''}`}>Closed ({closedCount})</button>
@@ -646,14 +695,14 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
           </div>
         )}
 
-        {!loading && lifecycleFilter === 'active' && closedCount > 0 && (
+        {!loading && !searchHits && lifecycleFilter === 'active' && closedCount > 0 && (
           <div className="flex items-start gap-3 bg-paper-tint border border-edge rounded-xl p-3.5 mb-4">
-            <span className="text-xl leading-none">📁</span>
+            <span className="w-8 h-8 rounded-lg bg-paper-card text-ink-soft flex items-center justify-center flex-shrink-0"><Icon name="folder" size={16} /></span>
             <p className="text-sm text-ink-soft"><span className="font-medium text-ink">{closedCount} closed plan{closedCount > 1 ? 's' : ''}</span> — premature, matured, or redeemed. <button type="button" onClick={() => setLifecycleFilter('closed')} className="text-sky-600 hover:underline">View closed</button></p>
           </div>
         )}
 
-        {!loading && lifecycleFilter === 'closed' && closedCount === 0 && (
+        {!loading && !searchHits && lifecycleFilter === 'closed' && closedCount === 0 && (
           <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-xl">
             <p className="text-sm font-medium">No closed investments yet</p>
             <p className="text-sm text-ink-soft mt-1">Premature, matured, or redeemed plans will appear here.</p>
@@ -662,21 +711,21 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
 
         {!loading && prematureCount > 0 && lifecycleFilter !== 'active' && (
           <div className="flex items-start gap-3 bg-danger-soft border border-danger/30 rounded-xl p-3.5 mb-4">
-            <span className="text-xl leading-none">⚠️</span>
+            <span className="w-8 h-8 rounded-lg bg-honey-50 text-honey-600 flex items-center justify-center flex-shrink-0"><Icon name="alert" size={16} /></span>
             <p className="text-sm text-danger"><span className="font-medium">{prematureCount} investment{prematureCount > 1 ? 's were' : ' was'} prematurely withdrawn.</span> {readOnly ? 'Closure amounts are shown with each plan.' : 'Review closure amounts and update records if needed.'}</p>
           </div>
         )}
 
         {!loading && nearMaturityCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-honey-50 border border-honey-600/30 rounded-xl p-3.5 mb-4">
-            <span className="text-xl leading-none">📅</span>
+            <span className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center flex-shrink-0"><Icon name="calendar" size={16} /></span>
             <p className="text-sm text-honey-600"><span className="font-medium">{nearMaturityCount} investment{nearMaturityCount > 1 ? 's' : ''} maturing within 90 days.</span> {readOnly ? 'Open a plan to see the maturity date.' : 'Tap to review and decide: renew, withdraw, or reinvest.'}</p>
           </div>
         )}
 
         {!loading && maturedCount > 0 && lifecycleFilter === 'active' && (
           <div className="flex items-start gap-3 bg-mint-50 border border-mint-600/30 rounded-xl p-3.5 mb-4">
-            <span className="text-xl leading-none">✅</span>
+            <span className="w-8 h-8 rounded-lg bg-mint-50 text-mint-700 flex items-center justify-center flex-shrink-0"><Icon name="checkCircle" size={16} /></span>
             <p className="text-sm text-mint-700"><span className="font-medium">{maturedCount} investment{maturedCount > 1 ? 's are' : ' is'} matured.</span> {readOnly ? 'Open a plan to see the recorded outcome.' : 'Review closure, withdrawal, or reinvestment action.'}</p>
           </div>
         )}
@@ -749,7 +798,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         {!loading && (selectedCategory || tagFilter) && (
           <div className="mb-4 rounded-2xl border border-edge bg-paper-card px-4 py-3 flex items-end justify-between gap-3">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-ink-mute">{filterLabel}</p>
+              <p className="text-[12px] uppercase tracking-wider text-ink-mute">{filterLabel}</p>
               <p className="text-2xl font-medium">{inr(total)}</p>
             </div>
             <div className="text-xs text-ink-soft text-right">
@@ -774,16 +823,16 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
         {!loading && investments.length > 0 && filtered.length === 0 && (
           <div className="text-center py-10 mb-4 border border-dashed border-edge rounded-xl">
             <p className="text-sm font-medium">Nothing matches this filter</p>
-            <button type="button" onClick={() => { setFilter('ALL'); chooseTag(''); }} className="text-sm text-sky-600 mt-2">Clear filters</button>
+            <button type="button" onClick={() => { setFilter('ALL'); chooseTag(''); }} className="link-more mt-2">Clear filters</button>
           </div>
         )}
 
         {orderError && <p className="text-sm text-danger mb-3">{orderError}</p>}
         {!loading && !readOnly && !grouping && filtered.length > 1 && (
-          <p className="text-[11px] text-ink-mute mb-2">Drag the handle to set which plan comes first.</p>
+          <p className="text-[12px] text-ink-mute mb-2">Drag the handle to set which plan comes first.</p>
         )}
         {!loading && grouping && filtered.some((investment) => (investment.tags || []).length > 1) && !tagFilter && (
-          <p className="text-[11px] text-ink-mute mb-2">A plan with more than one tag is listed under each tag.</p>
+          <p className="text-[12px] text-ink-mute mb-2">A plan with more than one tag is listed under each tag.</p>
         )}
         {!loading && filtered.length > 0 && (
           grouping ? (
@@ -794,7 +843,7 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
                   <section key={section.key}>
                     <div className="flex items-end justify-between gap-3 mb-2">
                       <h2 className="text-sm font-medium">{section.name}</h2>
-                      <p className="text-[11px] text-ink-soft text-right leading-snug">
+                      <p className="text-[12px] text-ink-soft text-right leading-snug">
                         <span className="text-ink-mute">
                           {section.items.length} {section.items.length === 1 ? 'plan' : 'plans'}
                         </span>

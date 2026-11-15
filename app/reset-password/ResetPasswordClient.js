@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getPasswordStrength, validatePassword } from '@/lib/validation';
+import BrandMark from '@/components/BrandMark';
+import Icon from '@/components/Icon';
 
 export default function ResetPasswordClient({ token }) {
   const router = useRouter();
@@ -86,7 +88,8 @@ export default function ResetPasswordClient({ token }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade">
-        <h1 className="text-xl font-medium text-center">Reset password</h1>
+        <Link href="/" className="block w-fit mx-auto mb-4" aria-label="InvestmentTracker home"><BrandMark size="lg" /></Link>
+        <h1 className="text-xl font-semibold text-center">Reset password</h1>
         <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Choose a new strong password for your account.</p>
 
         {fieldErrors.token && <p className="text-xs text-danger mb-4">{fieldErrors.token}</p>}
@@ -151,7 +154,7 @@ export default function ResetPasswordClient({ token }) {
             placeholder="Type password again"
           />
           {confirmPassword && passwordsMatch && (
-            <p className="text-xs text-mint-600 mb-3">✓ Passwords match</p>
+            <p className="text-xs text-mint-600 mb-3 flex items-center gap-1"><Icon name="check" size={14} strokeWidth={2.4} />Passwords match</p>
           )}
           {fieldErrors.confirmPassword && <p className="text-xs text-danger mb-3">{fieldErrors.confirmPassword}</p>}
 

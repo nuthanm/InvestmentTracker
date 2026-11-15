@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import Icon from '@/components/Icon';
+import BrandMark from '@/components/BrandMark';
 
 const AUTHENTICATOR_APPS = [
   {
@@ -97,6 +99,7 @@ export default function SecurityOnboardingClient({ user }) {
   return (
     <main className="onboard-wrap">
       <section className="onboard-card anim-fade">
+        <BrandMark size="lg" className="mb-3" />
         <p className="onboard-kicker">Welcome, {user.name?.split(' ')[0] || 'Investor'}</p>
         <div className="onboard-progress" aria-label="Onboarding progress">
           <div className="onboard-progress-item done">
@@ -134,7 +137,7 @@ export default function SecurityOnboardingClient({ user }) {
                 onClick={() => setShowAuthApps(!showAuthApps)}
                 className="flex items-center justify-between w-full text-sm font-medium text-ink-soft hover:text-ink transition-colors"
               >
-                <span>📱 Supported authenticator apps</span>
+                <span className="inline-flex items-center gap-1.5"><Icon name="phone" size={15} />Supported authenticator apps</span>
                 <span className={`transition-transform ${showAuthApps ? 'rotate-180' : ''}`}>▼</span>
               </button>
               {showAuthApps && (
@@ -147,7 +150,7 @@ export default function SecurityOnboardingClient({ user }) {
                           href={app.ios}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[11px] hover:bg-ink/20 transition-colors"
+                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[12px] hover:bg-ink/20 transition-colors"
                         >
                           iOS
                         </a>
@@ -155,7 +158,7 @@ export default function SecurityOnboardingClient({ user }) {
                           href={app.android}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[11px] hover:bg-ink/20 transition-colors"
+                          className="px-2 py-1 bg-ink/10 text-mint-600 rounded text-[12px] hover:bg-ink/20 transition-colors"
                         >
                           Android
                         </a>
@@ -187,7 +190,7 @@ export default function SecurityOnboardingClient({ user }) {
 
             <div className="mt-3 p-3 bg-edge/50 rounded-lg border border-edge">
               <p className="text-xs font-medium text-ink mb-1.5">If your authenticator entry looks wrong</p>
-              <ol className="text-[11px] text-ink-soft space-y-1 list-decimal pl-4">
+              <ol className="text-[12px] text-ink-soft space-y-1 list-decimal pl-4">
                 <li>Go to Account and disable MFA.</li>
                 <li>Delete the old InvestmentTracker entry in your authenticator app.</li>
                 <li>Enable MFA again and scan this new QR.</li>

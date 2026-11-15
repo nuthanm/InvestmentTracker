@@ -57,7 +57,7 @@ export default function SecurityActivityClient({ user }) {
     <div className="px-4 md:px-8 py-5 md:py-6 max-w-6xl mx-auto w-full">
       <div className="mb-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-medium tracking-tight mb-1">Security Activity</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">Security</h1>
           <p className="text-sm text-ink-soft">Review sign-in and security actions on your account.</p>
         </div>
       </div>

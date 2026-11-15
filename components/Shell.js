@@ -2,98 +2,107 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Toaster from './Toast';
+import Icon from './Icon';
+import Dialog from './Dialog';
+import BrandMark from './BrandMark';
 
 const NAV_ITEMS = [
   { key: 'home', label: 'Home', href: '/home', icon: 'home' },
+  { key: 'investments', label: 'Investments', href: '/investments', icon: 'wallet' },
   { key: 'goals', label: 'Goals', href: '/goals', icon: 'target' },
-  { key: 'investments', label: 'List', href: '/investments', icon: 'list' },
+  { key: 'reminders', label: 'Reminders', href: '/notifications', icon: 'calendar', countsUnread: true },
+];
+
+const SETTINGS_ITEMS = [
   { key: 'account', label: 'Account', href: '/account', icon: 'user' },
-  { key: 'security', label: 'Security Activity', href: '/account/security-activity', icon: 'shield' },
+  { key: 'security', label: 'Security', href: '/account/security-activity', icon: 'shield' },
 ];
 
 const FINANCIAL_QUOTES = [
   { text: 'Do not save what is left after spending, but spend what is left after saving.', author: 'Warren Buffett' },
   { text: 'Price is what you pay. Value is what you get.', author: 'Warren Buffett' },
   { text: 'Risk comes from not knowing what you are doing.', author: 'Warren Buffett' },
-  { text: 'The best investment you can make is in yourself.', author: 'Warren Buffett' },
-  { text: 'The stock market is a device for transferring money from the impatient to the patient.', author: 'Warren Buffett' },
   { text: 'Someone is sitting in the shade today because someone planted a tree a long time ago.', author: 'Warren Buffett' },
-  { text: 'Never invest in a business you cannot understand.', author: 'Warren Buffett' },
-  { text: 'Our favorite holding period is forever.', author: 'Warren Buffett' },
-  { text: 'Be fearful when others are greedy, and greedy when others are fearful.', author: 'Warren Buffett' },
-  { text: 'Rule No. 1: Never lose money. Rule No. 2: Never forget rule No. 1.', author: 'Warren Buffett' },
   { text: 'The big money is not in the buying and selling, but in the waiting.', author: 'Charlie Munger' },
   { text: 'Time is your friend; impulse is your enemy.', author: 'John C. Bogle' },
   { text: 'Know what you own, and know why you own it.', author: 'Peter Lynch' },
-  { text: 'The individual investor should act consistently as an investor and not as a speculator.', author: 'Benjamin Graham' },
   { text: 'An investment in knowledge pays the best interest.', author: 'Benjamin Franklin' },
   { text: 'Beware of little expenses. A small leak will sink a great ship.', author: 'Benjamin Franklin' },
   { text: 'A budget is telling your money where to go instead of wondering where it went.', author: 'Dave Ramsey' },
-  { text: 'Financial peace is learning to live on less than you make.', author: 'Dave Ramsey' },
   { text: 'It is not how much money you make, but how much money you keep.', author: 'Robert Kiyosaki' },
   { text: 'The four most dangerous words in investing are: this time it is different.', author: 'John Templeton' },
 ];
 
-function QuoteStrip() {
-  const [index, setIndex] = useState(0);
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const pickDifferent = (current) => {
-      let next = Math.floor(Math.random() * FINANCIAL_QUOTES.length);
-      if (FINANCIAL_QUOTES.length > 1 && next === current) {
-        next = (current + 1) % FINANCIAL_QUOTES.length;
-      }
-      return next;
-    };
-
-    setIndex(Math.floor(Math.random() * FINANCIAL_QUOTES.length));
-    setShown(true);
-
-    let fadeTimer;
-    const interval = setInterval(() => {
-      setShown(false);
-      fadeTimer = setTimeout(() => {
-        setIndex((current) => pickDifferent(current));
-        setShown(true);
-      }, 320);
-    }, 16000);
-
-    return () => {
-      clearInterval(interval);
-      clearTimeout(fadeTimer);
-    };
-  }, []);
-
-  const quote = FINANCIAL_QUOTES[index];
-
-  return (
-    <blockquote
-      className="quote-pastel min-w-0 w-full flex-1 self-stretch flex flex-col items-center justify-center gap-0.5 px-4 py-2 sm:flex-row sm:gap-2 sm:px-6"
-      title={`“${quote.text}” — ${quote.author}`}
-    >
-      <p className={`min-w-0 text-[12px] sm:text-[13px] italic text-ink-soft leading-snug text-center sm:truncate sm:leading-none transition-opacity duration-300 ${shown ? 'opacity-100' : 'opacity-0'}`}>
-        “{quote.text}”
-      </p>
-      <cite className={`shrink-0 not-italic text-[11px] sm:text-xs text-ink-mute whitespace-nowrap transition-opacity duration-300 ${shown ? 'opacity-100' : 'opacity-0'}`}>
-        — {quote.author}
-      </cite>
-    </blockquote>
-  );
+function pageTitle(pathname) {
+  if (pathname === '/home') return 'Home';
+  if (pathname === '/investments/new') return 'Add investment';
+  if (/^\/investments\/[^/]+\/edit/.test(pathname)) return 'Edit investment';
+  if (pathname.startsWith('/investments/')) return 'Investment';
+  if (pathname.startsWith('/investments')) return 'Investments';
+  if (pathname === '/goals/new') return 'New goal';
+  if (pathname.startsWith('/goals')) return 'Goals';
+  if (pathname.startsWith('/notifications')) return 'Reminders';
+  if (pathname.startsWith('/account/security-activity')) return 'Security';
+  if (pathname.startsWith('/account')) return 'Account';
+  return 'InvestmentTracker';
 }
 
-function NavIcon({ name }) {
-  const common = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
-  if (name === 'home') return (<svg {...common}><path d="M3 9.5L12 3l9 6.5V21H3z"/><path d="M9 21V12h6v9"/></svg>);
-  if (name === 'target') return (<svg {...common}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>);
-  if (name === 'list') return (<svg {...common}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/></svg>);
-  if (name === 'plus') return (<svg {...common}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
-  if (name === 'user') return (<svg {...common}><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>);
-  if (name === 'shield') return (<svg {...common}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>);
-  if (name === 'bell') return (<svg {...common}><path d="M6 8a6 6 0 0112 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 21a2 2 0 004 0"/></svg>);
-  return null;
+function isActive(href, pathname) {
+  if (href === '/account') return pathname === '/account';
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function readStored(key) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+
+function writeStored(key, value) {
+  try { window.localStorage.setItem(key, value); } catch {}
+}
+
+/** Blurs every element whose own text holds a rupee amount while `enabled` is on. */
+function useAmountMask(enabled, rootRef) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return undefined;
+    const clear = () => root.querySelectorAll('.amount-masked').forEach((el) => el.classList.remove('amount-masked'));
+    if (!enabled) { clear(); return undefined; }
+
+    let frame = 0;
+    const mark = () => {
+      frame = 0;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.nodeValue && node.nodeValue.includes('₹') && node.parentElement) {
+          node.parentElement.classList.add('amount-masked');
+        }
+      }
+    };
+    mark();
+    const observer = new MutationObserver(() => { if (!frame) frame = requestAnimationFrame(mark); });
+    observer.observe(root, { childList: true, subtree: true, characterData: true });
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame); clear(); };
+  }, [enabled, rootRef]);
+}
+
+function NavLink({ item, pathname, collapsed, count = 0 }) {
+  const active = isActive(item.href, pathname);
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? 'page' : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      data-tip={collapsed ? item.label : undefined}
+      className={`shell-nav-item${active ? ' is-active' : ''}`}
+    >
+      <Icon name={item.icon} />
+      {!collapsed && <span className="flex-1 min-w-0 truncate">{item.label}</span>}
+      {!collapsed && count > 0 && <span className="shell-nav-count">{count}</span>}
+      {collapsed && count > 0 && <span className="shell-nav-dot" />}
+    </Link>
+  );
 }
 
 export default function Shell({ children, user }) {
@@ -103,10 +112,22 @@ export default function Shell({ children, user }) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
-  const [isDragging, setIsDragging] = useState(false);
-  const sidebarRef = useRef(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [masked, setMasked] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [quote, setQuote] = useState(null);
+  const contentRef = useRef(null);
+  const searchRef = useRef(null);
+  const profileRef = useRef(null);
+
+  useAmountMask(masked, contentRef);
+
+  useEffect(() => {
+    setCollapsed(readStored('sidebar-collapsed') === '1');
+    setMasked(readStored('hide-amounts') === '1');
+    setQuote(FINANCIAL_QUOTES[Math.floor(Math.random() * FINANCIAL_QUOTES.length)]);
+  }, []);
 
   const refreshUnread = async () => {
     try {
@@ -116,6 +137,47 @@ export default function Shell({ children, user }) {
         setUnread(data.unreadCount || 0);
       }
     } catch {}
+  };
+
+  useEffect(() => { refreshUnread(); }, [pathname]);
+  useEffect(() => { setShowProfileMenu(false); setMoreOpen(false); }, [pathname]);
+
+  // Close the profile menu on an outside click or Escape.
+  useEffect(() => {
+    if (!showProfileMenu) return undefined;
+    const onDown = (e) => { if (profileRef.current && !profileRef.current.contains(e.target)) setShowProfileMenu(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setShowProfileMenu(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [showProfileMenu]);
+
+  // "/" focuses search unless the user is already typing somewhere.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => { writeStored('sidebar-collapsed', prev ? '0' : '1'); return !prev; });
+  };
+
+  const toggleMasked = () => {
+    setMasked((prev) => { writeStored('hide-amounts', prev ? '0' : '1'); return !prev; });
+  };
+
+  const submitSearch = (e) => {
+    e.preventDefault();
+    const q = query.trim();
+    router.push(q ? `/investments?q=${encodeURIComponent(q)}` : '/investments');
+    window.dispatchEvent(new CustomEvent('app:search', { detail: q }));
   };
 
   const handleSignOut = async () => {
@@ -133,130 +195,117 @@ export default function Shell({ children, user }) {
     }
   };
 
-  useEffect(() => { refreshUnread(); }, [pathname]);
-  useEffect(() => { setShowProfileMenu(false); }, [pathname]);
+  const closeSignOut = useCallback(() => { if (!signingOut) setConfirmSignOut(false); }, [signingOut]);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
 
-  const handleMouseDown = () => {
-    setIsDragging(true);
-  };
-
-  useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging || !sidebarRef.current || !sidebarOpen) return;
-      const rect = sidebarRef.current.getBoundingClientRect();
-      const newWidth = e.clientX - rect.left;
-      const maxWidth = Math.min(500, window.innerWidth * 0.5);
-      if (newWidth > 150 && newWidth < maxWidth) {
-        setSidebarWidth(newWidth);
-      }
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging]);
-
-  const initials = (user?.name || '?').split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+  const initials = (user?.name || '?').split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+  const title = pageTitle(pathname);
+  const onInvestments = pathname === '/investments' || (pathname.startsWith('/investments/') && pathname !== '/investments/new');
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       <Toaster />
 
-      <aside ref={sidebarRef} className="hidden md:flex md:flex-col md:border-r md:border-edge md:bg-paper-tint md:py-5 md:overflow-hidden transition-all duration-200 md:h-screen md:sticky md:top-0" style={{ width: sidebarOpen ? sidebarWidth : 60, minWidth: sidebarOpen ? sidebarWidth : 60 }}>
-        {/* Logo */}
-        <Link href="/home" className={`flex items-center gap-2 px-3 pb-4 mb-2 border-b border-edge ${sidebarOpen ? '' : 'justify-center'}`}>
-          <div className="brand-mark w-9 h-9 rounded-xl bg-ink text-paper flex items-center justify-center font-medium text-sm">₹</div>
-          {sidebarOpen && <div className="font-medium">My Investments</div>}
+      <aside className={`shell-side${collapsed ? ' is-collapsed' : ''}`} aria-label="Sidebar">
+        <Link href="/home" className="shell-brand" aria-label="InvestmentTracker home">
+          <BrandMark />
+          {!collapsed && <span className="font-semibold truncate">InvestmentTracker</span>}
         </Link>
 
-        {/* Navigation Items */}
-        <nav className="overflow-y-auto overflow-x-hidden px-2 space-y-1">
-          {NAV_ITEMS.map(item => {
-            const active = item.href === pathname || (item.href !== '/account' && pathname.startsWith(item.href));
-            return (
-              <div key={item.key} className="relative group">
-                <Link href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-ink transition whitespace-nowrap ${active ? 'bg-paper-card font-medium shadow-sm' : 'hover:bg-paper-card/40'}`}
-                  title={!sidebarOpen ? item.label : ''}>
-                  <div className="flex-shrink-0"><NavIcon name={item.icon} /></div>
-                  {sidebarOpen && <span className="flex-1 min-w-0 truncate">{item.label}</span>}
-                </Link>
-                {!sidebarOpen && (
-                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2 py-1.5 bg-paper-card text-ink text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                    {item.label}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <Link href="/investments/new" className="shell-add" data-tip={collapsed ? 'Add investment' : undefined} aria-label={collapsed ? 'Add investment' : undefined}>
+          <Icon name="plus" strokeWidth={2.2} />
+          {!collapsed && <span>Add investment</span>}
+        </Link>
+
+        <nav className="flex flex-col gap-1" aria-label="Main">
+          {NAV_ITEMS.map((item) => (
+            <NavLink key={item.key} item={item} pathname={pathname} collapsed={collapsed} count={item.countsUnread ? unread : 0} />
+          ))}
+          {collapsed ? <div className="border-t border-edge my-2" /> : <p className="shell-nav-group">Settings</p>}
+          {SETTINGS_ITEMS.map((item) => (
+            <NavLink key={item.key} item={item} pathname={pathname} collapsed={collapsed} />
+          ))}
         </nav>
 
-
-
-        {/* Collapse/Expand Button */}
-        <div className="px-2 border-t border-edge pt-2 mt-auto">
-          <div className="relative group">
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} 
-              className={`w-full flex items-center ${sidebarOpen ? 'justify-between' : 'justify-center'} px-3 py-2.5 rounded-lg text-sm text-ink hover:bg-paper-card/40 transition`}
-              title={sidebarOpen ? 'Collapse' : 'Expand'}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                {sidebarOpen ? (
-                  <path d="M15 18l-6-6 6-6" />
-                ) : (
-                  <path d="M9 18l6-6-6-6" />
-                )}
-              </svg>
-              {sidebarOpen && <span className="flex-1 text-left">Collapse</span>}
+        <div className="mt-auto pt-3 flex flex-col gap-2">
+          {!collapsed && quote && (
+            <figure className="shell-quote">
+              <blockquote>“{quote.text}”</blockquote>
+              <figcaption>— {quote.author}</figcaption>
+            </figure>
+          )}
+          <div className="border-t border-edge pt-2">
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="shell-nav-item w-full"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? 'Expand sidebar' : undefined}
+              data-tip={collapsed ? 'Expand sidebar' : undefined}
+            >
+              <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} />
+              {!collapsed && <span className="flex-1 text-left">Collapse</span>}
             </button>
-            {!sidebarOpen && (
-              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2 py-1.5 bg-paper-card text-ink text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                {sidebarOpen ? 'Collapse' : 'Expand'}
-              </div>
-            )}
           </div>
         </div>
       </aside>
 
-      {/* Draggable Divider - Only when sidebar is open */}
-      {sidebarOpen && (
-        <div onMouseDown={handleMouseDown} className="hidden md:block w-1 bg-edge hover:bg-mint-600 cursor-col-resize transition-colors active:bg-mint-600 flex-shrink-0" style={{ cursor: isDragging ? 'col-resize' : 'col-resize' }} />
-      )}
-
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="md:hidden sticky top-0 z-20 bg-paper-card border-b border-edge grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3">
-          <Link href="/home" className="col-start-1 row-start-1 flex items-center gap-2 px-4 py-2.5">
-            <div className="brand-mark w-7 h-7 rounded-lg bg-ink text-paper flex items-center justify-center font-medium text-xs">₹</div>
-            <div className="text-sm font-medium">My Investments</div>
-          </Link>
-          <div className="col-span-3 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 min-w-0 self-stretch flex">
-            <QuoteStrip />
-          </div>
-          <div className="col-start-3 row-start-1 flex items-center gap-2 px-4 py-2.5">
-            <Link href="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-paper-tint">
-              <NavIcon name="bell" />
-              {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-medium rounded-full flex items-center justify-center">{unread}</span>}
+        <header className="shell-bar">
+          <Link href="/home" className="md:hidden" aria-label="Home"><BrandMark size="sm" /></Link>
+          <p className="shell-title md:hidden">{title}</p>
+
+          <form role="search" onSubmit={submitSearch} className="shell-search">
+            <Icon name="search" size={16} />
+            <label htmlFor="shell-search-input" className="sr-only">Search investments</label>
+            <input
+              id="shell-search-input"
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search plans, banks, tags"
+              autoComplete="off"
+            />
+            <kbd aria-hidden="true">/</kbd>
+          </form>
+
+          <div className="flex items-center gap-1 ml-auto">
+            <Link href="/investments?focus=search" className="shell-icon-btn md:hidden" aria-label="Search investments">
+              <Icon name="search" />
             </Link>
-            <div className="relative">
-              <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center text-xs font-medium hover:ring-2 hover:ring-sky-200 transition">
+            <button
+              type="button"
+              onClick={toggleMasked}
+              className="shell-icon-btn"
+              aria-pressed={masked}
+              aria-label={masked ? 'Show amounts' : 'Hide amounts'}
+              title={masked ? 'Show amounts' : 'Hide amounts'}
+            >
+              <Icon name={masked ? 'eyeOff' : 'eye'} />
+            </button>
+            <Link href="/notifications" className="shell-icon-btn relative" aria-label={unread > 0 ? `Reminders, ${unread} unread` : 'Reminders'}>
+              <Icon name="bell" />
+              {unread > 0 && <span className="shell-badge">{unread}</span>}
+            </Link>
+            <div className="relative ml-1" ref={profileRef}>
+              <button
+                type="button"
+                onClick={() => setShowProfileMenu((v) => !v)}
+                aria-haspopup="menu"
+                aria-expanded={showProfileMenu}
+                aria-label="Profile menu"
+                className="w-9 h-9 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center text-xs font-semibold hover:ring-2 hover:ring-sky-200 transition"
+              >
                 {initials}
               </button>
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-40 bg-paper-card border border-edge rounded-lg shadow-lg overflow-hidden z-50">
-                  <Link href="/account" onClick={() => setShowProfileMenu(false)} className="block px-4 py-3 text-sm text-ink hover:bg-paper-tint border-b border-edge">
-                    Account Settings
+                <div role="menu" className="absolute right-0 mt-2 w-48 bg-paper-card border border-edge rounded-xl shadow-lg overflow-hidden z-50">
+                  <Link role="menuitem" href="/account" className="flex items-center gap-2.5 px-4 py-3 text-sm text-ink hover:bg-paper-tint border-b border-edge">
+                    <Icon name="user" size={16} /> Account settings
                   </Link>
-                  <button onClick={() => { setShowProfileMenu(false); setConfirmSignOut(true); }} className="w-full text-left px-4 py-3 text-sm text-danger hover:bg-danger/5 transition">
-                    Sign out
+                  <button role="menuitem" type="button" onClick={() => { setShowProfileMenu(false); setConfirmSignOut(true); }} className="w-full flex items-center gap-2.5 text-left px-4 py-3 text-sm text-danger hover:bg-danger/5 transition">
+                    <Icon name="logout" size={16} /> Sign out
                   </button>
                 </div>
               )}
@@ -264,67 +313,58 @@ export default function Shell({ children, user }) {
           </div>
         </header>
 
-        <header className="hidden md:flex sticky top-0 z-20 bg-paper-card border-b border-edge h-14 items-stretch">
-          <QuoteStrip />
-          <div className="flex items-center gap-3 shrink-0 px-4">
-            <Link href="/notifications" className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-paper-tint">
-              <NavIcon name="bell" />
-              {unread > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-danger text-white text-[10px] font-medium rounded-full flex items-center justify-center">{unread}</span>}
-            </Link>
-            <div className="relative">
-              <button onClick={() => setShowProfileMenu(!showProfileMenu)} className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center text-xs font-medium hover:ring-2 hover:ring-sky-200 transition">
-                {initials}
-              </button>
-              {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-40 bg-paper-card border border-edge rounded-lg shadow-lg overflow-hidden z-50">
-                  <Link href="/account" onClick={() => setShowProfileMenu(false)} className="block px-4 py-3 text-sm text-ink hover:bg-paper-tint border-b border-edge">
-                    Account Settings
-                  </Link>
-                  <button onClick={() => { setShowProfileMenu(false); setConfirmSignOut(true); }} className="w-full text-left px-4 py-3 text-sm text-danger hover:bg-danger/5 transition">
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
-
-        {confirmSignOut && (
-          <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4">
-            <div className="bg-paper-card border border-edge rounded-2xl p-6 max-w-sm">
-              <h3 className="font-medium text-ink mb-2">Sign out</h3>
-              <p className="text-sm text-ink-soft mb-6">Sure you want to sign out?</p>
-              <div className="flex gap-3 justify-end">
-                <button onClick={() => setConfirmSignOut(false)} disabled={signingOut} className="px-4 py-2 text-sm rounded-lg border border-edge hover:bg-paper-tint disabled:opacity-50">
-                  Cancel
-                </button>
-                <button onClick={handleSignOut} disabled={signingOut} className="px-4 py-2 text-sm rounded-lg bg-danger text-paper font-medium hover:bg-danger-dark disabled:opacity-50">
-                  {signingOut ? 'Signing out…' : 'Sign out'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="flex-1 anim-fade pb-24 md:pb-0">
+        <div ref={contentRef} className="flex-1 anim-fade pb-28 md:pb-0">
           {children}
         </div>
 
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-paper-card border-t border-edge z-30 flex items-center px-2 py-1.5 overflow-x-auto overflow-y-hidden">
-          {NAV_ITEMS.filter(item => item.key !== 'security' && item.key !== 'add').map(item => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link key={item.key} href={item.href}
-                className={`flex-1 flex flex-col items-center gap-1 py-1.5 text-[11px] ${active ? 'text-ink font-medium' : 'text-ink-mute'}`}>
-                <span className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${active ? 'bg-ink text-paper' : 'bg-transparent'}`}>
-                  <NavIcon name={item.icon} />
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
+        <nav className="shell-tabbar md:hidden" aria-label="Main">
+          <Link href="/home" className={`shell-tab${isActive('/home', pathname) ? ' is-active' : ''}`} aria-current={isActive('/home', pathname) ? 'page' : undefined}>
+            <span className="shell-tab-icon"><Icon name="home" /></span>Home
+          </Link>
+          <Link href="/investments" className={`shell-tab${onInvestments ? ' is-active' : ''}`} aria-current={onInvestments ? 'page' : undefined}>
+            <span className="shell-tab-icon"><Icon name="wallet" /></span>Investments
+          </Link>
+          <Link href="/investments/new" className="shell-tab shell-tab-add">
+            <span className="shell-tab-icon"><Icon name="plus" size={22} strokeWidth={2.2} /></span>Add
+          </Link>
+          <Link href="/goals" className={`shell-tab${isActive('/goals', pathname) ? ' is-active' : ''}`} aria-current={isActive('/goals', pathname) ? 'page' : undefined}>
+            <span className="shell-tab-icon"><Icon name="target" /></span>Goals
+          </Link>
+          <button type="button" onClick={() => setMoreOpen(true)} className={`shell-tab${pathname.startsWith('/account') || pathname.startsWith('/notifications') ? ' is-active' : ''}`} aria-haspopup="dialog">
+            <span className="shell-tab-icon relative">
+              <Icon name="more" />
+              {unread > 0 && <span className="shell-nav-dot" />}
+            </span>More
+          </button>
         </nav>
       </main>
+
+      <Dialog open={moreOpen} onClose={closeMore} title="More" variant="sheet">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-semibold">More</h2>
+          <button type="button" onClick={closeMore} className="shell-icon-btn" aria-label="Close"><Icon name="close" /></button>
+        </div>
+        <div className="flex flex-col gap-1">
+          <NavLink item={NAV_ITEMS[3]} pathname={pathname} collapsed={false} count={unread} />
+          {SETTINGS_ITEMS.map((item) => <NavLink key={item.key} item={item} pathname={pathname} collapsed={false} />)}
+          <button type="button" onClick={() => { setMoreOpen(false); setConfirmSignOut(true); }} className="shell-nav-item w-full !text-danger">
+            <Icon name="logout" /><span className="flex-1 text-left">Sign out</span>
+          </button>
+        </div>
+      </Dialog>
+
+      <Dialog open={confirmSignOut} onClose={closeSignOut} title="Sign out">
+        <h2 className="font-semibold text-ink mb-2">Sign out</h2>
+        <p className="text-sm text-ink-soft mb-6">Are you sure you want to sign out?</p>
+        <div className="flex gap-3 justify-end">
+          <button type="button" onClick={closeSignOut} disabled={signingOut} className="px-4 py-2 text-sm rounded-lg border border-edge hover:bg-paper-tint disabled:opacity-50" autoFocus>
+            Cancel
+          </button>
+          <button type="button" onClick={handleSignOut} disabled={signingOut} className="px-4 py-2 text-sm rounded-lg bg-danger text-paper font-medium hover:opacity-90 disabled:opacity-50">
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button>
+        </div>
+      </Dialog>
     </div>
   );
 }

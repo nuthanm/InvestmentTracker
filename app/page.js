@@ -1,11 +1,47 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
+import Icon from '@/components/Icon';
+import BrandMark from '@/components/BrandMark';
+import { PublicFooter, PublicHeader } from '@/components/PublicShell';
+import { GoalWaterFill, TypeThumbnail, WaterTank } from '@/components/GrowthVisual';
 
 export const metadata = {
-  title: 'Investment Tracker for Everyday Families',
+  title: 'InvestmentTracker | Investments and goals for everyday families',
   description: 'Track investments, goals, and payment schedules with one simple system.',
 };
+
+const AFTER_SIGNUP = [
+  { icon: 'target', text: 'Build a goal map: education, home, emergency, travel.' },
+  { icon: 'calendar', text: 'Add investment instruments with their exact due dates.' },
+  { icon: 'shield', text: 'Turn on MFA and save backup codes in under 2 minutes.' },
+  { icon: 'archive', text: 'Download your full data any time.' },
+];
+
+const FACTS = [
+  { icon: 'layers', title: '11 plan types', note: 'FD, RD, PPF, chit, gold, silver, MF, stocks and more' },
+  { icon: 'shield', title: 'MFA built in', note: 'Authenticator app plus backup codes' },
+  { icon: 'archive', title: 'Your data', note: 'Export everything, any time' },
+];
+
+const PREVIEW_ALLOCATION = [
+  { label: 'Debt', tone: 'mint', pct: 54 },
+  { label: 'Equity', tone: 'sky', pct: 24 },
+  { label: 'Metals', tone: 'honey', pct: 15 },
+  { label: 'Cash', tone: 'plum', pct: 7 },
+];
+
+const PREVIEW_ROWS = [
+  { type: 'FD', title: 'SBI · Long Term FD', meta: '7.10% p.a. · matures 18 Jul 2027', amount: '₹3,00,000', note: 'invested' },
+  { type: 'MF', title: 'HDFC · Flexi Cap Fund', meta: 'SIP ₹5,000/mo · next on 05 Dec', amount: '₹1,42,300', note: 'cost basis' },
+  { type: 'GOLD', title: 'GRT · 22K chain', meta: '12.400 g accumulated', amount: '12.400 g', note: '₹82.4K cost' },
+  { type: 'RD', title: 'Post Office · RD', meta: '₹2,000/mo · 14 of 60 paid', amount: '₹28,000', note: 'invested so far', ratio: 0.23 },
+];
+
+const PREVIEW_GOALS = [
+  { name: 'Child education', pct: 68 },
+  { name: 'Emergency fund', pct: 41 },
+];
 
 export default async function RootPage() {
   const user = await getCurrentUser();
@@ -21,20 +57,13 @@ export default async function RootPage() {
     offers: {
       '@type': 'Offer',
       price: '0',
-      priceCurrency: 'USD',
+      priceCurrency: 'INR',
     },
   };
 
   return (
     <main className="landing-wrap">
-      <header className="landing-top">
-        <Link href="/" className="landing-brand">InvestmentTracker</Link>
-        <nav className="landing-top-nav">
-          <Link href="/resources">Guides</Link>
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/login" className="hero-primary">Sign in</Link>
-        </nav>
-      </header>
+      <PublicHeader />
 
       <section className="hero-grid">
         <div>
@@ -49,19 +78,22 @@ export default async function RootPage() {
             <Link href="/login" className="hero-secondary">I already have an account</Link>
           </div>
           <div className="hero-metrics">
-            <div><strong>0</strong><span>Ad cost in private workspace</span></div>
-            <div><strong>100%</strong><span>User-owned data export</span></div>
-            <div><strong>24x7</strong><span>Access to your plan</span></div>
+            {FACTS.map((fact) => (
+              <div key={fact.title}>
+                <span className="hero-metric-icon"><Icon name={fact.icon} size={16} /></span>
+                <strong>{fact.title}</strong>
+                <span>{fact.note}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         <aside className="hero-card">
           <h2>What happens after sign up</h2>
-          <ul>
-            <li>Build a goal map: education, home, emergency, travel.</li>
-            <li>Add investment instruments with exact due cadence.</li>
-            <li>Enable MFA and recovery key in under 2 minutes.</li>
-            <li>Download your full data snapshot anytime.</li>
+          <ul className="icon-list">
+            {AFTER_SIGNUP.map((item) => (
+              <li key={item.text}><span className="icon-list-icon"><Icon name={item.icon} size={16} /></span>{item.text}</li>
+            ))}
           </ul>
           <div className="hero-card-badge">No broker lock-in. No forced subscriptions.</div>
         </aside>
@@ -69,14 +101,17 @@ export default async function RootPage() {
 
       <section className="feature-band">
         <article>
+          <div className="feature-glyph goal-water-card" aria-hidden="true"><GoalWaterFill pct={62} /></div>
           <h3>Goal Lens</h3>
-          <p>Every amount is tied to a life objective so the portfolio tells a story, not just numbers.</p>
+          <p>Every amount is tied to a life objective, so the portfolio tells a story, not just numbers.</p>
         </article>
         <article>
+          <div className="feature-glyph" aria-hidden="true"><TypeThumbnail typeCode="RD" ratio={0.7} /></div>
           <h3>Discipline Rail</h3>
-          <p>Installment timelines make misses obvious early, so recurring investment plans stay controlled.</p>
+          <p>Installment timelines make misses obvious early, so recurring investment plans stay on track.</p>
         </article>
         <article>
+          <div className="feature-glyph" aria-hidden="true"><TypeThumbnail typeCode="FD" /></div>
           <h3>Family Ledger</h3>
           <p>Separate account holders while keeping one dependable household picture.</p>
         </article>
@@ -85,98 +120,81 @@ export default async function RootPage() {
       <section className="product-peek">
         <div className="product-peek-copy">
           <p className="peek-kicker">See the product before signup</p>
-          <h2>This preview maps directly to the real home dashboard</h2>
-          <p>
-            Card titles and section flow below are aligned with the implemented app,
-            including portfolio summary, wealth goal progress, upcoming options, and recent investments.
-          </p>
+          <h2>This preview uses the same parts as the real home screen</h2>
+          <p>Portfolio value, allocation, plan counts, recent investments, goals and upcoming dates, with sample figures.</p>
         </div>
 
-        <div className="product-mock-grid">
-          <article className="mock-desktop mock-home-main">
-            <div className="mock-app-head">
-              <span className="mock-app-pill on">Home</span>
-              <span className="mock-app-pill">Goals</span>
-              <span className="mock-app-pill">List</span>
-              <span className="mock-app-pill">Account</span>
-            </div>
-            <div className="mock-topline">
-              <span>Current Portfolio Value</span>
-              <strong>Rs 18,74,500</strong>
-            </div>
-            <p className="mock-subline">Projected maturity value: Rs 22,18,000</p>
-            <div className="mock-stats">
-              <div><label>Active plans</label><b>12</b></div>
-              <div><label>Maturing in 30 days</label><b>3</b></div>
-              <div><label>Goals</label><b>4</b></div>
-              <div><label>Maturity value</label><b>Rs 22.18L</b></div>
-            </div>
+        <div className="peek-app" aria-label="Sample home screen">
+          <div className="peek-rail" aria-hidden="true">
+            <BrandMark size="sm" />
+            <span className="peek-rail-item is-active"><Icon name="home" /></span>
+            <span className="peek-rail-item"><Icon name="wallet" /></span>
+            <span className="peek-rail-item"><Icon name="target" /></span>
+            <span className="peek-rail-item"><Icon name="calendar" /></span>
+          </div>
 
-            <div className="mock-section-title">Overall Wealth Goal</div>
-            <div className="mock-goal-row">
-              <span>Target: Child Education + Retirement</span>
-              <span>Rs 34L / Rs 50L</span>
-            </div>
-            <div className="mock-progress"><i style={{ width: '68%' }} /></div>
-
-            <div className="mock-section-title">Upcoming investment options</div>
-            <div className="mock-option-grid main-options">
-              <div className="mock-option-card">
-                <strong>Maturity rollover window</strong>
-                <small>3 plans are maturing soon</small>
-                <span className="mock-option-tag">Time sensitive</span>
+          <div className="peek-main">
+            <div className="home-hero">
+              <div className="min-w-0">
+                <p className="home-hero-label">Portfolio value</p>
+                <p className="portfolio-hero-value text-3xl leading-tight tracking-tight mt-1 mb-3 tabular-nums">₹18,74,500</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="delta-pill is-up"><Icon name="arrowUp" size={14} strokeWidth={2.4} />+₹3.44L · 18.4%<small>by maturity</small></span>
+                  <span className="home-chip">Avg rate <b>7.35% p.a.</b></span>
+                </div>
               </div>
-              <div className="mock-option-card">
-                <strong>Monthly contribution option</strong>
-                <small>Add one more recurring plan</small>
-                <span className="mock-option-tag">Consistency</span>
-              </div>
-              <div className="mock-option-card">
-                <strong>Long-horizon safety option</strong>
-                <small>Add a long-term account for family corpus</small>
-                <span className="mock-option-tag">Long term</span>
+              <div className="water-tanks">
+                {PREVIEW_ALLOCATION.map((slice) => <WaterTank key={slice.label} pct={slice.pct} tone={slice.tone} label={slice.label} />)}
               </div>
             </div>
 
-            <div className="mock-section-title">Portfolio projection</div>
-            <div className="mock-chart-card">
-              <div className="mock-chart-line" />
-              <div className="mock-chart-dots">
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
+            <div className="kpi-grid peek-kpis">
+              <div className="kpi-tile"><span className="kpi-icon kpi-tone-mint"><Icon name="layers" /></span><span className="kpi-label">Active plans</span><span className="kpi-value">12</span><span className="kpi-note">of 14 plans</span></div>
+              <div className="kpi-tile is-alert"><span className="kpi-icon kpi-tone-honey"><Icon name="clock" /></span><span className="kpi-label">Due in 30 days</span><span className="kpi-value">3</span><span className="kpi-note">Contributions & maturities</span></div>
+              <div className="kpi-tile"><span className="kpi-icon kpi-tone-plum"><Icon name="target" /></span><span className="kpi-label">Goals progress</span><span className="kpi-value">55%</span><span className="kpi-note">avg across 4 goals</span></div>
             </div>
 
-            <div className="mock-section-title">Recent investments</div>
-            <ul className="mock-list">
-              <li><span>HDFC Growth Fund</span><em className="ok">Next SIP: 05 Jul</em></li>
-              <li><span>SBI Long Term FD</span><em className="warn">Matures: 18 Jul</em></li>
-              <li><span>PPF Primary Account</span><em className="warn">Deposit due: 10 Jul</em></li>
-            </ul>
-          </article>
-
-          <article className="mock-mobile mock-home-side">
-            <header>Goals</header>
-            <div className="mock-goals-list">
-              <div className="mock-goal-item">
-                <div className="mock-goal-item-head"><span>Child Education</span><em>68%</em></div>
-                <div className="mock-progress thin"><i style={{ width: '68%' }} /></div>
+            <div className="peek-cols">
+              <div className="peek-card">
+                <h3 className="section-title"><Icon name="wallet" />Recent investments</h3>
+                <ul className="peek-rows">
+                  {PREVIEW_ROWS.map((row) => (
+                    <li key={row.title}>
+                      <span className="peek-thumb"><TypeThumbnail typeCode={row.type} ratio={row.ratio ?? null} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="peek-row-title">{row.title}</span>
+                        <span className="peek-row-meta">{row.meta}</span>
+                      </span>
+                      <span className="peek-row-amount">
+                        <b>{row.amount}</b>
+                        <small>{row.note}</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <div className="mock-goal-item">
-                <div className="mock-goal-item-head"><span>Home Upgrade</span><em>41%</em></div>
-                <div className="mock-progress thin"><i style={{ width: '41%' }} /></div>
+
+              <div className="peek-card">
+                <h3 className="section-title"><Icon name="target" />Goals</h3>
+                <div className="flex flex-col gap-2">
+                  {PREVIEW_GOALS.map((goal) => (
+                    <div key={goal.name} className="goal-water-card bg-paper-tint rounded-xl p-3 overflow-hidden">
+                      <GoalWaterFill pct={goal.pct} />
+                      <div className="goal-on-water flex justify-between items-center text-sm">
+                        <span className="font-medium">{goal.name}</span>
+                        <span>{goal.pct}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <h3 className="section-title mt-4"><Icon name="calendar" />Upcoming</h3>
+                <ul className="peek-events">
+                  <li><span className="peek-date"><i>Dec</i><b>05</b></span><span><b>SIP debit</b><small>HDFC Flexi Cap</small></span></li>
+                  <li><span className="peek-date"><i>Jul</i><b>18</b></span><span><b>FD matures</b><small>SBI Long Term FD</small></span></li>
+                </ul>
               </div>
             </div>
-
-            <header className="side-subtitle">Recent investments</header>
-            <ul className="mock-side-list">
-              <li><span>Reliance Large Cap</span><em className="ok">SIP on 05 Jul</em></li>
-              <li><span>Gold ETF</span><em className="warn">Top-up this week</em></li>
-            </ul>
-          </article>
+          </div>
         </div>
       </section>
 
@@ -184,7 +202,7 @@ export default async function RootPage() {
         <article>
           <h2>Designed for trust, not virality.</h2>
           <p>
-            Security controls, MFA, recovery key, and audit events are built into the product journey.
+            Security controls, MFA, backup codes, and audit events are built into the product journey.
             This is intentional software for long-term planning, not attention-hacking finance media.
           </p>
         </article>
@@ -197,13 +215,7 @@ export default async function RootPage() {
         </p>
       </section>
 
-      <footer className="landing-footer">
-        <Link href="/privacy">Privacy Policy</Link>
-        <Link href="/terms">Terms</Link>
-        <Link href="/about">About</Link>
-        <Link href="/resources">Resources</Link>
-        <Link href="/contact">Contact</Link>
-      </footer>
+      <PublicFooter />
 
       <script
         type="application/ld+json"

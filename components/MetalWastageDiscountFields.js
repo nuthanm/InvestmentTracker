@@ -30,7 +30,7 @@ function ModeField({
         className="field-input mt-2"
         placeholder={isPercent ? '0' : '0.00'}
       />
-      <p className="text-[11px] text-ink-mute mt-1">
+      <p className="text-[12px] text-ink-mute mt-1">
         {help}
         {computed ? ` ${computed}` : ''}
       </p>
@@ -91,7 +91,7 @@ export default function MetalWastageDiscountFields({
           className="field-input"
           placeholder="0.00"
         />
-        <p className="text-[11px] text-ink-mute mt-1">
+        <p className="text-[12px] text-ink-mute mt-1">
           Diamond or gemstone amount printed on the bill.
           {stoneComputed ? ` ${stoneComputed}` : ''}
         </p>

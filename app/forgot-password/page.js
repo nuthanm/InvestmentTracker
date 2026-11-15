@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import BrandMark from '@/components/BrandMark';
+import Icon from '@/components/Icon';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -36,7 +38,7 @@ export default function ForgotPasswordPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not generate reset link.');
-      setMessage('✓ Verified! Copy the reset link below and open it in your browser.');
+      setMessage('Verified. Copy the reset link below and open it in your browser.');
       if (data.resetUrl) setResetLink(data.resetUrl);
     } catch (err) {
       if (err?.message === 'Failed to fetch') {
@@ -79,7 +81,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade">
-        <h1 className="text-xl font-medium text-center">Reset password</h1>
+        <Link href="/" className="block w-fit mx-auto mb-4" aria-label="InvestmentTracker home"><BrandMark size="lg" /></Link>
+        <h1 className="text-xl font-semibold text-center">Reset password</h1>
         <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Choose a method to verify your identity</p>
 
         {/* Method Tabs */}
@@ -141,7 +144,7 @@ export default function ForgotPasswordPage() {
                 maxLength="8"
                 className="field-input"
               />
-              <p className="text-[11px] text-ink-mute mt-2">One-time use code from your printable backup codes</p>
+              <p className="text-[12px] text-ink-mute mt-2">One-time use code from your printable backup codes</p>
             </>
           )}
 
@@ -166,7 +169,7 @@ export default function ForgotPasswordPage() {
                         onClick={() => setCurrentQuestion(currentQuestion - 1)}
                         className="btn-ghost px-3 py-2 rounded-lg text-xs"
                       >
-                        ← Previous
+                        <span className="inline-flex items-center gap-1"><Icon name="chevronLeft" size={14} />Previous</span>
                       </button>
                     )}
                     {currentQuestion < questions.length - 1 && (
@@ -175,7 +178,7 @@ export default function ForgotPasswordPage() {
                         onClick={() => setCurrentQuestion(currentQuestion + 1)}
                         className="btn-ghost px-3 py-2 rounded-lg text-xs flex-1"
                       >
-                        Next →
+                        <span className="inline-flex items-center justify-center gap-1">Next<Icon name="chevronRight" size={14} /></span>
                       </button>
                     )}
                   </div>

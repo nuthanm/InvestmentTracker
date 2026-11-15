@@ -1,3 +1,5 @@
+import PublicShell from '@/components/PublicShell';
+
 export const metadata = {
   title: 'Contact',
   description: 'Contact InvestmentTracker for support, account security, and privacy/data requests.',
@@ -5,7 +7,8 @@ export const metadata = {
 
 export default function ContactPage() {
   return (
-    <main className="legal-wrap">
+    <PublicShell>
+      <main className="legal-wrap">
       <h1>Contact</h1>
       <p>
         For support, privacy requests, account deletion, policy questions, or account security concerns,
@@ -43,5 +46,6 @@ export default function ContactPage() {
         For full details on data handling and service terms, review the Privacy Policy and Terms pages.
       </p>
     </main>
+    </PublicShell>
   );
 }

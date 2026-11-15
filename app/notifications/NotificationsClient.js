@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
+import Icon from '@/components/Icon';
 
 function timeAgo(d) {
   const diff = (Date.now() - new Date(d).getTime()) / 1000;
@@ -49,11 +50,11 @@ export default function NotificationsClient({ user }) {
 
         <div className="flex justify-between items-end mb-5">
           <div>
-            <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Reminders</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Reminders</h1>
             <p className="text-sm text-ink-soft mt-1">{unread} unread</p>
           </div>
           {unread > 0 && (
-            <button onClick={markAll} className="text-sm text-sky-600 hover:underline">Mark all read</button>
+            <button type="button" onClick={markAll} className="link-more"><Icon name="check" size={15} />Mark all read</button>
           )}
         </div>
 
@@ -73,7 +74,7 @@ export default function NotificationsClient({ user }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium">{n.title}</p>
               <p className="text-xs text-ink-soft mt-0.5">{n.message}</p>
-              <p className="text-[10px] text-ink-mute mt-1">{timeAgo(n.created_at)}</p>
+              <p className="text-[11px] text-ink-mute mt-1">{timeAgo(n.created_at)}</p>
             </div>
           </button>
         ))}

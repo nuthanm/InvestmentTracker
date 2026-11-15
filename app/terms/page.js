@@ -1,3 +1,4 @@
+import PublicShell from '@/components/PublicShell';
 import Link from 'next/link';
 
 export const metadata = {
@@ -7,7 +8,8 @@ export const metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="legal-wrap">
+    <PublicShell>
+      <main className="legal-wrap">
       <div className="legal-headband">
         <span>Legal</span>
         <Link href="/privacy" className="legal-top-link">View Privacy</Link>
@@ -59,5 +61,6 @@ export default function TermsPage() {
         <Link href="/privacy" className="legal-cta-link">Read Privacy Policy</Link>
       </p>
     </main>
+    </PublicShell>
   );
 }

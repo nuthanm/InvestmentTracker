@@ -81,7 +81,7 @@ export default function ViewLinkSection() {
 
   return (
     <>
-      <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Private view</p>
+      <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Private view</p>
       <div className="bg-paper-card border border-edge rounded-2xl mb-5 px-4 py-3.5">
         <p className="text-sm">View link</p>
         <p className="text-xs text-ink-soft mt-1">
@@ -99,15 +99,15 @@ export default function ViewLinkSection() {
         {issued && (
           <div className="mt-4 rounded-xl border border-honey-600/30 bg-honey-50 px-3 py-3">
             <p className="text-sm font-medium text-honey-700">Copy the link and password now</p>
-            <p className="text-[11px] text-honey-700/80 mt-1">
+            <p className="text-[12px] text-honey-700/80 mt-1">
               The password is shown only this once. Closing this panel does not reveal it again. Send the password in a separate message from the link when you can.
             </p>
-            <label className="block text-[11px] text-ink-soft mt-3 mb-1">Link</label>
+            <label className="block text-[12px] text-ink-soft mt-3 mb-1">Link</label>
             <div className="flex gap-2">
               <input readOnly value={fullLink} className="field-input text-xs" spellCheck={false} />
               <button type="button" onClick={() => copyText(fullLink, 'Link')} className="text-xs px-3 py-2 rounded-lg border border-edge bg-paper-card">Copy</button>
             </div>
-            <label className="block text-[11px] text-ink-soft mt-3 mb-1">Password</label>
+            <label className="block text-[12px] text-ink-soft mt-3 mb-1">Password</label>
             <div className="flex gap-2">
               <input readOnly value={issued.password} className="field-input text-xs tracking-wide" spellCheck={false} />
               <button type="button" onClick={() => copyText(issued.password, 'Password')} className="text-xs px-3 py-2 rounded-lg border border-edge bg-paper-card">Copy</button>

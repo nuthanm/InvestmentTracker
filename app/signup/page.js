@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from '@/components/Toast';
 import { getPasswordStrength, validateEmail, validatePassword } from '@/lib/validation';
+import BrandMark from '@/components/BrandMark';
+import Icon from '@/components/Icon';
 
 const SECURITY_QUESTIONS = [
   'What was the name of your first pet?',
@@ -155,12 +157,12 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className={`w-full ${backupCodes.length > 0 ? 'max-w-md' : 'max-w-sm'} bg-paper-card border border-edge rounded-2xl p-7 shadow-sm anim-fade`}>
-        <div className="brand-mark w-12 h-12 rounded-2xl bg-ink text-paper flex items-center justify-center text-xl font-medium mx-auto mb-4">₹</div>
+        <Link href="/" className="block w-fit mx-auto mb-4" aria-label="InvestmentTracker home"><BrandMark size="lg" /></Link>
 
         {backupCodes.length > 0 ? (
           // Backup Codes Display Screen
           <>
-            <h1 className="text-xl font-medium text-center">Save your backup codes</h1>
+            <h1 className="text-xl font-semibold text-center">Save your backup codes</h1>
             <p className="text-sm text-ink-soft text-center mt-1.5 mb-5">
               Store these codes somewhere safe. You can use each code once to recover your account if you lose your password and recovery key.
             </p>
@@ -175,8 +177,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <p className="text-[11px] text-ink-mute mb-4 text-center">
-              💾 Copy these codes and save them to a password manager.
+            <p className="text-[12px] text-ink-mute mb-4 text-center">
+              <span className="inline-flex items-center gap-1.5"><Icon name="archive" size={15} />Copy these codes and save them to a password manager.</span>
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
@@ -208,7 +210,7 @@ export default function SignupPage() {
         ) : (
           // Signup Form
           <form onSubmit={submit}>
-          <h1 className="text-xl font-medium text-center">Create account</h1>
+          <h1 className="text-xl font-semibold text-center">Create account</h1>
           <p className="text-sm text-ink-soft text-center mt-1.5 mb-6">Start tracking your money with stronger account security</p>
 
           {/* Name Field */}
@@ -307,7 +309,7 @@ export default function SignupPage() {
             className={`field-input mb-1 ${fieldErrors.confirmPassword ? 'border-danger bg-danger/5' : ''}`}
           />
           {confirmPassword && passwordsMatch && (
-            <p className="text-xs text-mint-600 mb-3">✓ Passwords match</p>
+            <p className="text-xs text-mint-600 mb-3 flex items-center gap-1"><Icon name="check" size={14} strokeWidth={2.4} />Passwords match</p>
           )}
           {fieldErrors.confirmPassword && <p className="text-xs text-danger mb-3">{fieldErrors.confirmPassword}</p>}
 
@@ -325,7 +327,7 @@ export default function SignupPage() {
           />
           {fieldErrors.recoveryKey && <p className="text-xs text-danger mb-3">{fieldErrors.recoveryKey}</p>}
 
-          <p className="text-[11px] text-ink-mute mb-4">No external email/SMS is used. Keep this recovery key secure.</p>
+          <p className="text-[12px] text-ink-mute mb-4">No external email/SMS is used. Keep this recovery key secure.</p>
 
           {/* Security Question 1 */}
           <label className="block text-xs text-ink-soft mb-1.5">Security question 1<span className="text-danger ml-0.5">*</span></label>
@@ -383,7 +385,7 @@ export default function SignupPage() {
           />
           {fieldErrors.securityA2 && <p className="text-xs text-danger mb-3">{fieldErrors.securityA2}</p>}
 
-          <p className="text-[11px] text-ink-mute mb-4">Backup recovery method if you forget both password and recovery key.</p>
+          <p className="text-[12px] text-ink-mute mb-4">Backup recovery method if you forget both password and recovery key.</p>
 
           {/* Terms Checkbox */}
           <label className="flex items-start gap-2 text-[12px] text-ink-soft mb-3">

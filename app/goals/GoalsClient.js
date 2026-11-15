@@ -11,6 +11,7 @@ import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 import { goalOutcomeStatus, goalScopeYear, isCommonGoal, isLiquidityGoal, isRecurringYearlyGoal } from '@/lib/goals';
 import { investmentTags } from '@/lib/tags';
+import Icon from '@/components/Icon';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
@@ -21,7 +22,7 @@ function ScopeFields({ scope, year, recurringYearly, onScopeChange, onYearChange
   const years = YEAR_OPTIONS.includes(year) ? YEAR_OPTIONS : [...YEAR_OPTIONS, year].sort((a, b) => a - b);
   return (
     <div>
-      <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Scope</p>
+      <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Scope</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <button
           type="button"
@@ -29,7 +30,7 @@ function ScopeFields({ scope, year, recurringYearly, onScopeChange, onYearChange
           className={`text-left rounded-xl border px-3 py-2 transition ${scope === 'common' ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}
         >
           <p className="text-sm font-medium">Life goal</p>
-          <p className="text-[11px] text-ink-soft mt-0.5">Ongoing, not tied to a year</p>
+          <p className="text-[12px] text-ink-soft mt-0.5">Ongoing, not tied to a year</p>
         </button>
         <button
           type="button"
@@ -37,7 +38,7 @@ function ScopeFields({ scope, year, recurringYearly, onScopeChange, onYearChange
           className={`text-left rounded-xl border px-3 py-2 transition ${scope === 'year' ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}
         >
           <p className="text-sm font-medium">Year goal</p>
-          <p className="text-[11px] text-ink-soft mt-0.5">Counts toward a calendar year</p>
+          <p className="text-[12px] text-ink-soft mt-0.5">Counts toward a calendar year</p>
         </button>
       </div>
       {scope === 'year' && (
@@ -63,7 +64,7 @@ function ScopeFields({ scope, year, recurringYearly, onScopeChange, onYearChange
             />
             <span>
               <span className="block text-sm font-medium">Repeats every year</span>
-              <span className="block text-[11px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
+              <span className="block text-[12px] text-ink-soft mt-0.5">Marks this as a yearly repeating goal.</span>
             </span>
           </label>
         </div>
@@ -80,7 +81,7 @@ function YearStatsChart({ title, rows }) {
     <section className="mt-8 pt-6 border-t border-edge">
       <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
         <h2 className="text-lg font-medium tracking-tight">{title}</h2>
-        <div className="flex flex-wrap gap-3 text-[11px] text-ink-mute">
+        <div className="flex flex-wrap gap-3 text-[12px] text-ink-mute">
           <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-mint-600" /> Completed</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-[#185FA5]" /> Pending</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-danger" /> Not yet</span>
@@ -112,10 +113,10 @@ function YearStatsChart({ title, rows }) {
                   )}
                 </div>
                 {parts.length > 0 && (
-                  <p className="mt-1 text-[11px] text-ink-mute truncate">{parts.join(' · ')}</p>
+                  <p className="mt-1 text-[12px] text-ink-mute truncate">{parts.join(' · ')}</p>
                 )}
               </div>
-              <p className="flex-shrink-0 text-[11px] text-ink-mute tabular-nums w-14 text-right">
+              <p className="flex-shrink-0 text-[12px] text-ink-mute tabular-nums w-14 text-right">
                 {row.total}
               </p>
             </div>
@@ -128,7 +129,7 @@ function YearStatsChart({ title, rows }) {
 
 function GoalAttrTag({ children }) {
   return (
-    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium flex-shrink-0">
+    <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-600/30 font-medium flex-shrink-0">
       {children}
     </span>
   );
@@ -172,7 +173,7 @@ function moveItem(items, fromId, toId) {
 
 function LayoutToggle({ value, onChange }) {
   return (
-    <div className="flex rounded-full border border-edge overflow-hidden text-[11px] flex-shrink-0">
+    <div className="flex rounded-full border border-edge overflow-hidden text-[12px] flex-shrink-0">
       <button type="button" onClick={() => onChange('list')} className={`px-2.5 py-1 ${value === 'list' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>List</button>
       <button type="button" onClick={() => onChange('tiles')} className={`px-2.5 py-1 ${value === 'tiles' ? 'bg-ink text-paper' : 'bg-paper-card text-ink-soft'}`}>Tiles</button>
     </div>
@@ -262,7 +263,7 @@ function GoalCard({
               className="field-input resize-none" />
           </div>
           <div>
-            <p className="text-[11px] tracking-wider text-ink-mute uppercase mb-2">Purpose</p>
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Purpose</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button type="button" onClick={() => setEditForm((f) => ({ ...f, forLiquidity: false }))} className={`text-left rounded-xl border px-3 py-2 transition ${!editForm.forLiquidity ? 'border-mint-600 bg-mint-50' : 'border-edge'}`}>
                 <p className="text-sm font-medium">Goal with a date</p>
@@ -313,15 +314,15 @@ function GoalCard({
             </div>
           )}
           {editForm.forLiquidity && Number(editForm.amount) > 0 && (
-            <p className="text-[11px] text-ink-soft">Inflation raises this buffer over time. There is no end date, so no daily or monthly pace.</p>
+            <p className="text-[12px] text-ink-soft">Inflation raises this buffer over time. There is no end date, so no daily or monthly pace.</p>
           )}
           {!editForm.forLiquidity && Number(editForm.amount) > 0 && editForm.date && (
             <div className="rounded-xl border border-mint-200 bg-mint-50 px-3 py-2 space-y-2">
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
+                <p className="text-[11px] uppercase tracking-wider text-mint-700 mb-1">Expected goal amount based on target date</p>
                 <p className="text-sm font-medium text-mint-800">₹{Number(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
               </div>
-              <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
+              <div className="flex flex-wrap gap-2 text-[12px] text-mint-800">
                 <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(getSavingsPace(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date), editForm.date).daily).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day</span>
                 <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(getSavingsPace(computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date), editForm.date).monthly).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month</span>
               </div>
@@ -333,7 +334,7 @@ function GoalCard({
               {ICONS.map((ic) => (
                 <button key={ic} type="button"
                   onClick={() => setEditForm((f) => ({ ...f, icon: ic }))}
-                  className={`chip capitalize text-[11px] py-1 ${editForm.icon === ic ? 'on' : ''}`}>{ic}</button>
+                  className={`chip capitalize text-[12px] py-1 ${editForm.icon === ic ? 'on' : ''}`}>{ic}</button>
               ))}
             </div>
           </div>
@@ -358,10 +359,10 @@ function GoalCard({
                   {liquidity ? <GoalAttrTag>Liquidity</GoalAttrTag> : null}
                   {recurring ? <GoalAttrTag>Yearly</GoalAttrTag> : null}
                 </div>
-                <p className="text-[11px] text-ink-mute mt-0.5 truncate">
+                <p className="text-[12px] text-ink-mute mt-0.5 truncate">
                   {inr(cur)} of {inr(tgt)}
                 </p>
-                <p className="text-[11px] text-ink-mute mt-0.5 truncate">{goalTargetLabel(g, liquidity)}</p>
+                <p className="text-[12px] text-ink-mute mt-0.5 truncate">{goalTargetLabel(g, liquidity)}</p>
                 <TagList tags={g.tags} className="mt-1.5" />
               </div>
               <div className="w-16 h-1.5 bg-paper-tint rounded-full overflow-hidden flex-shrink-0">
@@ -378,14 +379,14 @@ function GoalCard({
                 <span className="text-sm font-medium">{g.name}</span>
                 {liquidity ? <GoalAttrTag>Liquidity</GoalAttrTag> : null}
                 {recurring ? <GoalAttrTag>Yearly</GoalAttrTag> : null}
-                {nearGoal && <span className="pulse-soft text-[10px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
-                {reached && <span className="text-[10px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached! 👏</span>}
+                {nearGoal && <span className="pulse-soft text-[11px] bg-mint-50 text-mint-700 px-1.5 py-0.5 rounded-full">near goal</span>}
+                {reached && <span className="text-[11px] bg-mint-600 text-paper px-1.5 py-0.5 rounded-full">reached! 👏</span>}
               </div>
               <p className="text-xs text-ink-soft mt-1">
                 {inr(cur)} of {inr(tgt)}
                 <> · {g.investment_count} {g.investment_count == 1 ? 'investment' : 'investments'}</>
               </p>
-              <p className="text-[11px] text-ink-mute mt-1">{goalTargetLabel(g, liquidity)}</p>
+              <p className="text-[12px] text-ink-mute mt-1">{goalTargetLabel(g, liquidity)}</p>
               <TagList tags={g.tags} className="mt-1.5" />
             </div>
             <div ref={originRef} className="text-right ml-3 flex-shrink-0">
@@ -401,14 +402,14 @@ function GoalCard({
             <div className="mt-3 pt-3 border-t border-edge space-y-2">
               {hasDescription && (
                 <div className="rounded-lg bg-paper-tint border border-edge px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-ink-soft mb-1">Details</p>
+                  <p className="text-[11px] uppercase tracking-wider text-ink-soft mb-1">Details</p>
                   <p className="text-xs text-ink">{g.description}</p>
                 </div>
               )}
               {liquidity && (
                 <div className="rounded-lg border border-sky-600/30 bg-sky-50 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-sky-600 mb-1">Liquidity buffer</p>
-                  <p className="text-[11px] text-ink-soft">
+                  <p className="text-[11px] uppercase tracking-wider text-sky-600 mb-1">Liquidity buffer</p>
+                  <p className="text-[12px] text-ink-soft">
                     Set at {inr(g.target_amount)}
                     {Number(g.inflation_pct) > 0 ? ` · ${Number(g.inflation_pct)}% inflation` : ''}
                     {Number(g.required_amount) > Number(g.target_amount) ? ` · now ${inr(g.required_amount)}` : ''}
@@ -418,8 +419,8 @@ function GoalCard({
               )}
               {!liquidity && g.target_date && (
                 <div className="rounded-lg border border-mint-200 bg-mint-50 px-2.5 py-2">
-                  <p className="text-[10px] uppercase tracking-wider text-mint-700 mb-1">Need to save</p>
-                  <div className="flex flex-wrap gap-2 text-[11px] text-mint-800">
+                  <p className="text-[11px] uppercase tracking-wider text-mint-700 mb-1">Need to save</p>
+                  <div className="flex flex-wrap gap-2 text-[12px] text-mint-800">
                     <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.daily).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day</span>
                     <span className="bg-white/70 border border-mint-200 rounded-full px-2 py-1">₹{Number(savingsPace.monthly).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month</span>
                   </div>
@@ -461,12 +462,12 @@ function GoalCard({
                         <div className="flex items-center gap-1.5">
                         <p className="text-xs font-medium truncate flex-1">{investment.bank || 'Unknown'} · {investment.plan_name || 'Untitled plan'}</p>
                         {!active && (
-                          <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-ink-mute/10 text-ink-mute border border-ink-mute/20">
+                          <span className="flex-shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded bg-ink-mute/10 text-ink-mute border border-ink-mute/20">
                             {statusLabel}
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] mt-0.5 text-ink-soft">
+                      <p className="text-[12px] mt-0.5 text-ink-soft">
                         {labelFor(investment)} · <span className={countedTowardGoal ? '' : 'line-through'}>{inr(effectiveInvestedSoFar(investment))}</span>
                         {progress && <> · {progress.label}</>}
                         {!countedTowardGoal && <span className="ml-1 italic">not counted</span>}
@@ -485,11 +486,11 @@ function GoalCard({
               className="rounded-full border border-edge bg-paper-card px-2.5 py-0.5 text-xs font-medium leading-none text-ink shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none] hover:bg-paper">Edit</button>
             {confirmDeleteId === g.id ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-danger/25 bg-paper-card px-1.5 py-0.5 shadow-[0_1px_2px_rgba(14,23,20,0.12)] [text-shadow:none]">
-                <span className="px-1 text-[11px] font-medium leading-none text-ink">Sure?</span>
+                <span className="px-1 text-[12px] font-medium leading-none text-ink">Sure?</span>
                 <button type="button" onClick={(e) => onDelete(e, g.id)}
-                  className="rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold leading-none text-danger [text-shadow:none] hover:bg-[#f6d6d6]">Yes</button>
+                  className="rounded-full bg-danger-soft px-2 py-0.5 text-[12px] font-semibold leading-none text-danger [text-shadow:none] hover:bg-[#f6d6d6]">Yes</button>
                 <button type="button" onClick={onCancelDelete}
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-none text-ink [text-shadow:none] hover:bg-paper-tint">No</button>
+                  className="rounded-full px-2 py-0.5 text-[12px] font-medium leading-none text-ink [text-shadow:none] hover:bg-paper-tint">No</button>
               </span>
             ) : (
               <button type="button" onClick={(e) => onConfirmDelete(e, g.id)}
@@ -829,12 +830,12 @@ export default function GoalsClient({ user }) {
 
         <div className="flex justify-between items-end mb-5 gap-3">
           <div>
-            <h1 className="text-2xl md:text-3xl font-medium tracking-tight">Goals</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Goals</h1>
             <p className="text-sm text-ink-soft mt-1">Small steps today — the goals you fund become the life you build.</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <LayoutToggle value={layout} onChange={chooseLayout} />
-            <Link href="/goals/new" className="btn-primary py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap">+ New goal</Link>
+            <Link href="/goals/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />New goal</Link>
           </div>
         </div>
 
@@ -845,20 +846,20 @@ export default function GoalsClient({ user }) {
         {!loading && !loadError && (
           <>
             {(commonGoals.length > 0 || currentYearGoals.length > 0) && (
-              <p className="text-[11px] text-ink-mute mb-3">Drag the handle within a column to set priority.</p>
+              <p className="text-[12px] text-ink-mute mb-3">Drag the handle within a column to set priority.</p>
             )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 items-start">
               <section>
                 <div className="flex items-baseline justify-between gap-2 mb-3">
                   <h2 className="text-base font-medium tracking-tight">Life goal</h2>
-                  <span className="text-[11px] text-ink-mute">{commonGoals.length}</span>
+                  <span className="text-[12px] text-ink-mute">{commonGoals.length}</span>
                 </div>
                 {renderGoalList(commonGoals, 'common')}
               </section>
               <section>
                 <div className="flex items-baseline justify-between gap-2 mb-3">
                   <h2 className="text-base font-medium tracking-tight">{CURRENT_YEAR}</h2>
-                  <span className="text-[11px] text-ink-mute">{currentYearGoals.length}</span>
+                  <span className="text-[12px] text-ink-mute">{currentYearGoals.length}</span>
                 </div>
                 {renderGoalList(currentYearGoals, 'current')}
               </section>
@@ -877,10 +878,10 @@ export default function GoalsClient({ user }) {
                         <span className="h-8 w-1 rounded-full bg-mint-600 flex-shrink-0" aria-hidden />
                         <div className="min-w-0">
                           <h3 className="text-base font-medium tracking-tight tabular-nums">{year}</h3>
-                          <p className="text-[11px] text-ink-mute">Coming up</p>
+                          <p className="text-[12px] text-ink-mute">Coming up</p>
                         </div>
                       </div>
-                      <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-paper-card border border-edge text-ink-soft flex-shrink-0">
+                      <span className="text-[12px] font-medium px-2 py-1 rounded-full bg-paper-card border border-edge text-ink-soft flex-shrink-0">
                         {yearGoals.length} {yearGoals.length === 1 ? 'goal' : 'goals'}
                       </span>
                     </div>
