@@ -1,4 +1,8 @@
 /** @type {import('tailwindcss').Config} */
+// Colours resolve to CSS variables (see app/theme.css) so light and dark themes share every class.
+const v = (name) => `rgb(var(--c-${name}) / <alpha-value>)`;
+const scale = (hue, steps) => Object.fromEntries(steps.map((s) => [s, v(`${hue}-${s}`)]));
+
 module.exports = {
   content: ['./app/**/*.{js,jsx}', './components/**/*.{js,jsx}'],
   theme: {
@@ -7,16 +11,17 @@ module.exports = {
         sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
-        ink: { DEFAULT: '#0E1714', soft: '#3A4742', mute: '#5E6A64' },
-        paper: { DEFAULT: '#FAF8F2', card: '#FFFFFF', tint: '#F1ECDF' },
-        edge: '#E2DDCB',
-        mint:  { 50: '#E1F5EE', 100: '#C6EBDD', 200: '#9FDDC6', 500: '#1D8B6C', 600: '#0F6E56', 700: '#085041', 800: '#063D32' },
-        sky:   { 50: '#E6F1FB', 200: '#B5D4F4', 500: '#2C79C4', 600: '#185FA5', 700: '#124A82' },
-        ember: { 50: '#FAECE7', 600: '#993C1D' },
-        honey: { 50: '#FAEEDA', 600: '#854F0B', 700: '#633806' },
-        plum:  { 50: '#EEEDFE', 600: '#3C3489' },
-        rose:  { 50: '#FBEAF0', 600: '#72243E' },
-        danger:{ DEFAULT: '#A32D2D', soft: '#FCEBEB', dark: '#7F1F1F' },
+        white: v('card'),
+        ink: { DEFAULT: v('ink'), soft: v('ink-soft'), mute: v('ink-mute') },
+        paper: { DEFAULT: v('paper'), card: v('card'), tint: v('tint') },
+        edge: v('edge'),
+        mint: scale('mint', [50, 100, 200, 500, 600, 700, 800]),
+        sky: scale('sky', [50, 200, 500, 600, 700]),
+        ember: scale('ember', [50, 600]),
+        honey: scale('honey', [50, 600, 700]),
+        plum: scale('plum', [50, 600]),
+        rose: scale('rose', [50, 600]),
+        danger: { DEFAULT: v('danger'), soft: v('danger-soft'), dark: v('danger-dark') },
       },
     },
   },

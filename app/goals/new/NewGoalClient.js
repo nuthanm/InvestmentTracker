@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import TagField from '@/components/TagField';
 import Icon from '@/components/Icon';
+import PageHeader from '@/components/PageHeader';
 
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -103,10 +104,9 @@ export default function NewGoalClient({ user }) {
 
   return (
     <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-xl mx-auto w-full">
-        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">New goal</h1>
-        <p className="text-sm text-ink-soft mb-6">Required fields marked with *</p>
+      <div className="page-wrap max-w-xl">
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-3"><Icon name="chevronLeft" size={16} />Cancel</button>
+        <PageHeader icon="target" tone="plum" title="New goal" subtitle="Required fields marked with *" />
 
         <form onSubmit={submit} className="space-y-4">
           <div>

@@ -21,7 +21,8 @@ import {
   tenureProgress,
 } from '@/lib/investments';
 import { buildRecurringPaymentSchedule } from '@/lib/investments';
-import { summarizeChitPick } from '@/lib/chit';
+import { compareAllPickMonths, summarizeChitPick } from '@/lib/chit';
+import ChitPickTable, { chitPickSentence } from '@/components/ChitPickTable';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -239,6 +240,7 @@ export default function DetailClient({
   const marketType = isMarketInvestment(i.type_code);
   const metalType = isMetalInvestment(i.type_code);
   const chitType = isChitInvestment(i.type_code);
+  const [chitPreviewMonth, setChitPreviewMonth] = useState(Number(i.chit_details?.pick_month) || 1);
   const thumbKind = investmentThumbKind(i.type_code, i.custom_type, i.plan_name);
   const isTransactionType = marketType || metalType;
   const [transactions, setTransactions] = useState(marketTransactions.map((tx) => ({ ...tx, net_amount: computeTransactionNetAmount(tx) })));
@@ -731,6 +733,8 @@ export default function DetailClient({
   const chitSummary = chitType && i.chit_details
     ? summarizeChitPick(i.chit_details, i.tenure_months, i.chit_details.pick_month)
     : null;
+  const chitComparison = chitType && i.chit_details ? compareAllPickMonths(i.chit_details, i.tenure_months) : [];
+  const chitPreview = chitComparison.find((r) => r.pick_month === chitPreviewMonth) || null;
 
   let totalInvested = Number(i.amount);
   if (chitType && chitSummary) totalInvested = Number(chitSummary.total_paid);
@@ -1110,11 +1114,11 @@ export default function DetailClient({
                 }
               />
               <Row
-                label={Number(chitSummary.cashflows?.[0] || 0) > 0 ? 'Borrowing rate' : 'Return rate'}
+                label={chitSummary.rate_kind === 'loan' ? 'Loan rate' : 'Savings rate'}
                 value={
-                  chitSummary.monthly_rate_pct == null
+                  chitSummary.annual_rate_pct == null
                     ? '—'
-                    : `${Number(chitSummary.monthly_rate_pct).toFixed(2)}% /mo · ${Number(chitSummary.annual_rate_pct).toFixed(2)}% annualized`
+                    : `${Number(chitSummary.annual_rate_pct).toFixed(2)}% p.a. · ${Number(chitSummary.monthly_rate_pct).toFixed(2)}% /mo`
                 }
               />
             </>
@@ -1273,6 +1277,35 @@ export default function DetailClient({
             </div>
           </form>
         </section>
+
+        {!forLiquidity && chitType && chitSummary && chitComparison.length > 0 && (
+          <section className="mb-5">
+            <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Savings or loan?</p>
+            <div className="bg-paper-tint rounded-xl p-3.5 text-sm mb-3 space-y-1.5">
+              <p>{chitPickSentence(chitSummary, { actual: true })}</p>
+              {chitPreview && chitPreview.pick_month !== chitSummary.pick_month && (
+                <p className="text-ink-soft">
+                  {chitPickSentence(chitPreview)}{' '}
+                  {(() => {
+                    const diff = Number(chitPreview.profit_loss) - Number(chitSummary.profit_loss);
+                    if (!diff) return null;
+                    return (
+                      <span className={diff > 0 ? 'text-mint-600 font-medium' : 'text-danger font-medium'}>
+                        {diff > 0 ? `${inr(diff)} better` : `${inr(-diff)} worse`} than your pick.
+                      </span>
+                    );
+                  })()}
+                </p>
+              )}
+            </div>
+            <ChitPickTable
+              rows={chitComparison}
+              selectedMonth={chitPreviewMonth}
+              actualMonth={chitSummary.pick_month}
+              onSelect={setChitPreviewMonth}
+            />
+          </section>
+        )}
 
         {isTransactionType && (
           <section className="mb-5 space-y-4">
@@ -1997,7 +2030,7 @@ export default function DetailClient({
       )}
 
       {viewing && (
-        <div className="fixed inset-0 bg-ink/70 z-50 flex flex-col anim-fade" onClick={() => setViewing(null)}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex flex-col anim-fade" onClick={() => setViewing(null)}>
           <div className="bg-paper-card border-b border-edge px-4 py-3 flex justify-between items-center" onClick={(e) => e.stopPropagation()}>
             <span className="text-sm font-medium truncate">{viewing.filename}</span>
             <button onClick={() => setViewing(null)} className="text-2xl leading-none px-2 text-ink-soft">×</button>

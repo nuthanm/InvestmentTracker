@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import PageHeader from '@/components/PageHeader';
 
 function formatEvent(value) {
   return String(value || '')
@@ -54,13 +55,8 @@ export default function SecurityActivityClient({ user }) {
   };
 
   return (
-    <div className="px-4 md:px-8 py-5 md:py-6 max-w-6xl mx-auto w-full">
-      <div className="mb-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">Security</h1>
-          <p className="text-sm text-ink-soft">Review sign-in and security actions on your account.</p>
-        </div>
-      </div>
+    <div className="page-wrap max-w-6xl">
+      <PageHeader icon="shield" tone="mint" title="Security" subtitle="Review sign-in and security actions on your account." />
 
         <div className="bg-paper-card border border-edge rounded-2xl p-4 mb-4">
           <div className="grid md:grid-cols-[1fr_180px_120px] gap-3">

@@ -7,6 +7,7 @@ import Toaster from './Toast';
 import Icon from './Icon';
 import Dialog from './Dialog';
 import BrandMark from './BrandMark';
+import ThemeToggle from './ThemeToggle';
 
 const NAV_ITEMS = [
   { key: 'home', label: 'Home', href: '/home', icon: 'home' },
@@ -284,6 +285,7 @@ export default function Shell({ children, user }) {
             >
               <Icon name={masked ? 'eyeOff' : 'eye'} />
             </button>
+            <ThemeToggle />
             <Link href="/notifications" className="shell-icon-btn relative" aria-label={unread > 0 ? `Reminders, ${unread} unread` : 'Reminders'}>
               <Icon name="bell" />
               {unread > 0 && <span className="shell-badge">{unread}</span>}

@@ -1,3 +1,4 @@
+import './theme.css';
 import './globals.css';
 import './redesign.css';
 import Toaster from '@/components/Toast';
@@ -27,12 +28,21 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0F6E56',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#FAF8F2' },
+    { media: '(prefers-color-scheme: dark)', color: '#0E1311' },
+  ],
 };
+
+// Applies the saved theme before first paint so pages never flash the wrong colours.
+const THEME_BOOT = `try{var t=localStorage.getItem('theme');if(t!=='light'&&t!=='dark')t='system';document.documentElement.setAttribute('data-theme',t)}catch(e){}`;
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="system" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body>
         {children}
         <Toaster />

@@ -1,0 +1,140 @@
+/* ===================================================================
+   Theme tokens. Values are RGB channels so Tailwind can add alpha.
+   Light is the default; dark applies with data-theme="dark", or with
+   data-theme="system" (or none) when the OS prefers dark.
+   =================================================================== */
+
+:root {
+  color-scheme: light;
+  --c-ink: 14 23 20;
+  --c-ink-soft: 58 71 66;
+  --c-ink-mute: 94 106 100;
+  --c-paper: 250 248 242;
+  --c-card: 255 255 255;
+  --c-tint: 241 236 223;
+  --c-edge: 226 221 203;
+
+  --c-mint-50: 225 245 238;
+  --c-mint-100: 198 235 221;
+  --c-mint-200: 159 221 198;
+  --c-mint-500: 29 139 108;
+  --c-mint-600: 15 110 86;
+  --c-mint-700: 8 80 65;
+  --c-mint-800: 6 61 50;
+
+  --c-sky-50: 230 241 251;
+  --c-sky-200: 181 212 244;
+  --c-sky-500: 44 121 196;
+  --c-sky-600: 24 95 165;
+  --c-sky-700: 18 74 130;
+
+  --c-ember-50: 250 236 231;
+  --c-ember-600: 153 60 29;
+  --c-honey-50: 250 238 218;
+  --c-honey-600: 133 79 11;
+  --c-honey-700: 99 56 6;
+  --c-plum-50: 238 237 254;
+  --c-plum-600: 60 52 137;
+  --c-rose-50: 251 234 240;
+  --c-rose-600: 114 36 62;
+
+  --c-danger: 163 45 45;
+  --c-danger-soft: 252 235 235;
+  --c-danger-dark: 127 31 31;
+
+  --c-on-accent: 255 255 255;
+  --c-alert-bg: 253 248 238;
+  --c-alert-edge: 227 195 132;
+}
+
+/* One dark palette, applied by an explicit choice or by the OS setting. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-ink: 234 239 236;
+  --c-ink-soft: 192 202 197;
+  --c-ink-mute: 152 164 158;
+  --c-paper: 14 19 17;
+  --c-card: 23 29 27;
+  --c-tint: 31 38 35;
+  --c-edge: 50 59 55;
+
+  --c-mint-50: 17 46 38;
+  --c-mint-100: 22 62 51;
+  --c-mint-200: 33 94 75;
+  --c-mint-500: 64 184 146;
+  --c-mint-600: 88 202 164;
+  --c-mint-700: 138 222 193;
+  --c-mint-800: 182 237 216;
+
+  --c-sky-50: 19 37 57;
+  --c-sky-200: 40 74 110;
+  --c-sky-500: 98 158 224;
+  --c-sky-600: 124 179 235;
+  --c-sky-700: 166 205 245;
+
+  --c-ember-50: 52 29 22;
+  --c-ember-600: 238 148 118;
+  --c-honey-50: 48 37 17;
+  --c-honey-600: 230 178 88;
+  --c-honey-700: 244 204 130;
+  --c-plum-50: 35 33 64;
+  --c-plum-600: 174 167 245;
+  --c-rose-50: 53 25 35;
+  --c-rose-600: 238 150 180;
+
+  --c-danger: 240 112 112;
+  --c-danger-soft: 58 25 25;
+  --c-danger-dark: 255 165 165;
+
+  --c-on-accent: 14 19 17;
+  --c-alert-bg: 44 36 20;
+  --c-alert-edge: 120 92 40;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --c-ink: 234 239 236;
+    --c-ink-soft: 192 202 197;
+    --c-ink-mute: 152 164 158;
+    --c-paper: 14 19 17;
+    --c-card: 23 29 27;
+    --c-tint: 31 38 35;
+    --c-edge: 50 59 55;
+
+    --c-mint-50: 17 46 38;
+    --c-mint-100: 22 62 51;
+    --c-mint-200: 33 94 75;
+    --c-mint-500: 64 184 146;
+    --c-mint-600: 88 202 164;
+    --c-mint-700: 138 222 193;
+    --c-mint-800: 182 237 216;
+
+    --c-sky-50: 19 37 57;
+    --c-sky-200: 40 74 110;
+    --c-sky-500: 98 158 224;
+    --c-sky-600: 124 179 235;
+    --c-sky-700: 166 205 245;
+
+    --c-ember-50: 52 29 22;
+    --c-ember-600: 238 148 118;
+    --c-honey-50: 48 37 17;
+    --c-honey-600: 230 178 88;
+    --c-honey-700: 244 204 130;
+    --c-plum-50: 35 33 64;
+    --c-plum-600: 174 167 245;
+    --c-rose-50: 53 25 35;
+    --c-rose-600: 238 150 180;
+
+    --c-danger: 240 112 112;
+    --c-danger-soft: 58 25 25;
+    --c-danger-dark: 255 165 165;
+
+    --c-on-accent: 14 19 17;
+    --c-alert-bg: 44 36 20;
+    --c-alert-edge: 120 92 40;
+  }
+}
+
+html { background: rgb(var(--c-paper)); }
+body { transition: background-color 0.2s ease, color 0.2s ease; }

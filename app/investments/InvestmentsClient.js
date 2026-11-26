@@ -27,6 +27,8 @@ import {
 import { groupInvestmentsByTag, hasTag, summarizeTags, tagKey } from '@/lib/tags';
 import TagList from '@/components/TagList';
 import Icon from '@/components/Icon';
+import PageHeader from '@/components/PageHeader';
+import KpiTile from '@/components/KpiTile';
 
 const TONE_BG = { mint:'bg-mint-50 text-mint-700', sky:'bg-sky-50 text-sky-600', ember:'bg-ember-50 text-ember-600', honey:'bg-honey-50 text-honey-600', plum:'bg-plum-50 text-plum-600', rose:'bg-rose-50 text-rose-600' };
 
@@ -642,26 +644,33 @@ export default function InvestmentsClient({ user, initialInvestments = null, rea
   const prematureCount = closedInvestments.filter((investment) => isPrematureWithdrawalStatus(investment.lifecycle_status)).length;
   const closedCount = closedInvestments.length;
 
+  const activeSaved = activeInvestments.reduce((sum, investment) => sum + effectiveInvestedSoFar(investment), 0);
   const lifecycleLabel = lifecycleFilter === 'active' ? 'Active' : lifecycleFilter === 'closed' ? 'Closed' : 'All';
 
   const content = (
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-4xl mx-auto w-full">
-        <div className="flex items-start justify-between mb-4 gap-3">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Investments</h1>
-            <p className="text-sm text-ink-soft mt-1">
-              {filterLabel ? (
-                <>{filterLabel} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
-              ) : (
-                <>{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
-              )}
-            </p>
+      <div className="page-wrap max-w-5xl">
+        <PageHeader
+          icon="wallet"
+          tone="mint"
+          title="Investments"
+          subtitle={filterLabel ? (
+            <>{filterLabel} · {filtered.length} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+          ) : (
+            <>{filtered.length} {lifecycleLabel.toLowerCase()} {filtered.length === 1 ? 'plan' : 'plans'} · saved so far <span className="font-medium text-ink">{inr(total)}</span></>
+          )}
+        >
+          <LayoutToggle value={layout} onChange={chooseLayout} />
+          {!readOnly && <Link href="/investments/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />Add</Link>}
+        </PageHeader>
+
+        {!loading && investments.length > 0 && (
+          <div className="kpi-grid">
+            <KpiTile onClick={() => { setSearch(''); setLifecycleFilter('active'); setFilter('ALL'); }} icon="layers" tone="mint" label="Active plans" value={activeInvestments.length} note={`${inrShort(activeSaved)} saved so far`} />
+            <KpiTile onClick={() => { setSearch(''); setLifecycleFilter('active'); setFilter('ALL'); }} icon="clock" tone="honey" label="Maturing in 90 days" value={nearMaturityCount} note={nearMaturityCount ? 'Plan the payout' : 'Nothing soon'} alert={nearMaturityCount > 0} />
+            <KpiTile onClick={() => { setSearch(''); setLifecycleFilter('closed'); setFilter('ALL'); }} icon="archive" tone="sky" label="Closed" value={closedCount} note={prematureCount ? `${prematureCount} withdrawn early` : 'Matured or redeemed'} />
+            <KpiTile icon="tag" tone="plum" label="Categories" value={categories.length} note={`${investments.length} plans in total`} />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <LayoutToggle value={layout} onChange={chooseLayout} />
-            {!readOnly && <Link href="/investments/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />Add</Link>}
-          </div>
-        </div>
+        )}
 
         {!loading && investments.length > 0 && (
           <div className="relative mb-3">

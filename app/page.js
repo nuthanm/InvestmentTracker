@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
 import Icon from '@/components/Icon';
+import KpiTile from '@/components/KpiTile';
 import BrandMark from '@/components/BrandMark';
 import { PublicFooter, PublicHeader } from '@/components/PublicShell';
 import { GoalWaterFill, TypeThumbnail, WaterTank } from '@/components/GrowthVisual';
@@ -25,7 +26,7 @@ const FACTS = [
 ];
 
 const PREVIEW_ALLOCATION = [
-  { label: 'Debt', tone: 'mint', pct: 54 },
+  { label: 'Deposits', tone: 'mint', pct: 54 },
   { label: 'Equity', tone: 'sky', pct: 24 },
   { label: 'Metals', tone: 'honey', pct: 15 },
   { label: 'Cash', tone: 'plum', pct: 7 },
@@ -149,9 +150,9 @@ export default async function RootPage() {
             </div>
 
             <div className="kpi-grid peek-kpis">
-              <div className="kpi-tile"><span className="kpi-icon kpi-tone-mint"><Icon name="layers" /></span><span className="kpi-label">Active plans</span><span className="kpi-value">12</span><span className="kpi-note">of 14 plans</span></div>
-              <div className="kpi-tile is-alert"><span className="kpi-icon kpi-tone-honey"><Icon name="clock" /></span><span className="kpi-label">Due in 30 days</span><span className="kpi-value">3</span><span className="kpi-note">Contributions & maturities</span></div>
-              <div className="kpi-tile"><span className="kpi-icon kpi-tone-plum"><Icon name="target" /></span><span className="kpi-label">Goals progress</span><span className="kpi-value">55%</span><span className="kpi-note">avg across 4 goals</span></div>
+              <KpiTile icon="layers" tone="mint" label="Active plans" value="12" note="of 14 plans" />
+              <KpiTile icon="clock" tone="honey" label="Due in 30 days" value="3" note="Contributions & maturities" alert />
+              <KpiTile icon="target" tone="plum" label="Goals progress" value="55%" note="avg across 4 goals" />
             </div>
 
             <div className="peek-cols">

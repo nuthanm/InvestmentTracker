@@ -11,7 +11,7 @@ import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/
 import { investmentTags } from '@/lib/tags';
 import TagField from '@/components/TagField';
 import { emptyCustomMonths, isChitInvestment, normalizeChitDetails, prepareChitForSave } from '@/lib/chit';
-import ChitFundFields from './ChitFundFields';
+import ChitFundFields, { EMPTY_AUCTION, buildChitDraft } from './ChitFundFields';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -28,6 +28,7 @@ import {
   isAllowedDocumentName,
 } from '@/lib/documents';
 import Icon from '@/components/Icon';
+import PageHeader from '@/components/PageHeader';
 import { CoinGlyph } from '@/components/GrowthVisual';
 
 const TYPES = ['FD', 'RD', 'MF', 'ETF', 'ST', 'GD', 'GOLD', 'SILV', 'PPF', 'CHIT', 'OT'];
@@ -101,6 +102,7 @@ function getInitialChitState(initialInvestment) {
       postPickAmount: '',
       payouts: Array.from({ length: tenure }, () => ''),
       customMonths: emptyCustomMonths(tenure).map(() => ({ payment: '', payout: '' })),
+      auction: { ...EMPTY_AUCTION, bids: Array.from({ length: tenure }, () => '') },
       pickMonth: 1,
     };
   }
@@ -115,6 +117,14 @@ function getInitialChitState(initialInvestment) {
       payment: details.months?.[i]?.payment ? String(details.months[i].payment) : '',
       payout: details.months?.[i]?.payout ? String(details.months[i].payout) : '',
     })),
+    auction: details.mode === 'auction'
+      ? {
+        commission_mode: details.commission_mode,
+        commission_pct: String(details.commission_pct),
+        commission_basis: details.commission_basis,
+        bids: Array.from({ length: tenure }, (_, i) => (details.bids?.[i] ? String(details.bids[i]) : '')),
+      }
+      : { ...EMPTY_AUCTION, bids: Array.from({ length: tenure }, () => '') },
     pickMonth: details.pick_month || 1,
   };
 }
@@ -166,6 +176,7 @@ export default function NewInvestmentClient({
   const [postPickAmount, setPostPickAmount] = useState(initialChit.postPickAmount);
   const [chitPayouts, setChitPayouts] = useState(initialChit.payouts);
   const [chitCustomMonths, setChitCustomMonths] = useState(initialChit.customMonths);
+  const [chitAuction, setChitAuction] = useState(initialChit.auction);
   const [chitPickMonth, setChitPickMonth] = useState(initialChit.pickMonth);
   const [initialUnits, setInitialUnits] = useState('');
   const [initialPrice, setInitialPrice] = useState('');
@@ -608,18 +619,17 @@ export default function NewInvestmentClient({
       }
     } else if (!forLiquidity && isChitType) {
       if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
-      const prepared = prepareChitForSave({
-        mode: chitMode,
-        chit_value: Number(chitValue) || 0,
-        pre_pick_amount: Number(prePickAmount) || 0,
-        post_pick_amount: Number(postPickAmount) || 0,
-        payouts: chitPayouts.map((v) => Number(v) || 0),
-        months: chitCustomMonths.map((row) => ({
-          payment: Number(row.payment) || 0,
-          payout: Number(row.payout) || 0,
-        })),
-        pick_month: Number(chitPickMonth) || 1,
-      }, Math.floor(totalMonths));
+      const prepared = prepareChitForSave(buildChitDraft({
+        chitMode,
+        chitValue,
+        prePickAmount,
+        postPickAmount,
+        payouts: chitPayouts,
+        customMonths: chitCustomMonths,
+        auction: chitAuction,
+        pickMonth: chitPickMonth,
+        n: Math.floor(totalMonths),
+      }), Math.floor(totalMonths));
       if (prepared.error) { setError(prepared.error); return; }
     } else if (!forLiquidity) {
       if (!totalMonths || totalMonths <= 0) { setError('Pick a valid tenure.'); return; }
@@ -677,18 +687,17 @@ export default function NewInvestmentClient({
           } : {}),
         };
       } else if (isChitType) {
-        const prepared = prepareChitForSave({
-          mode: chitMode,
-          chit_value: Number(chitValue) || 0,
-          pre_pick_amount: Number(prePickAmount) || 0,
-          post_pick_amount: Number(postPickAmount) || 0,
-          payouts: chitPayouts.map((v) => Number(v) || 0),
-          months: chitCustomMonths.map((row) => ({
-            payment: Number(row.payment) || 0,
-            payout: Number(row.payout) || 0,
-          })),
-          pick_month: Number(chitPickMonth) || 1,
-        }, Math.floor(totalMonths));
+        const prepared = prepareChitForSave(buildChitDraft({
+        chitMode,
+        chitValue,
+        prePickAmount,
+        postPickAmount,
+        payouts: chitPayouts,
+        customMonths: chitCustomMonths,
+        auction: chitAuction,
+        pickMonth: chitPickMonth,
+        n: Math.floor(totalMonths),
+      }), Math.floor(totalMonths));
         body = {
           type_code: 'CHIT',
           custom_type: null,
@@ -753,10 +762,9 @@ export default function NewInvestmentClient({
 
   return (
     <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
-        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-4"><Icon name="chevronLeft" size={16} />Cancel</button>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">{isEditing ? 'Edit investment' : 'Add investment'}</h1>
-        <p className="text-sm text-ink-soft mb-6">{isEditing ? 'Update the details below.' : 'All fields are required unless marked optional.'}</p>
+      <div className="page-wrap max-w-2xl">
+        <button type="button" onClick={() => router.back()} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink mb-3"><Icon name="chevronLeft" size={16} />Cancel</button>
+        <PageHeader icon={isEditing ? 'wallet' : 'plus'} tone="mint" title={isEditing ? 'Edit investment' : 'Add investment'} subtitle={isEditing ? 'Update the details below.' : 'All fields are required unless marked optional.'} />
 
         <form onSubmit={submit} className="space-y-5">
           <section>
@@ -1342,6 +1350,8 @@ export default function NewInvestmentClient({
               setPayouts={setChitPayouts}
               customMonths={chitCustomMonths}
               setCustomMonths={setChitCustomMonths}
+              auction={chitAuction}
+              setAuction={setChitAuction}
               pickMonth={chitPickMonth}
               setPickMonth={setChitPickMonth}
             />

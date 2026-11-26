@@ -6,12 +6,14 @@ import Shell from '@/components/Shell';
 import TagField from '@/components/TagField';
 import TagList from '@/components/TagList';
 import { GoalWaterFill, TypeThumbnail, investmentThumbKind, useCelebrateOnce } from '@/components/GrowthVisual';
-import { inr, fmtDate, labelFor } from '@/lib/format';
+import { inr, inrShort, fmtDate, labelFor } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 import { goalOutcomeStatus, goalScopeYear, isCommonGoal, isLiquidityGoal, isRecurringYearlyGoal } from '@/lib/goals';
 import { investmentTags } from '@/lib/tags';
 import Icon from '@/components/Icon';
+import PageHeader from '@/components/PageHeader';
+import KpiTile from '@/components/KpiTile';
 
 const FILL_COLORS = ['#0F6E56', '#185FA5', '#993C1D', '#854F0B', '#3C3489', '#72243E'];
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
@@ -824,20 +826,34 @@ export default function GoalsClient({ user }) {
     load();
   };
 
+  const goalStats = goals.reduce((acc, g) => {
+    const cur = Number(g.current_amount || 0);
+    const tgt = Number((isLiquidityGoal(g) ? g.required_amount : g.target_amount) || 0);
+    acc.saved += cur;
+    acc.target += tgt;
+    if (tgt > 0) acc.pctSum += Math.min(1, cur / tgt);
+    if (tgt > 0 && cur >= tgt) acc.reached += 1;
+    return acc;
+  }, { saved: 0, target: 0, pctSum: 0, reached: 0 });
+  const avgGoalPct = goals.length ? Math.round((goalStats.pctSum / goals.length) * 100) : 0;
+
   return (
     <Shell user={user}>
-      <div className="px-4 md:px-8 py-5 md:py-6 mx-auto w-full relative min-h-full max-w-6xl">
+      <div className="page-wrap max-w-6xl relative min-h-full">
 
-        <div className="flex justify-between items-end mb-5 gap-3">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Goals</h1>
-            <p className="text-sm text-ink-soft mt-1">Small steps today — the goals you fund become the life you build.</p>
+        <PageHeader icon="target" tone="plum" title="Goals" subtitle="Small steps today — the goals you fund become the life you build.">
+          <LayoutToggle value={layout} onChange={chooseLayout} />
+          <Link href="/goals/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />New goal</Link>
+        </PageHeader>
+
+        {!loading && !loadError && goals.length > 0 && (
+          <div className="kpi-grid">
+            <KpiTile icon="target" tone="plum" label="Goals" value={goals.length} note={`${commonGoals.length} life · ${currentYearGoals.length} this year`} />
+            <KpiTile icon="trendUp" tone="mint" label="Average progress" value={`${avgGoalPct}%`} note="Across all goals" />
+            <KpiTile icon="checkCircle" tone="sky" label="Reached" value={goalStats.reached} note={`of ${goals.length} goals funded`} />
+            <KpiTile icon="wallet" tone="honey" label="Saved toward goals" value={inrShort(goalStats.saved)} note={`of ${inrShort(goalStats.target)} target`} />
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <LayoutToggle value={layout} onChange={chooseLayout} />
-            <Link href="/goals/new" className="btn-primary inline-flex items-center gap-1.5 py-2 px-3.5 rounded-full text-xs font-medium whitespace-nowrap"><Icon name="plus" size={15} strokeWidth={2.2} />New goal</Link>
-          </div>
-        </div>
+        )}
 
         {loading && <div className="h-20 bg-paper-tint rounded-xl animate-pulse" />}
         {!loading && loadError && <p className="text-sm text-danger mb-3">{loadError}</p>}

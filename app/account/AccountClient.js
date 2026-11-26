@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/components/Toast';
+import PageHeader from '@/components/PageHeader';
+import { ThemeSegmented } from '@/components/ThemeToggle';
 import ViewLinkSection from './ViewLinkSection';
 
 const AUTHENTICATOR_APPS = [
@@ -279,16 +281,25 @@ export default function AccountClient({ user }) {
 
   return (
     <>
-    <div className="px-4 md:px-8 py-5 md:py-6 max-w-2xl mx-auto w-full">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-1">Account</h1>
-        <p className="text-sm text-ink-soft mb-6">Manage your profile, security, and export your data anytime.</p>
+    <div className="page-wrap max-w-3xl">
+        <PageHeader icon="user" tone="sky" title="Account" subtitle="Manage your profile, appearance, security, and data." />
 
-        <div className="flex items-center gap-3.5 p-4 bg-paper-tint rounded-2xl mb-6">
-          <div className="w-12 h-12 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-medium">{initials}</div>
+        <div className="panel flex items-center gap-3.5 mb-6">
+          <div className="w-12 h-12 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center font-semibold">{initials}</div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium">{user.name}</p>
+            <p className="font-semibold">{user.name}</p>
             <p className="text-xs text-ink-soft mt-0.5">{displayIdentifier || 'No email on file'}</p>
           </div>
+          <span className={`text-[11px] font-medium px-2 py-1 rounded-full ${mfaEnabled ? 'bg-mint-50 text-mint-700' : 'bg-honey-50 text-honey-600'}`}>{mfaEnabled ? 'MFA on' : 'MFA off'}</span>
+        </div>
+
+        <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Appearance</p>
+        <div className="bg-paper-card border border-edge rounded-2xl mb-5 px-4 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm">Theme</p>
+            <p className="text-xs text-ink-soft mt-0.5">System follows your device's light or dark setting.</p>
+          </div>
+          <ThemeSegmented />
         </div>
 
         <p className="text-[12px] tracking-wider text-ink-mute uppercase mb-2">Profile</p>
@@ -367,7 +378,7 @@ export default function AccountClient({ user }) {
       </div>
 
       {passwordModal && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setPasswordModal(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setPasswordModal(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Change password</h2>
             <p className="text-sm text-ink-soft text-center mb-5">Use at least 8 chars with upper/lower/number/symbol</p>
@@ -388,7 +399,7 @@ export default function AccountClient({ user }) {
       )}
 
       {recoveryModal && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setRecoveryModal(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setRecoveryModal(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Rotate recovery key</h2>
             <p className="text-sm text-ink-soft text-center mb-5">Store this in a safe place. It is required for free password recovery.</p>
@@ -409,7 +420,7 @@ export default function AccountClient({ user }) {
       )}
 
       {mfaSetupOpen && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaSetupOpen(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaSetupOpen(false)}>
           <div className="bg-paper-card rounded-2xl p-5 sm:p-6 md:p-7 w-full max-w-2xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg sm:text-xl font-medium text-center mb-1">Enable MFA</h2>
             <p className="text-sm text-ink-soft text-center mb-4 md:mb-5">Scan with any of these authenticator apps:</p>
@@ -470,7 +481,7 @@ export default function AccountClient({ user }) {
       )}
 
       {mfaDisableOpen && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaDisableOpen(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setMfaDisableOpen(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Disable MFA</h2>
             <p className="text-sm text-ink-soft text-center mb-4">Confirm password and current authenticator code.</p>
@@ -488,7 +499,7 @@ export default function AccountClient({ user }) {
       )}
 
       {deleteModal && (
-        <div className="fixed inset-0 bg-ink/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setDeleteModal(false)}>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 anim-fade" onClick={() => setDeleteModal(false)}>
           <div className="bg-paper-card rounded-2xl p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-medium text-center mb-1">Delete account</h2>
             <p className="text-sm text-ink-soft text-center mb-4">This action is permanent. Enter your password and type DELETE to continue.</p>

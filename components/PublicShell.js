@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import BrandMark from './BrandMark';
+import ThemeToggle from './ThemeToggle';
 
 const FOOTER_LINKS = [
   { href: '/privacy', label: 'Privacy Policy' },
@@ -17,6 +18,7 @@ export function PublicHeader() {
       <nav className="landing-top-nav" aria-label="Site">
         <Link href="/resources">Guides</Link>
         <Link href="/privacy">Privacy</Link>
+        <ThemeToggle className="shell-icon-btn" />
         <Link href="/login" className="hero-primary">Sign in</Link>
       </nav>
     </header>

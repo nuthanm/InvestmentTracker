@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import Shell from '@/components/Shell';
 import { CoinGlyph, GoalWaterFill, TypeThumbnail, WaterTank, investmentThumbKind } from '@/components/GrowthVisual';
 import Icon from '@/components/Icon';
+import KpiTile from '@/components/KpiTile';
 import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedAmount, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import { summarizeTags } from '@/lib/tags';
@@ -149,35 +150,25 @@ function buildUpcomingEvents(investments) {
   return collectUpcomingEvents(investments).slice(0, 4);
 }
 
-/** One KPI tile: tinted icon, label, value, and a supporting note. */
-function KpiTile({ href, icon, tone = 'mint', label, value, note, alert = false, title }) {
-  return (
-    <Link href={href} title={title} className={`kpi-tile${alert ? ' is-alert' : ''}`}>
-      <span className={`kpi-icon kpi-tone-${tone}`}><Icon name={icon} /></span>
-      <span className="kpi-label">{label}</span>
-      <span className="kpi-value">{value}</span>
-      <span className="kpi-note">{note}</span>
-    </Link>
-  );
-}
+const DEPOSIT_TYPES = 'Fixed and recurring deposits, PPF, chit funds and other fixed-return plans';
 
-/** Splits active holdings into debt, equity, gold/silver and cash by current amount. */
+/** Splits active holdings into deposits, equity, gold/silver and cash by current amount. */
 function allocationOf(activeInvestments, amountOf) {
-  const buckets = { debt: 0, equity: 0, metal: 0, cash: 0 };
+  const buckets = { deposits: 0, market: 0, metal: 0, cash: 0 };
   for (const inv of activeInvestments) {
     const amount = Math.max(0, amountOf(inv));
     if (isLiquiditySaving(inv)) buckets.cash += amount;
     else if (isMetalInvestment(inv.type_code) || inv.type_code === 'GD') buckets.metal += amount;
-    else if (isMarketInvestment(inv.type_code)) buckets.equity += amount;
-    else buckets.debt += amount;
+    else if (isMarketInvestment(inv.type_code)) buckets.market += amount;
+    else buckets.deposits += amount;
   }
-  const total = buckets.debt + buckets.equity + buckets.metal + buckets.cash;
+  const total = buckets.deposits + buckets.market + buckets.metal + buckets.cash;
   const pct = (v) => (total > 0 ? (v / total) * 100 : 0);
   return [
-    { key: 'debt', label: 'Debt', tone: 'mint', amount: buckets.debt, pct: pct(buckets.debt) },
-    { key: 'equity', label: 'Equity', tone: 'sky', amount: buckets.equity, pct: pct(buckets.equity) },
-    { key: 'metal', label: 'Metals', tone: 'honey', amount: buckets.metal, pct: pct(buckets.metal) },
-    { key: 'cash', label: 'Cash', tone: 'plum', amount: buckets.cash, pct: pct(buckets.cash) },
+    { key: 'deposits', label: 'Deposits', hint: DEPOSIT_TYPES, tone: 'mint', amount: buckets.deposits, pct: pct(buckets.deposits) },
+    { key: 'market', label: 'Equity', hint: 'Mutual funds, ETFs and shares', tone: 'sky', amount: buckets.market, pct: pct(buckets.market) },
+    { key: 'metal', label: 'Metals', hint: 'Physical gold and silver, gold schemes and SGBs', tone: 'honey', amount: buckets.metal, pct: pct(buckets.metal) },
+    { key: 'cash', label: 'Cash', hint: 'Savings kept aside for liquidity', tone: 'plum', amount: buckets.cash, pct: pct(buckets.cash) },
   ];
 }
 
@@ -543,7 +534,7 @@ export default function HomeClient({ user }) {
                 {allocation.some((slice) => slice.amount > 0) && (
                   <div className="water-tanks" role="img" aria-label={`Allocation: ${allocation.map((s) => `${s.label} ${Math.round(s.pct)} percent`).join(', ')}`}>
                     {allocation.map((slice) => (
-                      <WaterTank key={slice.key} pct={slice.pct} tone={slice.tone} label={slice.label} title={`${slice.label}: ${inr(slice.amount)}`} />
+                      <WaterTank key={slice.key} pct={slice.pct} tone={slice.tone} label={slice.label} title={`${slice.label}: ${inr(slice.amount)} (${slice.hint})`} />
                     ))}
                   </div>
                 )}

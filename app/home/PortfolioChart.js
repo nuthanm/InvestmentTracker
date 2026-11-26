@@ -315,31 +315,31 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
           {/* Grid lines */}
           {yl.map((g, i) => (
             <line key={i} x1={L} y1={g.y.toFixed(1)} x2={L + PW} y2={g.y.toFixed(1)}
-              stroke="#E2DDCB" strokeWidth="1" strokeDasharray={i === 0 ? '' : '3,3'} />
+              stroke="rgb(var(--c-edge))" strokeWidth="1" strokeDasharray={i === 0 ? '' : '3,3'} />
           ))}
 
           {/* Y-axis labels */}
           {yl.map((g, i) => (
-            <text key={i} x={L - 5} y={g.y + 4} textAnchor="end" fontSize="10" fill="#5E6A64">{g.label}</text>
+            <text key={i} x={L - 5} y={g.y + 4} textAnchor="end" fontSize="10" fill="rgb(var(--c-ink-mute))">{g.label}</text>
           ))}
 
           {/* X-axis labels */}
           {xl.map((g, i) => (
-            <text key={i} x={g.x} y={T + PH + 20} textAnchor="middle" fontSize="10" fill="#5E6A64">{g.label}</text>
+            <text key={i} x={g.x} y={T + PH + 20} textAnchor="middle" fontSize="10" fill="rgb(var(--c-ink-mute))">{g.label}</text>
           ))}
 
           {/* Goal amount: dashed line when in range, text annotation when above range */}
           {goalAmount && goalInChartRange && (
             <>
               <line x1={L} y1={goalLineY.toFixed(1)} x2={L + PW} y2={goalLineY.toFixed(1)}
-                stroke="#3C3489" strokeWidth="1.5" strokeDasharray="6,4" />
-              <text x={L + PW - 4} y={goalLineY - 4} textAnchor="end" fontSize="9" fill="#3C3489" fontWeight="500">
+                stroke="rgb(var(--c-plum-600))" strokeWidth="1.5" strokeDasharray="6,4" />
+              <text x={L + PW - 4} y={goalLineY - 4} textAnchor="end" fontSize="9" fill="rgb(var(--c-plum-600))" fontWeight="500">
                 Goal {inrShort(goalAmount)}
               </text>
             </>
           )}
           {goalAmount && !goalInChartRange && (
-            <text x={L + PW - 4} y={T + 10} textAnchor="end" fontSize="9" fill="#3C3489" fontWeight="500">
+            <text x={L + PW - 4} y={T + 10} textAnchor="end" fontSize="9" fill="rgb(var(--c-plum-600))" fontWeight="500">
               Goal {inrShort(goalAmount)} (above chart)
             </text>
           )}
@@ -347,43 +347,43 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
           {/* Goal date vertical marker */}
           {goalDateX !== null && goalDateX >= L && goalDateX <= L + PW && (
             <line x1={goalDateX.toFixed(1)} y1={T} x2={goalDateX.toFixed(1)} y2={T + PH}
-              stroke="#3C3489" strokeWidth="1" strokeDasharray="4,4" opacity="0.6" />
+              stroke="rgb(var(--c-plum-600))" strokeWidth="1" strokeDasharray="4,4" opacity="0.6" />
           )}
 
           {/* Invested area (light blue fill) */}
           {points.length > 1 && (
             <polyline
               points={`${L},${(T + PH).toFixed(1)} ${polyPoints(points, 'invested', from, to, maxVal)} ${scaleX(points[points.length - 1].date, from, to).toFixed(1)},${(T + PH).toFixed(1)}`}
-              fill="#E6F1FB" stroke="none"
+              fill="rgb(var(--c-sky-50))" stroke="none"
             />
           )}
 
           {/* Invested line (blue) */}
           {points.length > 1 && (
             <polyline points={polyPoints(points, 'invested', from, to, maxVal)}
-              fill="none" stroke="#185FA5" strokeWidth="1.5" strokeLinejoin="round" />
+              fill="none" stroke="rgb(var(--c-sky-600))" strokeWidth="1.5" strokeLinejoin="round" />
           )}
 
           {/* Value area (light green fill) */}
           {points.length > 1 && (
             <polyline
               points={`${L},${(T + PH).toFixed(1)} ${polyPoints(points, 'value', from, to, maxVal)} ${scaleX(points[points.length - 1].date, from, to).toFixed(1)},${(T + PH).toFixed(1)}`}
-              fill="#E1F5EE" stroke="none" opacity="0.6"
+              fill="rgb(var(--c-mint-50))" stroke="none" opacity="0.6"
             />
           )}
 
           {/* Value line (green) */}
           {points.length > 1 && (
             <polyline points={polyPoints(points, 'value', from, to, maxVal)}
-              fill="none" stroke="#0F6E56" strokeWidth="2" strokeLinejoin="round" />
+              fill="none" stroke="rgb(var(--c-mint-600))" strokeWidth="2" strokeLinejoin="round" />
           )}
 
           {/* Today marker */}
           {todayX >= L && todayX <= L + PW && (
             <>
               <line x1={todayX.toFixed(1)} y1={T} x2={todayX.toFixed(1)} y2={T + PH}
-                stroke="#A8B0AB" strokeWidth="1" strokeDasharray="4,3" />
-              <text x={todayX + 3} y={T + 10} fontSize="8" fill="#5E6A64">Today</text>
+                stroke="rgb(var(--c-ink-mute))" strokeWidth="1" strokeDasharray="4,3" />
+              <text x={todayX + 3} y={T + 10} fontSize="8" fill="rgb(var(--c-ink-mute))">Today</text>
             </>
           )}
 
@@ -397,23 +397,23 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
             const ey = scaleY(totalValAtMaturity.value, maxVal);
             return (
               <circle key={i} cx={ex.toFixed(1)} cy={ey.toFixed(1)} r="4"
-                fill="#0F6E56" stroke="white" strokeWidth="1.5" className="cursor-pointer" />
+                fill="rgb(var(--c-mint-600))" stroke="rgb(var(--c-card))" strokeWidth="1.5" className="cursor-pointer" />
             );
           })}
 
           {/* Hover crosshair */}
           {hoverPtX !== null && (
             <line x1={hoverPtX.toFixed(1)} y1={T} x2={hoverPtX.toFixed(1)} y2={T + PH}
-              stroke="#0E1714" strokeWidth="1" strokeDasharray="3,2" opacity="0.3" />
+              stroke="rgb(var(--c-ink))" strokeWidth="1" strokeDasharray="3,2" opacity="0.3" />
           )}
 
           {/* Hover dots */}
           {hoverPoint && hoverPtX !== null && (
             <>
               <circle cx={hoverPtX.toFixed(1)} cy={scaleY(hoverPoint.invested, maxVal).toFixed(1)} r="4"
-                fill="white" stroke="#185FA5" strokeWidth="2" />
+                fill="rgb(var(--c-card))" stroke="rgb(var(--c-sky-600))" strokeWidth="2" />
               <circle cx={hoverPtX.toFixed(1)} cy={scaleY(hoverPoint.value, maxVal).toFixed(1)} r="4"
-                fill="white" stroke="#0F6E56" strokeWidth="2" />
+                fill="rgb(var(--c-card))" stroke="rgb(var(--c-mint-600))" strokeWidth="2" />
             </>
           )}
         </svg>
@@ -461,7 +461,7 @@ export default function PortfolioChart({ investments = [], goalAmount = null, go
         </span>
         {goalAmount && (
           <span className="flex items-center gap-1.5 text-[12px] text-ink-soft">
-            <span className="inline-block w-5" style={{ borderTop: '2px dashed #3C3489' }} /> Goal
+            <span className="inline-block w-5" style={{ borderTop: '2px dashed rgb(var(--c-plum-600))' }} /> Goal
           </span>
         )}
         {maturityEvents.length > 0 && (
