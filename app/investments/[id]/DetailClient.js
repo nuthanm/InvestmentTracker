@@ -1105,6 +1105,22 @@ export default function DetailClient({
             <>
               <Row label="Pick month" value={`Month ${chitSummary.pick_month}`} />
               <Row label="Prize received" value={inr(chitSummary.prize)} />
+              {i.chit_details?.prize_use?.mode && i.chit_details.prize_use.mode !== 'kept' && (
+                <Row
+                  label="Prize used"
+                  value={
+                    <span className="text-right">
+                      {i.chit_details.prize_use.mode === 'spent'
+                        ? 'Spent all (not in savings)'
+                        : `Kept ${inr(i.chit_details.prize_use.kept_amount || 0)}, spent ${inr(Math.max(0, Number(chitSummary.prize) - Number(i.chit_details.prize_use.kept_amount || 0)))}`}
+                      {i.chit_details.prize_use.spent_on ? ` · ${i.chit_details.prize_use.spent_on}` : ''}
+                      {i.chit_details.prize_use.note && (
+                        <span className="block text-[12px] text-ink-mute font-normal">{i.chit_details.prize_use.note}</span>
+                      )}
+                    </span>
+                  }
+                />
+              )}
               <Row
                 label="Profit / loss"
                 value={

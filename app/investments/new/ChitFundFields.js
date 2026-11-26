@@ -5,6 +5,8 @@ import { inr } from '@/lib/format';
 import {
   COMMISSION_MODES,
   PRESET_1_5L_AUCTION,
+  PRIZE_SPENT_ON,
+  PRIZE_USE_MODES,
   PRESET_2_5L_DUAL,
   auctionHasOwnerMonth,
   buildAuctionRows,
@@ -27,11 +29,26 @@ export const EMPTY_AUCTION = {
   bids: [],
 };
 
+export const EMPTY_PRIZE_USE = { mode: 'kept', kept_amount: '', spent_on: '', note: '' };
+
+function prizeUsePayload(prizeUse) {
+  return {
+    mode: prizeUse?.mode || 'kept',
+    kept_amount: Number(prizeUse?.kept_amount) || 0,
+    spent_on: prizeUse?.spent_on || '',
+    note: prizeUse?.note || '',
+  };
+}
+
 /** Build the chit_details draft object from the form's state. */
 export function buildChitDraft({
-  chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, pickMonth, n,
+  chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, prizeUse, pickMonth, n,
 }) {
-  const base = { chit_value: Number(chitValue) || 0, pick_month: Number(pickMonth) || 1 };
+  const base = {
+    chit_value: Number(chitValue) || 0,
+    pick_month: Number(pickMonth) || 1,
+    prize_use: prizeUsePayload(prizeUse),
+  };
   if (chitMode === 'custom') {
     return {
       ...base,
@@ -70,11 +87,11 @@ function AutoFill({ label, startPlaceholder, stepPlaceholder, onFill }) {
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 min-w-[120px]">
           <label className="block text-[11px] text-ink-mute mb-1">Month 1 (₹)</label>
-          <input type="number" min="0" step="1" value={start} onChange={(e) => setStart(e.target.value)} className="field-input py-1.5 text-sm" placeholder={startPlaceholder} />
+          <input type="number" min="0" step="1" value={start} onChange={(e) => setStart(e.target.value)} className="field-input py-1.5 text-sm" placeholder={`e.g. ${startPlaceholder}`} />
         </div>
         <div className="flex-1 min-w-[120px]">
           <label className="block text-[11px] text-ink-mute mb-1">Goes up each month by (₹)</label>
-          <input type="number" min="0" step="1" value={step} onChange={(e) => setStep(e.target.value)} className="field-input py-1.5 text-sm" placeholder={stepPlaceholder} />
+          <input type="number" min="0" step="1" value={step} onChange={(e) => setStep(e.target.value)} className="field-input py-1.5 text-sm" placeholder={`e.g. ${stepPlaceholder}`} />
         </div>
         <button
           type="button"
@@ -85,7 +102,7 @@ function AutoFill({ label, startPlaceholder, stepPlaceholder, onFill }) {
           Fill all months
         </button>
       </div>
-      <p className="text-[11px] text-ink-mute mt-1.5">You can still change any month after filling.</p>
+      <p className="text-[11px] text-ink-mute mt-1.5">Type both amounts, then tap Fill all months. You can still change any month after filling.</p>
     </div>
   );
 }
@@ -106,14 +123,16 @@ export default function ChitFundFields({
   setCustomMonths,
   auction,
   setAuction,
+  prizeUse,
+  setPrizeUse,
   pickMonth,
   setPickMonth,
 }) {
   const n = Math.max(1, Math.floor(Number(tenureMonths) || 12));
 
   const details = useMemo(
-    () => buildChitDraft({ chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, pickMonth, n }),
-    [chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, pickMonth, n]
+    () => buildChitDraft({ chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, prizeUse, pickMonth, n }),
+    [chitMode, chitValue, prePickAmount, postPickAmount, payouts, customMonths, auction, prizeUse, pickMonth, n]
   );
 
   const selected = useMemo(() => summarizeChitPick(details, n, Number(pickMonth) || 1), [details, n, pickMonth]);
@@ -404,6 +423,48 @@ export default function ChitFundFields({
         <div className="flex justify-between pt-1.5 mt-1.5 border-t border-edge"><span className="text-ink-soft">{rateLabel}</span><span className="font-medium text-plum-600">{formatRate(selected.annual_rate_pct)} p.a.</span></div>
         <div className="flex justify-between"><span className="text-ink-soft">Per month</span><span className="font-medium">{formatRate(selected.monthly_rate_pct)}</span></div>
         <p className="text-[12px] text-ink-soft pt-1">{chitPickSentence(selected)}</p>
+      </div>
+
+      <div className="rounded-xl border border-edge p-3.5 space-y-3">
+        <div>
+          <p className="text-[12px] tracking-wider text-ink-mute uppercase">After you take the chit</p>
+          <p className="text-[12px] text-ink-soft mt-1">
+            Is the {inr(selected.prize)} still with you? From month {selected.pick_month}, only what you kept counts in your savings.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {PRIZE_USE_MODES.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              onClick={() => setPrizeUse({ ...prizeUse, mode: m.value })}
+              className={`chip ${(prizeUse?.mode || 'kept') === m.value ? 'on' : ''}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+        {(prizeUse?.mode || 'kept') !== 'kept' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {prizeUse?.mode === 'partly' && (
+              <div>
+                <label className="block text-xs text-ink-soft mb-1.5">Amount you kept (₹)<span className="text-danger ml-0.5">*</span></label>
+                <input type="number" min="0" step="1" value={prizeUse?.kept_amount ?? ''} onChange={(e) => setPrizeUse({ ...prizeUse, kept_amount: e.target.value })} className="field-input" placeholder="e.g. 50000" />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-ink-soft mb-1.5">Spent on</label>
+              <select value={prizeUse?.spent_on || ''} onChange={(e) => setPrizeUse({ ...prizeUse, spent_on: e.target.value })} className="field-input">
+                <option value="">Choose…</option>
+                {PRIZE_SPENT_ON.map((label) => <option key={label} value={label}>{label}</option>)}
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs text-ink-soft mb-1.5">Note <span className="text-[11px] text-ink-mute">optional</span></label>
+              <input type="text" maxLength={300} value={prizeUse?.note || ''} onChange={(e) => setPrizeUse({ ...prizeUse, note: e.target.value })} className="field-input" placeholder="e.g. Paid the plot advance to the seller" />
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

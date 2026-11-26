@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { computeMaturity, computeRecurringMaturity, inrShort } from '@/lib/format';
-import { isMarketInvestment, isChitInvestment, netRecurringInvestedAsOf } from '@/lib/investments';
+import { isMarketInvestment, isChitInvestment, netRecurringInvestedAsOf, chitSpentPrizeHeld } from '@/lib/investments';
 import { chitPaymentsThroughMonth } from '@/lib/chit';
 
 // ─── Data helpers ─────────────────────────────────────────────────────────────
@@ -13,6 +13,9 @@ const MS_MONTH = 30.4375 * 24 * 60 * 60 * 1000;
 function valueAtDate(inv, D) {
   const start = inv.start_date ? new Date(inv.start_date) : null;
   if (!start || D < start) return 0;
+
+  const spentHeld = chitSpentPrizeHeld(inv, D);
+  if (spentHeld != null) return spentHeld;
 
   const maturity = inv.maturity_date ? new Date(inv.maturity_date) : null;
   if (maturity && D >= maturity) return Number(inv.maturity_value || 0);
@@ -58,6 +61,9 @@ function valueAtDate(inv, D) {
 function investedAtDate(inv, D) {
   const start = inv.start_date ? new Date(inv.start_date) : null;
   if (!start || D < start) return 0;
+
+  const spentHeld = chitSpentPrizeHeld(inv, D);
+  if (spentHeld != null) return spentHeld;
 
   const frequency = inv.payment_frequency || 'lump_sum';
   if (frequency === 'monthly' || frequency === 'yearly' || isChitInvestment(inv.type_code)) {

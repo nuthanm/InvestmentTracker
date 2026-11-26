@@ -11,7 +11,7 @@ import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/
 import { investmentTags } from '@/lib/tags';
 import TagField from '@/components/TagField';
 import { emptyCustomMonths, isChitInvestment, normalizeChitDetails, prepareChitForSave } from '@/lib/chit';
-import ChitFundFields, { EMPTY_AUCTION, buildChitDraft } from './ChitFundFields';
+import ChitFundFields, { EMPTY_AUCTION, EMPTY_PRIZE_USE, buildChitDraft } from './ChitFundFields';
 import {
   SCHEME_STATUS_OPTIONS,
   computeMetalPurchasePricing,
@@ -103,6 +103,7 @@ function getInitialChitState(initialInvestment) {
       payouts: Array.from({ length: tenure }, () => ''),
       customMonths: emptyCustomMonths(tenure).map(() => ({ payment: '', payout: '' })),
       auction: { ...EMPTY_AUCTION, bids: Array.from({ length: tenure }, () => '') },
+      prizeUse: { ...EMPTY_PRIZE_USE },
       pickMonth: 1,
     };
   }
@@ -125,6 +126,12 @@ function getInitialChitState(initialInvestment) {
         bids: Array.from({ length: tenure }, (_, i) => (details.bids?.[i] ? String(details.bids[i]) : '')),
       }
       : { ...EMPTY_AUCTION, bids: Array.from({ length: tenure }, () => '') },
+    prizeUse: {
+      mode: details.prize_use?.mode || 'kept',
+      kept_amount: details.prize_use?.kept_amount ? String(details.prize_use.kept_amount) : '',
+      spent_on: details.prize_use?.spent_on || '',
+      note: details.prize_use?.note || '',
+    },
     pickMonth: details.pick_month || 1,
   };
 }
@@ -177,6 +184,7 @@ export default function NewInvestmentClient({
   const [chitPayouts, setChitPayouts] = useState(initialChit.payouts);
   const [chitCustomMonths, setChitCustomMonths] = useState(initialChit.customMonths);
   const [chitAuction, setChitAuction] = useState(initialChit.auction);
+  const [chitPrizeUse, setChitPrizeUse] = useState(initialChit.prizeUse);
   const [chitPickMonth, setChitPickMonth] = useState(initialChit.pickMonth);
   const [initialUnits, setInitialUnits] = useState('');
   const [initialPrice, setInitialPrice] = useState('');
@@ -627,6 +635,7 @@ export default function NewInvestmentClient({
         payouts: chitPayouts,
         customMonths: chitCustomMonths,
         auction: chitAuction,
+        prizeUse: chitPrizeUse,
         pickMonth: chitPickMonth,
         n: Math.floor(totalMonths),
       }), Math.floor(totalMonths));
@@ -695,6 +704,7 @@ export default function NewInvestmentClient({
         payouts: chitPayouts,
         customMonths: chitCustomMonths,
         auction: chitAuction,
+        prizeUse: chitPrizeUse,
         pickMonth: chitPickMonth,
         n: Math.floor(totalMonths),
       }), Math.floor(totalMonths));
@@ -1352,6 +1362,8 @@ export default function NewInvestmentClient({
               setCustomMonths={setChitCustomMonths}
               auction={chitAuction}
               setAuction={setChitAuction}
+              prizeUse={chitPrizeUse}
+              setPrizeUse={setChitPrizeUse}
               pickMonth={chitPickMonth}
               setPickMonth={setChitPickMonth}
             />
