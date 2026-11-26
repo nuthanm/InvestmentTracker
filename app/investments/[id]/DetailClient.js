@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
 import { TypeThumbnail, investmentThumbKind } from '@/components/GrowthVisual';
 import TagList from '@/components/TagList';
-import { inr, inrPaise, fmtDate, labelFor, frequencyLabel } from '@/lib/format';
+import { inr, inrPaise, fmtDate, labelFor, frequencyLabel, toDateInput } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
 import MetalWastageDiscountFields from '@/components/MetalWastageDiscountFields';
 import {
@@ -78,14 +78,6 @@ function calculatedGrams(amount, rate) {
   const price = Number(rate);
   if (!(paidAmount > 0) || !(price > 0)) return '';
   return (Math.round((paidAmount / price) * 1000) / 1000).toFixed(3);
-}
-
-function toDateInput(value) {
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 }
 
 function fmtDateTime(value) {
@@ -231,7 +223,7 @@ export default function DetailClient({
   const [withdrawals, setWithdrawals] = useState([]);
   const [withdrawalsWritable, setWithdrawalsWritable] = useState(true);
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
-  const [withdrawalDate, setWithdrawalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [withdrawalDate, setWithdrawalDate] = useState(() => toDateInput(new Date()));
   const [withdrawalNotes, setWithdrawalNotes] = useState('');
   const [savingWithdrawal, setSavingWithdrawal] = useState(false);
   const [removingWithdrawalId, setRemovingWithdrawalId] = useState(null);
@@ -292,7 +284,7 @@ export default function DetailClient({
   const [discountPct, setDiscountPct] = useState('0');
   const [discountValue, setDiscountValue] = useState('0');
   const [lifecycleStatus, setLifecycleStatus] = useState(i.lifecycle_status || LIFECYCLE_STATUSES.ACTIVE);
-  const [closureDate, setClosureDate] = useState(i.closure_date?.slice?.(0, 10) || new Date().toISOString().slice(0, 10));
+  const [closureDate, setClosureDate] = useState(toDateInput(i.closure_date) || toDateInput(new Date()));
   const [closureAmount, setClosureAmount] = useState(i.closure_amount != null ? String(i.closure_amount) : '');
   const [appliedRatePct, setAppliedRatePct] = useState(i.applied_rate_pct != null ? String(i.applied_rate_pct) : String(i.rate_pct || ''));
   const [lifecyclePenaltyAmount, setLifecyclePenaltyAmount] = useState(i.penalty_amount != null ? String(i.penalty_amount) : '0');

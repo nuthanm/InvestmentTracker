@@ -6,7 +6,7 @@ import Shell from '@/components/Shell';
 import TagField from '@/components/TagField';
 import TagList from '@/components/TagList';
 import { GoalWaterFill, TypeThumbnail, investmentThumbKind, useCelebrateOnce } from '@/components/GrowthVisual';
-import { inr, inrShort, fmtDate, labelFor } from '@/lib/format';
+import { inr, inrShort, fmtDate, labelFor, toDateInput } from '@/lib/format';
 import { effectiveInvestedSoFar, isMetalInvestment, tenureProgress } from '@/lib/investments';
 import { isActiveInvestment, resolveLifecycleStatus, LIFECYCLE_STATUSES } from '@/lib/investment-lifecycle';
 import { goalOutcomeStatus, goalScopeYear, isCommonGoal, isLiquidityGoal, isRecurringYearlyGoal } from '@/lib/goals';
@@ -623,10 +623,10 @@ export default function GoalsClient({ user }) {
       description: g.description || '',
       amount: String(g.target_amount),
       inflationPct: String(g.inflation_pct ?? 0),
-      date: g.target_date ? String(g.target_date).slice(0, 10) : '',
+      date: toDateInput(g.target_date),
       icon: g.icon || 'house',
       forLiquidity: isLiquidityGoal(g),
-      amountAsOf: g.amount_as_of ? String(g.amount_as_of).slice(0, 10) : '',
+      amountAsOf: toDateInput(g.amount_as_of),
       baseAmount: String(g.target_amount),
       scope: year == null ? 'common' : 'year',
       goalYear: year || CURRENT_YEAR,
@@ -654,7 +654,7 @@ export default function GoalsClient({ user }) {
       : computeProjectedGoal(editForm.amount, editForm.inflationPct, editForm.date);
     const amountUnchanged = Math.abs(Number(editForm.amount) - Number(editForm.baseAmount)) < 0.01;
     const amountAsOf = editForm.forLiquidity
-      ? (amountUnchanged && editForm.amountAsOf ? editForm.amountAsOf : new Date().toISOString().slice(0, 10))
+      ? (amountUnchanged && editForm.amountAsOf ? editForm.amountAsOf : toDateInput(new Date()))
       : null;
     setEditSaving(true);
     try {

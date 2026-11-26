@@ -6,6 +6,7 @@ import Shell from '@/components/Shell';
 import TagField from '@/components/TagField';
 import Icon from '@/components/Icon';
 import PageHeader from '@/components/PageHeader';
+import { toDateInput } from '@/lib/format';
 
 const ICONS = ['house', 'car', 'education', 'travel', 'wedding', 'other'];
 const CURRENT_YEAR = new Date().getFullYear();
@@ -85,7 +86,7 @@ export default function NewGoalClient({ user }) {
           target_date: forLiquidity ? null : date,
           inflation_pct: Number(inflationPct) || 0,
           for_liquidity: forLiquidity,
-          amount_as_of: forLiquidity ? new Date().toISOString().slice(0, 10) : null,
+          amount_as_of: forLiquidity ? toDateInput(new Date()) : null,
           icon,
           goal_year: scope === 'year' ? Number(goalYear) : null,
           recurring_yearly: scope === 'year' ? recurringYearly : false,

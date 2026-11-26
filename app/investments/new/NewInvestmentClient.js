@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Shell from '@/components/Shell';
-import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity } from '@/lib/format';
+import { inr, inrPaise, fmtDate, addMonths, computeMaturity, computeRecurringMaturity, toDateInput } from '@/lib/format';
 import MetalInvoiceDetails from '@/components/MetalInvoiceDetails';
 import MetalWastageDiscountFields from '@/components/MetalWastageDiscountFields';
 import { isLiquiditySaving, isMarketInvestment, isMetalInvestment } from '@/lib/investments';
@@ -136,11 +136,6 @@ function getInitialChitState(initialInvestment) {
   };
 }
 
-function dateInputValue(value) {
-  const match = String(value || '').match(/^\d{4}-\d{2}-\d{2}/);
-  return match ? match[0] : '';
-}
-
 export default function NewInvestmentClient({
   user,
   goals,
@@ -153,7 +148,7 @@ export default function NewInvestmentClient({
   const initialCustomTenure = getInitialCustomTenure(initialInvestment);
   const initialChit = getInitialChitState(initialInvestment);
   const [startDateInput, setStartDateInput] = useState(
-    dateInputValue(initialInvestment?.start_date) || new Date().toISOString().slice(0, 10)
+    toDateInput(initialInvestment?.start_date) || toDateInput(new Date())
   );
   const startDate = useMemo(() => new Date(startDateInput), [startDateInput]);
 

@@ -6,7 +6,7 @@ import Shell from '@/components/Shell';
 import { CoinGlyph, GoalWaterFill, TypeThumbnail, WaterTank, investmentThumbKind } from '@/components/GrowthVisual';
 import Icon from '@/components/Icon';
 import KpiTile from '@/components/KpiTile';
-import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix } from '@/lib/format';
+import { inr, inrShort, fmtDate, TYPE_META, toneFor, labelFor, frequencySuffix, toDateInput } from '@/lib/format';
 import { effectiveCurrentValue, effectiveInvestedAmount, effectiveInvestedSoFar, isLiquiditySaving, isMarketInvestment, isMetalInvestment, isLumpSumInvestment, tenureProgress } from '@/lib/investments';
 import { summarizeTags } from '@/lib/tags';
 import TagList from '@/components/TagList';
@@ -409,7 +409,7 @@ function GoalTrioSection({ investments, currentValue, investedValue, onMoneyGoal
           remainingLabel={moneyGoal ? `${inrShort(Math.max(0, moneyGoal.amount - investedValue))} to go` : ''}
           hasGoal={moneyGoal != null}
           editing={editingMoney}
-          onEdit={(v) => { setEditingMoney(v); if (v) { setMoneyForm({ amount: moneyGoal?.amount ? String(moneyGoal.amount) : '', date: moneyGoal?.date ? String(moneyGoal.date).slice(0, 10) : '' }); setMoneyError(''); } }}
+          onEdit={(v) => { setEditingMoney(v); if (v) { setMoneyForm({ amount: moneyGoal?.amount ? String(moneyGoal.amount) : '', date: toDateInput(moneyGoal?.date) }); setMoneyError(''); } }}
           form={{ fields: [{ key: 'amount', label: 'Target amount (₹)', placeholder: '5000000', auto: true }], values: moneyForm }}
           onFormChange={(k, v) => setMoneyForm((f) => ({ ...f, [k]: v }))}
           saving={savingMoney} error={moneyError}
