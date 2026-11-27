@@ -534,7 +534,7 @@ export default function HomeClient({ user }) {
                 {allocation.some((slice) => slice.amount > 0) && (
                   <div className="water-tanks" role="img" aria-label={`Allocation: ${allocation.map((s) => `${s.label} ${Math.round(s.pct)} percent`).join(', ')}`}>
                     {allocation.map((slice) => (
-                      <WaterTank key={slice.key} pct={slice.pct} tone={slice.tone} label={slice.label} title={`${slice.label}: ${inr(slice.amount)} (${slice.hint})`} />
+                      <WaterTank key={slice.key} pct={slice.pct} tone={slice.tone} label={slice.label} amountLabel={inr(slice.amount)} hint={slice.hint} />
                     ))}
                   </div>
                 )}

@@ -523,10 +523,23 @@ export function FdGlyph() {
  * A small upright tank that fills to `pct` with the same waves, shimmer and
  * bubbles as GoalWaterFill. `tone` tints the water (mint, sky, honey, plum).
  */
-export function WaterTank({ pct = 0, tone = 'mint', label, valueLabel, title }) {
+export function WaterTank({ pct = 0, tone = 'mint', label, valueLabel, title, amountLabel, hint }) {
   const fill = Math.max(0, Math.min(100, Number(pct) || 0));
+  const hasTip = amountLabel != null;
   return (
-    <div className="water-tank-col" title={title}>
+    <div
+      className={`water-tank-col${hasTip ? ' has-tip' : ''}`}
+      title={hasTip ? undefined : title}
+      tabIndex={hasTip ? 0 : undefined}
+      aria-label={hasTip ? `${label}: ${amountLabel}, ${Math.round(fill)} percent` : undefined}
+    >
+      {hasTip && (
+        <span className={`water-tank-tip water-tip-${tone}`} role="tooltip">
+          <span className="water-tank-tip-label">{label}</span>
+          <span className="water-tank-tip-amount">{amountLabel}</span>
+          {hint && <span className="water-tank-tip-hint">{hint}</span>}
+        </span>
+      )}
       <div className={`water-tank water-tone-${tone}`} aria-hidden="true">
         {fill > 0 && (
           <div className={`goal-water-body${fill >= 100 ? ' is-full' : ''}`} style={{ height: `${fill}%` }}>
